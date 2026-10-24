@@ -44,6 +44,7 @@ class CoreTest : public QObject
 private slots:
     void vedit_textAnimationPresetsResolve();
     void vedit_koreanTextStylesComeFirst();
+    void vedit_textAnimationSpanStretchesTheWholeReveal();
     void timeConversion();
     void transcriptJsonRoundTrip();
     void transcriptWordsInRange();
@@ -5731,6 +5732,40 @@ void CoreTest::vedit_textAnimationPresetsResolve()
 
 // VEDIT P60: the Korean text styles lead the list, use the bundled Korean fonts, and every
 // animation they name exists.
+// VEDIT (조박사님: 텍스트 애니메이션 적용 시간 조절): a span stretches the whole reveal — the
+// characters' stagger included — rather than cutting it short or leaving it at its own length.
+void CoreTest::vedit_textAnimationSpanStretchesTheWholeReveal()
+{
+    using namespace drift;
+    using namespace drift::textanim;
+    TextAnimator fade;
+    fade.selectors = {stagger(100'000, 200'000)};
+    fade.props.opacity = 0.0;
+    fade.props.hasOpacity = true;
+    ResolvedSlots resolved;
+    resolved.in = {fade};
+
+    TextAnimationSet natural;
+    QCOMPARE(naturalSlotSpanUs(natural.in, resolved.in, charDomains(4)), TimeUs(500'000));
+
+    TextAnimationSet slow;
+    slow.in.spanUs = 1'000'000; // twice its own length
+    for (TimeUs t : {TimeUs(100'000), TimeUs(250'000), TimeUs(400'000)}) {
+        const Frame ref = evaluateTextAnimation(natural, resolved, charFragments(4), charDomains(4), contextAt(t, 3'000'000));
+        const Frame got = evaluateTextAnimation(slow, resolved, charFragments(4), charDomains(4), contextAt(2 * t, 3'000'000));
+        VERIFY_LIST(opacities(got), opacities(ref));
+    }
+    // Not yet done at its own length, done at the span.
+    const Frame mid = evaluateTextAnimation(slow, resolved, charFragments(4), charDomains(4), contextAt(500'000, 3'000'000));
+    QVERIFY(opacities(mid).last() < 0.99);
+    const Frame end = evaluateTextAnimation(slow, resolved, charFragments(4), charDomains(4), contextAt(1'000'000, 3'000'000));
+    VERIFY_LIST(opacities(end), (QList<double>{1, 1, 1, 1}));
+
+    // It is saved with the clip.
+    const TextAnimationSlot back = textAnimationSlotFromJson(textAnimationSlotToJson(slow.in));
+    QCOMPARE(back.spanUs, TimeUs(1'000'000));
+}
+
 void CoreTest::vedit_koreanTextStylesComeFirst()
 {
     const QList<drift::TextPreset> &presets = drift::textPresets();

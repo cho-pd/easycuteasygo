@@ -108,7 +108,6 @@ public:
     // segmentation or face tracking, which never appear on the timeline — keeps a thread, an open
     // demuxer/decoder and its frame caches alive for the rest of the process.
     void retainActivePaths(const QSet<QString> &videoPaths, const QSet<QString> &audioPaths);
-    int videoWorkerCount(); // VEDIT: play trace
     static constexpr qint64 kVideoIdleCloseMs = 4000; // VEDIT: see retainActivePaths
     static constexpr int kMaxVideoWorkers = 4; // VEDIT
     static constexpr qint64 kAdoptIdleMs = 1000; // VEDIT: see ensureWorker

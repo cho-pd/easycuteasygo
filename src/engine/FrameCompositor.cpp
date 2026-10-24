@@ -44,10 +44,6 @@
 #include <QPainterPath>
 #include <QSet>
 #include <QFile> // VEDIT: trace
-extern "C" { // VEDIT: LOST trace
-#include <libavutil/hwcontext.h>
-#include <libavutil/pixdesc.h>
-}
 #include <QDir> // VEDIT: trace
 #include <QElapsedTimer> // VEDIT: trace
 #include <cmath>
@@ -1648,77 +1644,15 @@ GpuFrameTexture FrameCompositor::compositeToTextureAt(drift::TimeUs timelineUs,
     int width = 0;
     int height = 0;
     double renderScale = 1.0;
-    QElapsedTimer spikeClock; // VEDIT: temporary diagnosis of playback hitches
-    spikeClock.start();
-    if (!prepare(timelineUs, options, &scene, &width, &height, &renderScale)) {
-        if (options.readAheadUs > 0) { // VEDIT: LOST trace — the viewer keeps the previous frame
-            QFile f(QDir::temp().filePath(QStringLiteral("vedit-play-trace.log")));
-            if (f.open(QIODevice::Append | QIODevice::Text))
-                f.write(QStringLiteral("  LOST t=%1s prepare-failed\n")
-                            .arg(double(timelineUs) / 1e6, 0, 'f', 2).toUtf8());
-        }
+    if (!prepare(timelineUs, options, &scene, &width, &height, &renderScale))
         return {};
-    }
-    const qint64 preparedNs = spikeClock.nsecsElapsed();
 
     GpuFrameTexture out = GpuCompositor::renderToTexture(scene);
     // VEDIT (조박사님: "클립이 넘어갈 때 앞 클립 잔상이 잠깐 나왔다 넘어간다"): when a video layer
     // could not be put on the GPU, renderToTexture publishes nothing and the viewer keeps the
-    // previous clip's last frame. Write it down, and try once more — the first frame of a freshly
-    // opened decoder is the one that misses.
-    if (options.readAheadUs > 0 && !out.isValid() && !scene.items.isEmpty()) {
-        QString layers;
-        for (const GpuItem &item : scene.items) {
-            if (!item.layer.video.isValid())
-                continue;
-            const AVFrame *av = item.layer.video.frame.get();
-            const char *fmt = av_get_pix_fmt_name(static_cast<AVPixelFormat>(av->format));
-            QString sw;
-            if (av->hw_frames_ctx) {
-                const auto *fc = reinterpret_cast<const AVHWFramesContext *>(av->hw_frames_ctx->data);
-                sw = QString::fromLatin1(av_get_pix_fmt_name(fc->sw_format));
-            }
-            layers += QStringLiteral(" %1/%2 %3x%4").arg(QString::fromLatin1(fmt ? fmt : "?"), sw)
-                          .arg(av->width).arg(av->height);
-        }
+    // previous clip's last frame. One more try while playing.
+    if (options.readAheadUs > 0 && !out.isValid() && !scene.items.isEmpty())
         out = GpuCompositor::renderToTexture(scene);
-        static QMutex lostMutex;
-        QMutexLocker lock(&lostMutex);
-        QFile f(QDir::temp().filePath(QStringLiteral("vedit-play-trace.log")));
-        if (f.open(QIODevice::Append | QIODevice::Text))
-            f.write(QStringLiteral("  LOST t=%1s retry=%2 items=%3 video:%4\n")
-                        .arg(double(timelineUs) / 1e6, 0, 'f', 2)
-                        .arg(out.isValid() ? QStringLiteral("ok") : QStringLiteral("fail"))
-                        .arg(scene.items.size())
-                        .arg(layers)
-                        .toUtf8());
-    }
-    // VEDIT (temporary, 조박사님: "재생하면 가다 끊긴다"): a frame that took long while playing is
-    // written down with where the time went, to %TEMP%/vedit-play-trace.log.
-    const qint64 totalNs = spikeClock.nsecsElapsed();
-    if (options.readAheadUs > 0 && totalNs > 40'000'000) {
-        static QMutex logMutex;
-        QMutexLocker lock(&logMutex);
-        QFile f(QDir::temp().filePath(QStringLiteral("vedit-play-trace.log")));
-        if (f.open(QIODevice::Append | QIODevice::Text)) {
-            int effects = 0;
-            for (const GpuItem &item : scene.items)
-                effects += item.layer.effects.size();
-            f.write(QStringLiteral("  SLOW t=%1s total=%2ms prepare=%3ms gpu=%4ms decodeWait=%5ms items=%6 "
-                                   "effects=%7 cache=%8 %9x%10\n")
-                        .arg(double(timelineUs) / 1e6, 0, 'f', 2)
-                        .arg(double(totalNs) / 1e6, 0, 'f', 0)
-                        .arg(double(preparedNs) / 1e6, 0, 'f', 0)
-                        .arg(double(totalNs - preparedNs) / 1e6, 0, 'f', 0)
-                        .arg(double(ClipReaderPool::decodeWaitNs()) / 1e6, 0, 'f', 0)
-                        .arg(scene.items.size())
-                        .arg(effects)
-                        .arg(RenderCache::instance().lookup(timelineUs, nullptr) ? 1 : 0)
-                        .arg(width)
-                        .arg(height)
-                        .toUtf8());
-        }
-    }
     return out;
 }
 

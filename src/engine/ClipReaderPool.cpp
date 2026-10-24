@@ -338,12 +338,6 @@ void ClipReaderPool::resetAudioStreams()
         entry.second->worker->requestAudioReposition();
 }
 
-int ClipReaderPool::videoWorkerCount()
-{
-    QMutexLocker lock(&m_mutex);
-    return int(m_videoWorkers.size());
-}
-
 void ClipReaderPool::retainActivePaths(const QSet<QString> &videoPaths, const QSet<QString> &audioPaths)
 {
     std::vector<std::unique_ptr<WorkerEntry>> evicted;

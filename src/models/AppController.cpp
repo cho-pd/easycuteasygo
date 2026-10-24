@@ -1881,6 +1881,61 @@ void applyTextCaretPatch(drift::TextCaret *c, const QVariantMap &m)
     }
 }
 
+// VEDIT (조박사님: "텍스트 애니메이션 적용 시간 조절"): a text clip works like a video clip — a
+// side with a text animation has no fade, and its yellow handle sets how long the animation takes.
+drift::TimeUs veditTextAnimSpanUs(const drift::Clip &clip, bool out)
+{
+    if (clip.type != drift::ClipType::Text)
+        return 0;
+    const drift::TextAnimationSlot &slot = out ? clip.textStyle.animation.out : clip.textStyle.animation.in;
+    if (!slot.isActive())
+        return 0;
+    if (slot.spanUs > 0)
+        return slot.spanUs;
+    const QString text = clip.textContent.isEmpty() ? clip.name : clip.textContent;
+    return drift::textAnimationSlotNaturalSpanUs(slot, out, int(text.size()));
+}
+
+// A side that just got a text animation starts at 1 s (CapCut's default) and drops its fade.
+void veditSettleTextAnimSide(drift::Clip &clip, const QString &side)
+{
+    if (side != QLatin1String("in") && side != QLatin1String("out"))
+        return;
+    const bool out = side == QLatin1String("out");
+    drift::TextAnimationSlot &slot = out ? clip.textStyle.animation.out : clip.textStyle.animation.in;
+    if (!slot.isActive()) {
+        slot.spanUs = 0;
+        return;
+    }
+    if (slot.spanUs <= 0)
+        slot.spanUs = qMin<drift::TimeUs>(1'000'000, qMax<drift::TimeUs>(1, clip.timelineDuration / 2));
+    if (out) {
+        clip.fadeOutUs = 0;
+        if (clip.animOut.kind == drift::ClipAnimKind::Fade)
+            clip.animOut.kind = drift::ClipAnimKind::None;
+    } else {
+        clip.fadeInUs = 0;
+        if (clip.animIn.kind == drift::ClipAnimKind::Fade)
+            clip.animIn.kind = drift::ClipAnimKind::None;
+    }
+}
+
+// The handle lengths for a text clip's animated sides go to the animations; those sides keep no fade.
+void veditRouteTextAnimEdges(drift::Clip &clip, drift::TimeUs *fin, drift::TimeUs *fout, drift::TimeUs minUs)
+{
+    if (clip.type != drift::ClipType::Text)
+        return;
+    drift::TextAnimationSet &set = clip.textStyle.animation;
+    if (set.in.isActive()) {
+        set.in.spanUs = qMax(minUs, *fin);
+        *fin = 0;
+    }
+    if (set.out.isActive()) {
+        set.out.spanUs = qMax(minUs, *fout);
+        *fout = 0;
+    }
+}
+
 void applyTextAnimationSetPatch(drift::TextAnimationSet *set, const QVariantMap &m)
 {
     if (m.contains(QStringLiteral("in")))
@@ -4597,8 +4652,8 @@ TimelineClipsModel::Row AppController::clipRow(const drift::Clip &clip,
         return a.kind == drift::ClipAnimKind::None || a.kind == drift::ClipAnimKind::Fade
                    ? 0.0 : drift::usToSeconds(a.durationUs);
     };
-    row.animIn = motionLength(clip.animIn);
-    row.animOut = motionLength(clip.animOut);
+    row.animIn = qMax(motionLength(clip.animIn), drift::usToSeconds(veditTextAnimSpanUs(clip, false)));
+    row.animOut = qMax(motionLength(clip.animOut), drift::usToSeconds(veditTextAnimSpanUs(clip, true)));
     row.animCombo = clip.animCombo;
     row.fadeCurve = drift::fadeCurveToString(clip.fadeCurve);
     row.fadeOutCurve = drift::fadeCurveToString(clip.effectiveFadeOutCurve()); // VEDIT
@@ -15549,6 +15604,7 @@ void AppController::previewSetClipFade(int trackIndex, int clipIndex, double fad
     drift::TimeUs fout = qMax<drift::TimeUs>(0, drift::secondsToUs(fadeOutSeconds));
     fin = qMin(fin, clip.timelineDuration);
     fout = qMin(fout, clip.timelineDuration - fin);
+    veditRouteTextAnimEdges(clip, &fin, &fout, drift::frameDurationUs(qMax(1, m_project.fps()))); // VEDIT
     // VEDIT (조박사님): a side carrying a movement (slide, zoom…) — the yellow handle sets
     // how long the movement takes, and it stays a movement rather than turning into a fade.
     const auto moves = [](const drift::ClipAnimation &a) {
@@ -18798,10 +18854,12 @@ void AppController::setClipFade(int trackIndex, int clipIndex, double fadeInSeco
     drift::TimeUs fout = qMax<drift::TimeUs>(0, drift::secondsToUs(fadeOutSeconds));
     fin = qMin(fin, clip.timelineDuration);
     fout = qMin(fout, clip.timelineDuration - fin);
-    if (clip.fadeInUs == fin && clip.fadeOutUs == fout)
-        return;
-
     const drift::Project before = m_project;
+    veditRouteTextAnimEdges(clip, &fin, &fout, drift::frameDurationUs(qMax(1, m_project.fps()))); // VEDIT
+    const drift::TextAnimationSet &wasAnim = before.tracks().at(trackIndex).clips.at(clipIndex).textStyle.animation;
+    if (clip.fadeInUs == fin && clip.fadeOutUs == fout && wasAnim.in.spanUs == clip.textStyle.animation.in.spanUs
+        && wasAnim.out.spanUs == clip.textStyle.animation.out.spanUs)
+        return;
     // First fade on an audio clip defaults to equal-power (constant loudness).
     const bool hadFade = clip.fadeInUs > 0 || clip.fadeOutUs > 0;
     if (!hadFade && (fin > 0 || fout > 0) && clip.type == drift::ClipType::Audio)
@@ -31814,6 +31872,7 @@ void AppController::setTextAnimationSlot(int trackIndex, int clipIndex, const QS
         return;
     const drift::Project before = m_project;
     applyTextAnimationSetPatch(&clip->textStyle.animation, QVariantMap{{slot, patch}});
+    veditSettleTextAnimSide(*clip, slot); // VEDIT
     clip->textStyle.packId.clear();
     pushProjectEdit(before, tr("Edit text animation"));
     finishEdit(tr("Text animation updated"));
@@ -31829,6 +31888,7 @@ void AppController::previewSetTextAnimationSlot(int trackIndex, int clipIndex, c
         return;
     beginImplicitPreviewDrag(tr("Edit text animation"));
     applyTextAnimationSetPatch(&clip->textStyle.animation, QVariantMap{{slot, patch}});
+    veditSettleTextAnimSide(*clip, slot); // VEDIT
     emitPreviewEdit(trackIndex, clipIndex, {QStringLiteral("textAnim.%1").arg(slot)});
 }
 

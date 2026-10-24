@@ -1308,7 +1308,6 @@ void AssetLibrary::startNextProxy()
         // VEDIT (조박사님, CapCut): a background job — the lowest priority, and it stands aside
         // entirely while the timeline plays (see the progress callback).
         QThread::currentThread()->setPriority(QThread::LowestPriority);
-        drift::ReverseProxyCache::proxyBuilding.store(true); // VEDIT: play trace
         const QString outPath = drift::newReversePath();
         QString error;
         const bool ok = !outPath.isEmpty()
@@ -1332,7 +1331,6 @@ void AssetLibrary::startNextProxy()
                                              return m_proxyCancel.loadRelaxed() == 0;
                                          });
         const bool cancelled = m_proxyCancel.loadRelaxed() != 0;
-        drift::ReverseProxyCache::proxyBuilding.store(false); // VEDIT
 
         QMetaObject::invokeMethod(
             this,

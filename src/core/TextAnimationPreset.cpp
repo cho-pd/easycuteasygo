@@ -491,6 +491,23 @@ ResolvedTextAnimation resolveTextAnimation(const TextAnimationSet &set)
     return out;
 }
 
+TimeUs textAnimationSlotNaturalSpanUs(const TextAnimationSlot &slot, bool isOut, int chars)
+{
+    if (!slot.isActive())
+        return 0;
+    TextAnimationSet set;
+    (isOut ? set.out : set.in) = slot;
+    const ResolvedTextAnimation r = resolveTextAnimation(set);
+    textanim::Domains domains;
+    domains.chars = qMax(1, chars);
+    domains.nonSpaceChars = qMax(1, chars);
+    domains.words = qMax(1, chars / 4);
+    domains.lines = 1;
+    TextAnimationSlot plain = isOut ? r.set.out : r.set.in;
+    plain.spanUs = 0;
+    return textanim::naturalSlotSpanUs(plain, isOut ? r.resolved.out : r.resolved.in, domains);
+}
+
 void clearTextAnimationResolveCache()
 {
     QMutexLocker lock(&g_resolveMutex);

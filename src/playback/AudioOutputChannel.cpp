@@ -264,14 +264,6 @@ void AudioOutputChannel::start()
                 const qint64 queuedBytes = qMax<qint64>(0, m_sink->bufferSize() - m_sink->bytesFree());
                 m_resumeQueuedUs.store(m_sink->format().durationForBytes(int(queuedBytes)),
                                        std::memory_order_release);
-                // VEDIT (temporary diagnosis: "멈칫" at play): how much silence a resume waits out.
-                if (QFile f(QDir::temp().filePath(QStringLiteral("vedit-audio-trace.log")));
-                    f.open(QIODevice::Append | QIODevice::Text))
-                    f.write(QStringLiteral("%1 resume queued=%2ms buffer=%3ms\n")
-                                .arg(QDateTime::currentDateTime().toString(Qt::ISODateWithMs))
-                                .arg(m_resumeQueuedUs.load() / 1000)
-                                .arg(m_sink->format().durationForBytes(int(m_sink->bufferSize())) / 1000)
-                                .toUtf8());
                 m_paused.store(false, std::memory_order_release);
                 resumed = true;
                 emit m_pull->readyRead(); // VEDIT: a sink gone idle on the short silence pulls again

@@ -4,6 +4,7 @@
 #include "core/Time.h"
 
 #include <QHash>
+#include <QSet> // VEDIT
 #include <QMutex>
 #include <QString>
 
@@ -46,13 +47,13 @@ public:
     // VEDIT (조박사님: "프록시 만드는 중에 편집하면 끊긴다, 캡컷처럼"): set while the timeline plays;
     // background proxy building waits it out so playback keeps the machine to itself.
     static std::atomic<bool> playbackActive;
-    static std::atomic<bool> proxyBuilding; // VEDIT: play trace — a proxy is being written
     static std::atomic<int> previewProxyShortSide;
 
     // Reads the on-disk index, dropping entries whose proxy or source is gone or whose source has
     // changed since the render.
     void load();
-    // Startup GC: removes stray .part files, then prunes the directory to maxBytes, oldest first.
+    // Startup GC: removes stray .part files and (VEDIT) proxies no index entry names that are over an
+    // hour old, then prunes the directory to maxBytes, oldest first.
     // Deleting a proxy that is still referenced is safe; the clip falls back to live decode.
     void sweep(qint64 maxBytes);
 
@@ -81,7 +82,14 @@ private:
         qint64 sourceSize = 0;
     };
 
-    void saveLocked() const;
+    void saveLocked();
+    // VEDIT (조박사님: 프록시 정리): two copies of the app share this folder (and a build's launch
+    // check ran beside the one in use). Each saved only what it knew, so the last to save wiped the
+    // other's entries and left their files unreferenced — 44 files, 7.8 GB, one entry in the index.
+    // Saving now first takes in what is on disk, except what this copy itself dropped.
+    void mergeDiskIndexLocked();
+    void dropFileLocked(const QString &proxyPath);
+    QSet<QString> m_dropped;
 
     mutable QMutex m_mutex;
     QHash<QString, QList<Entry>> m_entries; // absolute source path -> proxies covering parts of it

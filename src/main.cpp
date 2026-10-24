@@ -736,6 +736,10 @@ int main(int argc, char *argv[])
 #endif
 
     QApplication app(argc, argv);
+    // VEDIT: the build's launch check (C:/dev/round.ps1 sets VEDIT_SMOKE) keeps out of the real
+    // app data — it used to load, rewrite and race the proxy index of the copy in use.
+    if (qEnvironmentVariableIsSet("VEDIT_SMOKE"))
+        QStandardPaths::setTestModeEnabled(true);
     veditTrace("app");
     veditTrace("qapplication");
     // VEDIT: single instance (see veditInstanceKey).

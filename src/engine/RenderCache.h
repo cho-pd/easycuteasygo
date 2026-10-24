@@ -82,9 +82,6 @@ private:
     std::atomic<bool> m_playing{false};
     std::atomic<bool> m_enabled{true};
     std::atomic<bool> m_busy{false};
-public:
-    bool isBusy() const { return m_busy.load(); } // VEDIT: play trace
-private:
     std::atomic<int> m_generation{0};
     QString m_dir;
 };

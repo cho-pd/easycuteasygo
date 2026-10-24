@@ -1888,25 +1888,6 @@ bool ClipReader::advanceVideoTo(drift::TimeUs sourceUs, int maxWidth, int maxHei
     const bool needSeek = !m_videoPositioned
                           || (m_hasCover && sourceUs < m_coverPtsUs)
                           || sourceUs - m_lastVideoPtsUs > kForwardSeekThresholdUs;
-    // VEDIT (temporary diagnosis, 조박사님: playback hitches): every seek made while the timeline
-    // plays, and why, to %TEMP%/vedit-play-trace.log.
-    if (needSeek && drift::ReverseProxyCache::playbackActive.load(std::memory_order_relaxed)) {
-        static QMutex seekLogMutex;
-        QMutexLocker lock(&seekLogMutex);
-        QFile f(QDir::temp().filePath(QStringLiteral("vedit-play-trace.log")));
-        if (f.open(QIODevice::Append | QIODevice::Text))
-            f.write(QStringLiteral("  SEEK %1 to=%2 positioned=%3 cover=%4 last=%5 reason=%6 thread=%7\n")
-                        .arg(QFileInfo(m_path).fileName())
-                        .arg(double(sourceUs) / 1e6, 0, 'f', 3)
-                        .arg(m_videoPositioned ? 1 : 0)
-                        .arg(m_hasCover ? double(m_coverPtsUs) / 1e6 : -1.0, 0, 'f', 3)
-                        .arg(double(m_lastVideoPtsUs) / 1e6, 0, 'f', 3)
-                        .arg(!m_videoPositioned ? QStringLiteral("unpositioned")
-                             : (m_hasCover && sourceUs < m_coverPtsUs) ? QStringLiteral("backward")
-                                                                        : QStringLiteral("far-ahead"))
-                        .arg(quintptr(QThread::currentThreadId()))
-                        .toUtf8());
-    }
     if (needSeek && !seekVideoStream(sourceUs))
         return false;
 

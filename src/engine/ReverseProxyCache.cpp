@@ -57,7 +57,6 @@ QString previewProxyPath(const Clip &clip)
 
 std::atomic<bool> ReverseProxyCache::previewProxiesEnabled{true};
 std::atomic<bool> ReverseProxyCache::playbackActive{false}; // VEDIT
-std::atomic<bool> ReverseProxyCache::proxyBuilding{false}; // VEDIT
 #ifdef Q_OS_ANDROID
 std::atomic<int> ReverseProxyCache::previewProxyShortSide{540};
 #else
@@ -123,7 +122,7 @@ void ReverseProxyCache::insert(const QString &sourcePath, TimeUs coverInUs, Time
         if (old.sourceMtimeMs != entry.sourceMtimeMs || old.sourceSize != entry.sourceSize
             || (!old.preview && entry.coverInUs <= old.coverInUs
                 && entry.coverOutUs >= old.coverOutUs)) {
-            QFile::remove(old.proxyPath);
+            dropFileLocked(old.proxyPath);
             list.removeAt(i);
         }
     }
@@ -169,7 +168,7 @@ void ReverseProxyCache::insertPreview(const QString &sourcePath, int shortSide,
         const Entry &old = list.at(i);
         if (old.preview || old.sourceMtimeMs != entry.sourceMtimeMs
             || old.sourceSize != entry.sourceSize) {
-            QFile::remove(old.proxyPath);
+            dropFileLocked(old.proxyPath);
             list.removeAt(i);
         }
     }
@@ -189,7 +188,7 @@ void ReverseProxyCache::removePreview(const QString &sourcePath)
     QList<Entry> &list = it.value();
     for (int i = list.size() - 1; i >= 0; --i) {
         if (list.at(i).preview) {
-            QFile::remove(list.at(i).proxyPath);
+            dropFileLocked(list.at(i).proxyPath);
             list.removeAt(i);
         }
     }
@@ -198,8 +197,52 @@ void ReverseProxyCache::removePreview(const QString &sourcePath)
     saveLocked();
 }
 
-void ReverseProxyCache::saveLocked() const
+void ReverseProxyCache::dropFileLocked(const QString &proxyPath)
 {
+    QFile::remove(proxyPath);
+    m_dropped.insert(QFileInfo(proxyPath).absoluteFilePath());
+}
+
+void ReverseProxyCache::mergeDiskIndexLocked()
+{
+    QFile file(indexPath());
+    if (indexPath().isEmpty() || !file.open(QIODevice::ReadOnly))
+        return;
+    const QJsonArray array = QJsonDocument::fromJson(file.readAll()).array();
+    QSet<QString> known;
+    for (const QList<Entry> &list : std::as_const(m_entries))
+        for (const Entry &entry : list)
+            known.insert(QFileInfo(entry.proxyPath).absoluteFilePath());
+    for (const QJsonValue &value : array) {
+        const QJsonObject object = value.toObject();
+        const QString source = object[QStringLiteral("source")].toString();
+        Entry entry;
+        entry.proxyPath = object[QStringLiteral("proxy")].toString();
+        const QString absolute = QFileInfo(entry.proxyPath).absoluteFilePath();
+        if (source.isEmpty() || entry.proxyPath.isEmpty() || known.contains(absolute)
+            || m_dropped.contains(absolute) || !QFile::exists(entry.proxyPath))
+            continue;
+        entry.coverInUs = TimeUs(object[QStringLiteral("coverInUs")].toDouble());
+        entry.coverOutUs = TimeUs(object[QStringLiteral("coverOutUs")].toDouble());
+        entry.sourceMtimeMs = qint64(object[QStringLiteral("sourceMtimeMs")].toDouble());
+        entry.sourceSize = qint64(object[QStringLiteral("sourceSize")].toDouble());
+        entry.preview = object[QStringLiteral("kind")].toString() == QStringLiteral("preview");
+        entry.shortSide = object[QStringLiteral("shortSide")].toInt();
+        QList<Entry> &list = m_entries[source];
+        // The other copy's preview for a source this one already has a preview of is the stale one.
+        bool duplicate = false;
+        for (const Entry &mine : std::as_const(list))
+            duplicate = duplicate || (entry.preview && mine.preview && mine.shortSide == entry.shortSide);
+        if (!duplicate) {
+            list.append(entry);
+            known.insert(absolute);
+        }
+    }
+}
+
+void ReverseProxyCache::saveLocked()
+{
+    mergeDiskIndexLocked(); // VEDIT
     const QString path = indexPath();
     if (path.isEmpty())
         return;
@@ -263,7 +306,7 @@ void ReverseProxyCache::load()
         const QFileInfo info(source);
         if (!info.exists() || info.lastModified().toMSecsSinceEpoch() != entry.sourceMtimeMs
             || info.size() != entry.sourceSize) {
-            QFile::remove(entry.proxyPath);
+            dropFileLocked(entry.proxyPath);
             continue;
         }
         m_entries[source].append(entry);
@@ -281,6 +324,22 @@ void ReverseProxyCache::sweep(qint64 maxBytes)
     for (const QFileInfo &partial :
          dir.entryInfoList({QStringLiteral("*.part")}, QDir::Files))
         QFile::remove(partial.absoluteFilePath());
+
+    // VEDIT: proxies no index names — written by a copy whose entries another copy's save wiped
+    // before the merge above existed. An hour's grace leaves alone one being finished right now.
+    {
+        QMutexLocker lock(&m_mutex);
+        mergeDiskIndexLocked();
+        QSet<QString> referenced;
+        for (const QList<Entry> &list : std::as_const(m_entries))
+            for (const Entry &entry : list)
+                referenced.insert(QFileInfo(entry.proxyPath).absoluteFilePath());
+        const QDateTime cutoff = QDateTime::currentDateTime().addSecs(-3600);
+        for (const QFileInfo &proxy : dir.entryInfoList({QStringLiteral("*.mp4")}, QDir::Files)) {
+            if (!referenced.contains(proxy.absoluteFilePath()) && proxy.lastModified() < cutoff)
+                QFile::remove(proxy.absoluteFilePath());
+        }
+    }
 
     // Oldest first, so the prune below drops least-recently-written proxies.
     const QFileInfoList proxies =
@@ -305,6 +364,7 @@ void ReverseProxyCache::sweep(qint64 maxBytes)
         return;
 
     QMutexLocker lock(&m_mutex);
+    m_dropped.unite(removed); // VEDIT: not merged back from the disk index
     for (auto it = m_entries.begin(); it != m_entries.end();) {
         QList<Entry> &list = it.value();
         for (int i = list.size() - 1; i >= 0; --i) {

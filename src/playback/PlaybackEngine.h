@@ -194,14 +194,6 @@ private:
     // VEDIT (조박사님: "꿀렁 멈칫 하고 출발"): play waits for its first frame — decoders reopened for
     // playback, two layers or the 임시 렌더링 file — before sound and clock set off together.
     bool m_prerolling = false;
-    // VEDIT (temporary diagnosis, 조박사님: "재생하면 가다 끊기고"): once a second while playing,
-    // what the screen got — written to %TEMP%/vedit-play-trace.log.
-    QTimer m_traceTimer;
-    qint64 m_traceLastFrameNs = 0;
-    double m_traceMaxGapMs = 0.0;
-    int m_traceFrames = 0;
-    int m_traceDroppedAtStart = 0;
-    void writePlayTrace();
     bool m_prerollFrameSeen = false;
     QTimer m_prerollTimer;
     void finishPreroll();

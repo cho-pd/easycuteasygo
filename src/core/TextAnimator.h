@@ -193,6 +193,10 @@ struct TextAnimationSlot
     TimeUs delayUs = 0;    // In: after the window start; Out: before the window end
     TimeUs durationUs = 0; // Curves progress length; 0 = derive from the stagger selectors
     TimeUs periodUs = 0;   // Loop: 0 = progress spans the whole window, else periodic
+    // VEDIT (조박사님: "텍스트 애니메이션 적용 시간 조절"): In/Out — how long the whole thing takes,
+    // delay and every character's stagger included. The animation is played faster or slower to
+    // fit; the yellow handle on the clip sets it. 0 = its own natural length.
+    TimeUs spanUs = 0;
     bool enabled = true;
 
     bool isActive() const { return enabled && (!presetId.isEmpty() || !animators.isEmpty()); }
@@ -249,6 +253,9 @@ QJsonObject textCaretToJson(const TextCaret &caret);
 TextCaret textCaretFromJson(const QJsonObject &o);
 QJsonObject textAnimationSlotToJson(const TextAnimationSlot &slot);
 TextAnimationSlot textAnimationSlotFromJson(const QJsonObject &o);
+// VEDIT: an In/Out slot's natural length (delay + every character's stagger), for `chars`
+// characters, with the preset resolved. 0 when the slot is not active.
+TimeUs textAnimationSlotNaturalSpanUs(const TextAnimationSlot &slot, bool isOut, int chars);
 QJsonObject textAnimationSetToJson(const TextAnimationSet &set);
 TextAnimationSet textAnimationSetFromJson(const QJsonObject &o);
 // Everything that changes the evaluated motion (cache keys).
@@ -277,6 +284,10 @@ struct Domains
     int words = 0;
     int lines = 0;
 };
+
+// VEDIT: an In/Out slot's length as authored — delay plus the last character's stagger.
+TimeUs naturalSlotSpanUs(const TextAnimationSlot &slot, const QList<TextAnimator> &animators,
+                         const Domains &domains);
 
 // Per-fragment result. dx/dy already include the tracking / line-spacing / collapse shifts.
 struct FragmentProps

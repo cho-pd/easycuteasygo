@@ -14,6 +14,8 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QJsonDocument>
+#include <QJsonObject> // VEDIT
+#include <QJsonArray> // VEDIT
 #include <QMatrix4x4>
 #include <QPainter>
 #include <QProcess>
@@ -312,6 +314,7 @@ private slots:
     void vedit_specialEntrancesRender();
     void vedit_penWritingRevealsLeftToRight();
     void vedit_playbackHitchProbe();
+    void vedit_proxyIndexKeepsOtherCopysEntries();
     void maskApplierEllipseMasksCorners();
     void maskApplierFoldsAStackByItsOps();
     void maskShapesUseBothSizeAxes();
@@ -12787,6 +12790,57 @@ void EngineTest::vedit_penWritingRevealsLeftToRight()
 
 // VEDIT (diagnosis, 조박사님: "재생하면 가다 끊긴다"): plays VEDIT_PROBE_FILE through the playback
 // path (read-ahead on, real-time pacing) and prints every frame that took more than 30 ms.
+// VEDIT (조박사님: 프록시 정리): a second copy of the app saving its index must not wipe the
+// entries this copy wrote — that is what left 44 proxies on disk with one entry naming them.
+void EngineTest::vedit_proxyIndexKeepsOtherCopysEntries()
+{
+    const QString dir = drift::reverseCacheDir();
+    QVERIFY(!dir.isEmpty());
+    QTemporaryDir sources;
+    QVERIFY(sources.isValid());
+    const auto touch = [](const QString &path) {
+        QFile f(path);
+        return f.open(QIODevice::WriteOnly) && f.write("x") == 1;
+    };
+    const QString sourceA = sources.filePath(QStringLiteral("a.mp4"));
+    const QString sourceB = sources.filePath(QStringLiteral("b.mp4"));
+    QVERIFY(touch(sourceA) && touch(sourceB));
+    const QString proxyA = drift::newReversePath();
+    const QString proxyB = drift::newReversePath();
+    QVERIFY(touch(proxyA) && touch(proxyB));
+
+    drift::ReverseProxyCache &cache = drift::ReverseProxyCache::instance();
+    cache.insertPreview(sourceA, 720, proxyA);
+
+    // Another copy, which never saw A, saves an index holding only B.
+    const QFileInfo infoB(sourceB);
+    QJsonObject other;
+    other[QStringLiteral("source")] = infoB.absoluteFilePath();
+    other[QStringLiteral("proxy")] = proxyB;
+    other[QStringLiteral("kind")] = QStringLiteral("preview");
+    other[QStringLiteral("shortSide")] = 720;
+    other[QStringLiteral("sourceMtimeMs")] = double(infoB.lastModified().toMSecsSinceEpoch());
+    other[QStringLiteral("sourceSize")] = double(infoB.size());
+    QFile index(QDir(dir).filePath(QStringLiteral("index.json")));
+    QVERIFY(index.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    index.write(QJsonDocument(QJsonArray{other}).toJson(QJsonDocument::Compact));
+    index.close();
+
+    // This copy saves again (any change does); both must survive, and a reload sees both.
+    const QString proxyA2 = drift::newReversePath();
+    QVERIFY(touch(proxyA2));
+    cache.insertPreview(sourceA, 720, proxyA2);
+    cache.load();
+    QCOMPARE(cache.lookupPreview(sourceA, 720), proxyA2);
+    QCOMPARE(cache.lookupPreview(sourceB, 720), proxyB);
+    QVERIFY(!QFile::exists(proxyA)); // superseded by A2
+
+    cache.removePreview(sourceA);
+    cache.removePreview(sourceB);
+    QVERIFY(!QFile::exists(proxyA2));
+    QVERIFY(!QFile::exists(proxyB));
+}
+
 void EngineTest::vedit_playbackHitchProbe()
 {
     const QString path = qEnvironmentVariable("VEDIT_PROBE_FILE");

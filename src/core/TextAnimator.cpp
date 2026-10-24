@@ -323,6 +323,37 @@ TimeUs derivedSlotDuration(const TextAnimationSlot &slot, const QList<TextAnimat
     return longest > 0 ? longest : 400000;
 }
 
+// VEDIT: the stagger-and-delay length of the slot as authored (see TextAnimationSlot::spanUs).
+TimeUs naturalSlotSpan(const TextAnimationSlot &slot, const QList<TextAnimator> &animators,
+                       const Domains &domains)
+{
+    TimeUs longest = derivedSlotDuration(slot, animators, domains);
+    for (const TextAnimator &a : animators) {
+        if (!a.enabled)
+            continue;
+        for (const TextRangeSelector &sel : a.selectors) {
+            if (sel.driver != TextSelectorDriver::Stagger)
+                continue;
+            const double maxSlot = maxReindex(domainSize(sel.domain, domains), sel.order);
+            longest = std::max(longest, static_cast<TimeUs>(maxSlot * sel.staggerUs) + sel.durationUs);
+        }
+    }
+    return std::max<TimeUs>(0, slot.delayUs) + longest;
+}
+
+// VEDIT: maps clip time onto the slot's own clock when the user set its length.
+TimeUs scaledSlotTime(const TextAnimationSlot &slot, const QList<TextAnimator> &animators,
+                      const Domains &domains, TimeUs t)
+{
+    if (slot.spanUs <= 0)
+        return t;
+    const TimeUs natural = naturalSlotSpan(slot, animators, domains);
+    if (natural <= 0)
+        return t;
+    return static_cast<TimeUs>(static_cast<double>(t) * static_cast<double>(natural)
+                               / static_cast<double>(slot.spanUs));
+}
+
 SlotTime slotTimeFor(TextAnimSlotKind kind, const TextAnimationSlot &slot,
                      const QList<TextAnimator> &animators, const Domains &domains,
                      const EvalContext &ctx)
@@ -337,14 +368,14 @@ SlotTime slotTimeFor(TextAnimSlotKind kind, const TextAnimationSlot &slot,
     st.durationUs = derivedSlotDuration(slot, animators, domains);
     switch (kind) {
     case TextAnimSlotKind::In: {
-        const TimeUs elapsed = t - start - slot.delayUs;
+        const TimeUs elapsed = scaledSlotTime(slot, animators, domains, t - start) - slot.delayUs; // VEDIT
         st.staggerElapsedUs = elapsed;
         st.progress = clamp01(static_cast<double>(elapsed) / static_cast<double>(st.durationUs));
         st.elapsedSec = usToSeconds(std::max<TimeUs>(0, t - start));
         break;
     }
     case TextAnimSlotKind::Out: {
-        const TimeUs remaining = end - slot.delayUs - t;
+        const TimeUs remaining = scaledSlotTime(slot, animators, domains, end - t) - slot.delayUs; // VEDIT
         st.isOut = true;
         st.staggerElapsedUs = remaining;
         st.progress = clamp01(1.0 - static_cast<double>(remaining) / static_cast<double>(st.durationUs));
@@ -607,6 +638,13 @@ CaretState caretFor(const TextAnimationSet &set, const ResolvedSlots &resolved, 
 }
 
 } // namespace
+
+// VEDIT: see TextAnimationSlot::spanUs.
+TimeUs naturalSlotSpanUs(const TextAnimationSlot &slot, const QList<TextAnimator> &animators,
+                         const Domains &domains)
+{
+    return naturalSlotSpan(slot, animators, domains);
+}
 
 double rangeSelectorCoverage(const TextRangeSelector &sel, int domainIndex, int domainSize,
                              double progress)
@@ -1173,6 +1211,8 @@ QJsonObject textAnimationSlotToJson(const TextAnimationSlot &s)
         o.insert(QStringLiteral("durationUs"), static_cast<qint64>(s.durationUs));
     if (s.periodUs != 0)
         o.insert(QStringLiteral("periodUs"), static_cast<qint64>(s.periodUs));
+    if (s.spanUs != 0) // VEDIT
+        o.insert(QStringLiteral("spanUs"), static_cast<qint64>(s.spanUs));
     if (!s.enabled)
         o.insert(QStringLiteral("enabled"), false);
     return o;
@@ -1190,6 +1230,7 @@ TextAnimationSlot textAnimationSlotFromJson(const QJsonObject &o)
     s.delayUs = o.value(QStringLiteral("delayUs")).toInteger(0);
     s.durationUs = o.value(QStringLiteral("durationUs")).toInteger(0);
     s.periodUs = o.value(QStringLiteral("periodUs")).toInteger(0);
+    s.spanUs = o.value(QStringLiteral("spanUs")).toInteger(0); // VEDIT
     s.enabled = jsonBool(o.value(QStringLiteral("enabled")), true);
     return s;
 }
