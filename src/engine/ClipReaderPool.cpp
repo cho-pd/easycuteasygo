@@ -6,6 +6,7 @@
 #include <QMetaType>
 
 #include <iterator>
+#include <thread> // VEDIT
 
 ClipReaderPool &ClipReaderPool::instance()
 {
@@ -47,9 +48,34 @@ void ClipReaderPool::stopWorkerEntry(WorkerEntry &entry)
 }
 
 ClipReaderPool::WorkerEntry &ClipReaderPool::ensureWorker(
-    std::map<QString, std::unique_ptr<WorkerEntry>> &workers, const QString &path)
+    std::map<QString, std::unique_ptr<WorkerEntry>> &workers, const QString &path, quint64 streamId)
 {
-    auto it = workers.find(path);
+    // VEDIT (조박사님: "자르고 나면 버벅인다"): one thread per clip, not per file. A cut leaves two
+    // clips on one file; on one thread the next piece's warm-up — a seek back to its keyframe and
+    // a run of 4K decodes — held the piece on screen for a second or more, frame after frame.
+    const QString key = streamId != 0 ? path + QStringLiteral("#") + QString::number(streamId, 16) : path;
+    auto it = workers.find(key);
+    // VEDIT (조박사님: "클립이 넘어갈 때 앞 클립 잔상"): a clip with no worker of its own takes over
+    // one of its file's that nobody has read for a second (a piece already played past) instead of
+    // opening another decoder — that open is what held the previous clip's frame on screen.
+    if (it == workers.end() && streamId != 0 && &workers == &m_videoWorkers) {
+        const QString prefix = path + QStringLiteral("#");
+        auto spare = workers.end();
+        for (auto w = workers.begin(); w != workers.end(); ++w) {
+            if (!w->first.startsWith(prefix) || w->second->inFlight > 0
+                || w->second->lastUse.elapsed() < kAdoptIdleMs || m_protectedVideoKeys.contains(w->first))
+                continue;
+            if (spare == workers.end() || w->second->lastUse.elapsed() > spare->second->lastUse.elapsed())
+                spare = w;
+        }
+        if (spare != workers.end()) {
+            std::unique_ptr<WorkerEntry> entry = std::move(spare->second);
+            workers.erase(spare);
+            QMetaObject::invokeMethod(entry->worker, "adoptStream", Qt::QueuedConnection,
+                                      Q_ARG(quint64, streamId));
+            it = workers.emplace(key, std::move(entry)).first;
+        }
+    }
     if (it == workers.end()) {
         auto entry = std::make_unique<WorkerEntry>();
         entry->thread = std::make_unique<QThread>();
@@ -62,7 +88,7 @@ ClipReaderPool::WorkerEntry &ClipReaderPool::ensureWorker(
         // so the GUI/audio threads are never stuck inside avformat_find_stream_info
         // while holding the pool mutex (multi-hour files make that open very slow).
         QMetaObject::invokeMethod(entry->worker, "openPath", Qt::QueuedConnection, Q_ARG(QString, path));
-        it = workers.emplace(path, std::move(entry)).first;
+        it = workers.emplace(key, std::move(entry)).first;
     }
 
     it->second->lastUse.start();
@@ -82,7 +108,9 @@ std::vector<std::unique_ptr<ClipReaderPool::WorkerEntry>> ClipReaderPool::detach
     std::vector<std::unique_ptr<WorkerEntry>> evicted;
     for (auto it = workers.begin(); it != workers.end();) {
         WorkerEntry &entry = *it->second;
-        if (keep.contains(it->first) || entry.inFlight > 0 || entry.lastUse.elapsed() < minIdleMs) {
+        const int hash = it->first.lastIndexOf(QLatin1Char('#')); // VEDIT: per-clip keys
+        const QString path = hash >= 0 ? it->first.left(hash) : it->first;
+        if (keep.contains(path) || entry.inFlight > 0 || entry.lastUse.elapsed() < minIdleMs) {
             ++it;
             continue;
         }
@@ -137,12 +165,48 @@ void ClipReaderPool::warmVideoFrames(const QList<VideoRequest> &requests)
         // stops the idle release from deleting the worker between resolving it and posting to it.
         QMutexLocker lock(&m_mutex);
         // Prefer the preview decode path so warm hits the same cache as composite.
-        QMetaObject::invokeMethod(ensureWorker(m_videoWorkers, request.path).worker, "decodePreviewVideo",
+        QMetaObject::invokeMethod(ensureWorker(m_videoWorkers, request.path, request.streamId).worker, "decodePreviewVideo",
                                   Qt::QueuedConnection,
                                   Q_ARG(quint64, request.streamId), Q_ARG(drift::TimeUs, request.sourceUs),
                                   Q_ARG(int, request.maxWidth), Q_ARG(int, request.maxHeight),
                                   Q_ARG(QString, QString()), Q_ARG(int, 15), Q_ARG(bool, false),
                                   Q_ARG(int, request.rotationCorrection));
+    }
+}
+
+void ClipReaderPool::touchVideoStreams(const QList<VideoRequest> &requests)
+{
+    QMutexLocker lock(&m_mutex);
+    for (const VideoRequest &request : requests) {
+        const QString key = request.streamId != 0
+            ? request.path + QStringLiteral("#") + QString::number(request.streamId, 16)
+            : request.path;
+        if (auto it = m_videoWorkers.find(key); it != m_videoWorkers.end())
+            it->second->lastUse.start();
+    }
+}
+
+void ClipReaderPool::protectVideoStreams(const QList<VideoRequest> &requests)
+{
+    QMutexLocker lock(&m_mutex);
+    m_protectedVideoKeys.clear();
+    for (const VideoRequest &request : requests) {
+        const QString key = videoKey(request.path, request.streamId);
+        m_protectedVideoKeys.insert(key);
+        if (auto it = m_videoWorkers.find(key); it != m_videoWorkers.end())
+            it->second->lastUse.start();
+    }
+}
+
+void ClipReaderPool::warmVideoFrames(const QList<VideoRequest> &requests, drift::TimeUs readAheadUs)
+{
+    warmVideoFrames(requests);
+    for (const VideoRequest &request : requests) {
+        if (request.path.isEmpty())
+            continue;
+        QMutexLocker lock(&m_mutex);
+        ensureWorker(m_videoWorkers, request.path, request.streamId).worker->requestPrefetchPreview(
+            request.streamId, request.maxWidth, request.maxHeight, readAheadUs);
     }
 }
 
@@ -177,7 +241,7 @@ QImage ClipReaderPool::readVideoFrame(const QString &path, quint64 streamId, dri
         // parallel instead of serializing on this lock. inFlight keeps the idle
         // release from destroying the entry while we hold its raw worker pointer.
         QMutexLocker lock(&m_mutex);
-        entry = &ensureWorker(m_videoWorkers, path);
+        entry = &ensureWorker(m_videoWorkers, path, streamId);
         ++entry->inFlight;
     }
     ClipReaderWorker *worker = entry->worker;
@@ -215,7 +279,7 @@ PreviewVideoFrame ClipReaderPool::readPreviewVideoFrame(const QString &path, qui
     WorkerEntry *entry = nullptr;
     {
         QMutexLocker lock(&m_mutex);
-        entry = &ensureWorker(m_videoWorkers, path);
+        entry = &ensureWorker(m_videoWorkers, path, streamId);
         ++entry->inFlight;
     }
     ClipReaderWorker *worker = entry->worker;
@@ -274,13 +338,46 @@ void ClipReaderPool::resetAudioStreams()
         entry.second->worker->requestAudioReposition();
 }
 
+int ClipReaderPool::videoWorkerCount()
+{
+    QMutexLocker lock(&m_mutex);
+    return int(m_videoWorkers.size());
+}
+
 void ClipReaderPool::retainActivePaths(const QSet<QString> &videoPaths, const QSet<QString> &audioPaths)
 {
     std::vector<std::unique_ptr<WorkerEntry>> evicted;
     {
         QMutexLocker lock(&m_mutex);
-        for (const QString &path : videoPaths)
-            ensureWorker(m_videoWorkers, path);
+        // VEDIT (조박사님: "멈추고 깜박거린다"): video workers are per clip now, each with its own
+        // (often hardware, 4K) decoder. One a clip has not asked of for a few seconds is closed —
+        // after a run of cuts they piled up (ten 4K NVDEC sessions) until the GPU ran out of
+        // memory and every frame took seconds. Every read restarts lastUse, so the clips on screen
+        // and the one being warmed stay open; going back to an old piece reopens it.
+        // On top of that, never keep more than kMaxVideoWorkers: the least recently read go first
+        // (only ones idle for half a second — anything mid-read or just read stays).
+#ifndef Q_OS_ANDROID
+        Q_UNUSED(videoPaths);
+        evicted = detachIdleLocked(m_videoWorkers, {}, kVideoIdleCloseMs);
+        // VEDIT (Codex 검토 1): the half-second grace alone let a run of short pieces — every one
+        // just read or just warmed — sit above the cap. Anything not on screen or about to start is
+        // closed regardless; the cap only stretches when more clips than that are on screen at once.
+        const int cap = qMax(kMaxVideoWorkers, int(m_protectedVideoKeys.size()));
+        while (int(m_videoWorkers.size()) > cap) {
+            auto oldest = m_videoWorkers.end();
+            for (auto it = m_videoWorkers.begin(); it != m_videoWorkers.end(); ++it) {
+                if (it->second->inFlight > 0 || m_protectedVideoKeys.contains(it->first))
+                    continue;
+                if (oldest == m_videoWorkers.end()
+                    || it->second->lastUse.elapsed() > oldest->second->lastUse.elapsed())
+                    oldest = it;
+            }
+            if (oldest == m_videoWorkers.end())
+                break;
+            evicted.push_back(std::move(oldest->second));
+            m_videoWorkers.erase(oldest);
+        }
+#endif
         for (const QString &path : audioPaths)
             ensureWorker(m_audioWorkers, path);
 #ifdef Q_OS_ANDROID
@@ -295,8 +392,19 @@ void ClipReaderPool::retainActivePaths(const QSet<QString> &videoPaths, const QS
                        std::make_move_iterator(audio.end()));
 #endif
     }
+#ifndef Q_OS_ANDROID
+    // VEDIT: this runs on the render thread every frame; closing a 4K hardware decoder and joining
+    // its thread can take a while, so the closed workers are torn down off to the side.
+    if (!evicted.empty()) {
+        std::thread([doomed = std::move(evicted)]() mutable {
+            for (const std::unique_ptr<WorkerEntry> &entry : doomed)
+                stopWorkerEntry(*entry);
+        }).detach();
+    }
+#else
     for (const std::unique_ptr<WorkerEntry> &entry : evicted)
         stopWorkerEntry(*entry);
+#endif
 }
 
 namespace drift {

@@ -62,9 +62,10 @@ option(DRIFT_AUTO_UPDATE_TRANSLATIONS "Run lupdate as part of the default build"
 # The token is NOT a secret. It ships inside every binary and is trivially extractable; it exists
 # so the bucket cannot be crawled or hotlinked, which would cost operations for someone else's
 # benefit. That is also why it is fine in CMakeCache.txt.
-set(DRIFT_ADDON_INDEX_URL "https://drift-addons.cutwire.org/v1/index"
+# VEDIT: fully offline — no addon service, marketplace or update check by default.
+set(DRIFT_ADDON_INDEX_URL ""
     CACHE STRING "Addon index endpoint; empty disables the addon service")
-set(DRIFT_ADDON_CLIENT_TOKEN "79a388bba9301cacc81cc6eb0724c81e948e1b27c69aee1b"
+set(DRIFT_ADDON_CLIENT_TOKEN ""
     CACHE STRING "Client token sent to the addon service as X-Drift-Client")
 
 # --- Marketplace -----------------------------------------------------------
@@ -76,9 +77,9 @@ set(DRIFT_ADDON_CLIENT_TOKEN "79a388bba9301cacc81cc6eb0724c81e948e1b27c69aee1b"
 #                  -DDRIFT_MARKET_CLIENT_KEY=...
 #
 #   cmake -B build -DDRIFT_MARKET_API_URL=      # no marketplace
-set(DRIFT_MARKET_API_URL "https://market.cutwire.org/api/v1"
+set(DRIFT_MARKET_API_URL ""
     CACHE STRING "Marketplace API base; empty disables the marketplace")
-set(DRIFT_MARKET_CLIENT_KEY "5409a0bebab4446f88e51d06024a5cf9a694ee141a6a1c6be7a49e45b6687438"
+set(DRIFT_MARKET_CLIENT_KEY ""
     CACHE STRING "HMAC key for marketplace client identity and request signing")
 
 # --- Update check -----------------------------------------------------------
@@ -89,7 +90,7 @@ set(DRIFT_MARKET_CLIENT_KEY "5409a0bebab4446f88e51d06024a5cf9a694ee141a6a1c6be7a
 # Set it to an empty string for builds a package manager owns — the Flatpak manifests and the Arch
 # PKGBUILD all do. There, pacman or flatpak fetches the update on its own schedule and an in-app
 # nag is noise the user cannot act on (Flathub's quality guidelines say as much).
-set(DRIFT_UPDATE_FEED_URL "https://api.github.com/repos/CutWire-Studios/Drift/releases/latest"
+set(DRIFT_UPDATE_FEED_URL ""
     CACHE STRING "Release feed polled for updates; empty disables the update check")
 
 # --- Release channel --------------------------------------------------------
@@ -443,6 +444,7 @@ add_library(driftcore STATIC
     src/core/LottieTextImport.cpp
     src/core/TextLook.h
     src/core/TextLook.cpp
+    src/core/VeditTextArt.cpp
     src/core/TextShading.h
     src/core/TextShading.cpp
     src/core/TextAnimationPreset.h
@@ -630,6 +632,8 @@ add_library(driftengine STATIC
     src/engine/CompositorFrameHistory.cpp
     src/engine/FrameCompositor.h
     src/engine/FrameCompositor.cpp
+    src/engine/RenderCache.h # VEDIT: 임시 렌더링
+    src/engine/RenderCache.cpp
     src/engine/MaskApplier.h
     src/engine/MaskApplier.cpp
     src/engine/AudioEffectCatalog.h
@@ -693,8 +697,13 @@ add_library(driftengine STATIC
     src/engine/MediaEditor.cpp
     src/engine/AudioFileWriter.h
     src/engine/AudioFileWriter.cpp
+    src/engine/VoiceRecorder.h # VEDIT
+    src/engine/VoiceRecorder.cpp # VEDIT
+    src/engine/SpeechSynth.h # VEDIT: 글자 읽어주기 (Windows SAPI)
+    src/engine/SpeechSynth.cpp # VEDIT
     src/engine/SpeechAudio.h
     src/engine/SpeechAudio.cpp
+    src/engine/AudioSync.cpp # VEDIT: 소리로 맞추기
     src/engine/SileroVad.h
     src/engine/SileroVad.cpp
     src/engine/CtcAligner.h
@@ -720,6 +729,8 @@ target_include_directories(driftengine SYSTEM PRIVATE ${CMAKE_SOURCE_DIR}/third_
 target_link_libraries(driftengine PUBLIC Qt6::Core Qt6::Gui Qt6::OpenGL FFmpeg::FFmpeg driftcore
     driftaudiodsp onnxruntime::headers)
 target_link_libraries(driftengine PRIVATE ${DRIFT_ZSTD_TARGET} OpenSSL::Crypto ${CMAKE_DL_LIBS})
+target_link_libraries(driftengine PRIVATE Qt6::Multimedia) # VEDIT: VoiceRecorder (QAudioSource)
+target_link_libraries(driftengine PRIVATE Qt6::Concurrent) # VEDIT: RenderCache
 if(WIN32)
     # Hybrid-graphics laptops: D3D11VA -> OpenGL preview interop, and DXGI adapter enumeration for
     # the GPU preference and for opening D3D11VA on the GPU that renders.
@@ -728,6 +739,7 @@ if(WIN32)
         src/engine/D3d11GlInterop.cpp
     )
     target_link_libraries(driftengine PRIVATE d3d11 dxgi d3dcompiler opengl32)
+    target_link_libraries(driftengine PRIVATE sapi ole32) # VEDIT: SpeechSynth
 endif()
 target_compile_definitions(driftengine PRIVATE DRIFT_VERSION="${DRIFT_VERSION_STRING}")
 
@@ -775,6 +787,7 @@ endif()
 # --- application ------------------------------------------------------------
 qt_add_executable(drift
     src/main.cpp
+    src/vedit/VeditRuntimeStrings.cpp # VEDIT: lupdate marks for run-time-translated names
     src/DriftImageProvider.h
     src/DriftImageProvider.cpp
     src/SegmentImageProvider.h
@@ -921,12 +934,24 @@ if(APPLE)
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/Info.plist")
 endif()
 
-# App icon for QApplication::setWindowIcon (all platforms). Rendered from Drift_icon.png,
-# as is resources/windows/drift.ico — keep the two in sync when the branding changes.
+# VEDIT: the Windows program is ECEG.exe ('Easy Cut, Easy Go!'); the CMake target stays "drift"
+# so upstream merges keep working.
+if(WIN32)
+    set_target_properties(drift PROPERTIES OUTPUT_NAME "ECEG")
+endif()
+
+# App icon for QApplication::setWindowIcon (all platforms). VEDIT: drift.png and
+# resources/windows/drift.ico are the 'Easy Cut, Easy Go!' app icon (navy square, white bars), made
+# from the brand guide in ../img by the brand script — keep them in sync when the branding changes.
 qt_add_resources(drift "drift_app_icon"
     PREFIX "/app"
     BASE resources
     FILES resources/drift.png
+          resources/brand/logo-white.png
+          resources/brand/symbol-white.png
+          resources/brand/splash.png # VEDIT: start-up splash (drawn without fonts, shows at once)
+          resources/brand/anim_fg.jpg # VEDIT: 움직임 preview, 들어오기 / 콤보 (../img/a2.png)
+          resources/brand/anim_out.jpg # VEDIT: 움직임 preview, 나가기 (../img/a1.png)
 )
 
 # Fixed input for the playback diagnostics benchmark, so numbers from two different bug
@@ -973,6 +998,7 @@ qt_add_qml_module(drift
         src/qml/DownloadFormat.qml
         src/qml/AndroidDownloadsSheet.qml
         src/qml/components/NavRailButton.qml
+        src/qml/components/TopTabStrip.qml # VEDIT
         # Touch entry point, loaded instead of Main.qml on Android (see src/main.cpp).
         src/qml/AndroidLayoutSheet.qml
         src/qml/AndroidMain.qml
@@ -1012,6 +1038,16 @@ qt_add_qml_module(drift
         src/qml/PropertiesPanel.qml
         src/qml/components/properties/GeneralInspector.qml
         src/qml/components/properties/TextInspector.qml
+        src/qml/components/properties/TextBasicsPanel.qml
+        src/qml/components/properties/TextGalleryPanel.qml
+        src/qml/components/AudioSyncProgressDialog.qml
+        src/qml/components/FadeCurveGlyph.qml
+        src/qml/components/FadeCurvePicker.qml
+        src/qml/components/CrossfadeCurveGrid.qml
+        src/qml/components/FadeCurvePopup.qml
+        src/qml/components/properties/CurvesEditor.qml
+        src/qml/components/properties/ColorWheel.qml
+        src/qml/components/properties/AnimPreviewTile.qml
         src/qml/components/properties/TextParamSlots.qml
         src/qml/components/properties/PaintEditor.qml
         src/qml/components/properties/GradientStopEditor.qml
@@ -1023,6 +1059,7 @@ qt_add_qml_module(drift
         src/qml/components/properties/AudioInspector.qml
         src/qml/components/properties/AudioEffectsInspector.qml
         src/qml/components/properties/SpeedFadeInspector.qml
+        src/qml/components/properties/AdjustInspector.qml # VEDIT
         src/qml/components/properties/AnimationInspector.qml
         src/qml/components/properties/TransitionInspector.qml
         src/qml/components/properties/BlendingInspector.qml
@@ -1038,6 +1075,7 @@ qt_add_qml_module(drift
         src/qml/components/assets/ShapesTab.qml
         src/qml/components/assets/MasksTab.qml
         src/qml/components/assets/SoundsTab.qml
+        src/qml/components/assets/AudioLibraryTab.qml # VEDIT
         src/qml/components/assets/ShortcutsTab.qml
         src/qml/components/assets/MediaAssetsTab.qml
         src/qml/components/assets/MarketConsentPanel.qml
@@ -1060,6 +1098,7 @@ qt_add_qml_module(drift
         src/qml/components/AppScrollBar.qml
         src/qml/components/KeyframeDiamond.qml
         src/qml/components/PropertyKeyframeRow.qml
+        src/qml/components/KeyframeToggle.qml # VEDIT: CapCut ◇ beside a value
         src/qml/components/KeyframeGraph.qml
         src/qml/components/SubtitleCueLane.qml
         src/qml/components/ShortcutCaptureField.qml
@@ -1517,3 +1556,7 @@ add_subdirectory(tools)
 enable_testing()
 add_subdirectory(tests)
 endif() # NOT ANDROID
+
+# VEDIT: the build number shown beside the project name. C:/dev/round.ps1 writes
+# vedit-gen/vedit_build_number.h before each build; without it the number reads 0.
+target_include_directories(drift PRIVATE "${CMAKE_BINARY_DIR}/vedit-gen")

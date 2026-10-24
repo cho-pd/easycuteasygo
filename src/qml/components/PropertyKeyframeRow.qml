@@ -342,6 +342,8 @@ Column {
         id: valueRow
         width: root.width
         spacing: 6
+        // VEDIT (조박사님): the keyframe buttons sit at the right end, as on every other value.
+        layoutDirection: Qt.RightToLeft
         // Width left for the editor once the key button has taken its share.
         readonly property real editorWidth: width - (root.animated ? keyframeNavRow.width : singleKeyButton.width) - spacing
 
@@ -467,6 +469,7 @@ Column {
 
             ThemedSlider {
                 id: valueSlider
+                defaultValue: root.propDef.reset // VEDIT: double-click the handle
                 lockWhilePlaying: true
                 label: root.propDef.label
                 width: parent.width - readoutBox.width - parent.spacing

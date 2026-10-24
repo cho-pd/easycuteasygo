@@ -355,6 +355,16 @@ Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
+                    // VEDIT (조박사님): which build is open, at a glance.
+                    Text {
+                        visible: typeof veditBuildNumber !== "undefined" && veditBuildNumber > 0
+                        text: visible ? qsTr("Build %1").arg(veditBuildNumber) : ""
+                        color: Theme.mutedForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeXs
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
                     IconGlyph {
                         glyph: Theme.icons.chevronDown
                         iconSize: Theme.iconSizeSm

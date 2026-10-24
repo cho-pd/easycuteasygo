@@ -1,4 +1,7 @@
 #include "ClipReader.h"
+#include "ReverseProxyCache.h" // VEDIT: trace
+#include <QThread> // VEDIT: trace
+#include <QFileInfo> // VEDIT: trace
 
 #include "GpuCompositor.h"
 #include "HwAccel.h"
@@ -33,6 +36,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/error.h>
 #include <libavutil/hwcontext.h>
+#include <libavutil/pixdesc.h> // VEDIT
 #include <libavutil/log.h>
 #ifdef Q_OS_ANDROID
 #include <libavutil/hwcontext_mediacodec.h>
@@ -141,6 +145,11 @@ void configureDecodeSws(SwsContext *sws, const AVFrame *src, int dstRange)
 
 int swsFlagsForResize(int srcW, int srcH, int dstW, int dstH)
 {
+    // VEDIT (playback hitches): a big shrink (4K into a preview) averages the pixels it covers —
+    // area filtering looks as clean there as Lanczos and costs a fraction, which is what keeps a
+    // heavy 4K source decoding ahead of the playhead instead of just behind it.
+    if (dstW > 0 && dstH > 0 && srcW >= dstW * 2 && srcH >= dstH * 2)
+        return SWS_AREA;
     return (srcW != dstW || srcH != dstH) ? SWS_LANCZOS : SWS_BICUBIC;
 }
 
@@ -1097,6 +1106,21 @@ bool ClipReader::tryOpenHardwareDecoder()
     if (videoStreamHasAlpha(m_fmt->streams[m_videoStream]))
         return false;
 
+    // VEDIT (조박사님: "재생하면 가다 끊긴다" — Canon 4K H.264 4:2:2 10-bit): no PC video decoder
+    // (NVDEC, D3D11VA on NVIDIA/AMD/Intel) takes H.264 beyond 8-bit 4:2:0. Pinned to hardware, every
+    // frame of such a file tried the GPU, failed and fell back — 140 ms a frame against 30 ms in
+    // software. Those streams go straight to software, whatever the preference.
+    {
+        const AVCodecParameters *par = m_fmt->streams[m_videoStream]->codecpar;
+        if (par->codec_id == AV_CODEC_ID_H264) {
+            const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(static_cast<AVPixelFormat>(par->format));
+            const bool plain420x8 = desc && desc->log2_chroma_w == 1 && desc->log2_chroma_h == 1
+                                    && desc->comp[0].depth <= 8;
+            if (desc && !plain420x8)
+                return false;
+        }
+    }
+
     const HardwareDecodeMode mode = hardwareDecodeMode();
     if (mode == HardwareDecodeMode::Software)
         return false;
@@ -1864,6 +1888,25 @@ bool ClipReader::advanceVideoTo(drift::TimeUs sourceUs, int maxWidth, int maxHei
     const bool needSeek = !m_videoPositioned
                           || (m_hasCover && sourceUs < m_coverPtsUs)
                           || sourceUs - m_lastVideoPtsUs > kForwardSeekThresholdUs;
+    // VEDIT (temporary diagnosis, 조박사님: playback hitches): every seek made while the timeline
+    // plays, and why, to %TEMP%/vedit-play-trace.log.
+    if (needSeek && drift::ReverseProxyCache::playbackActive.load(std::memory_order_relaxed)) {
+        static QMutex seekLogMutex;
+        QMutexLocker lock(&seekLogMutex);
+        QFile f(QDir::temp().filePath(QStringLiteral("vedit-play-trace.log")));
+        if (f.open(QIODevice::Append | QIODevice::Text))
+            f.write(QStringLiteral("  SEEK %1 to=%2 positioned=%3 cover=%4 last=%5 reason=%6 thread=%7\n")
+                        .arg(QFileInfo(m_path).fileName())
+                        .arg(double(sourceUs) / 1e6, 0, 'f', 3)
+                        .arg(m_videoPositioned ? 1 : 0)
+                        .arg(m_hasCover ? double(m_coverPtsUs) / 1e6 : -1.0, 0, 'f', 3)
+                        .arg(double(m_lastVideoPtsUs) / 1e6, 0, 'f', 3)
+                        .arg(!m_videoPositioned ? QStringLiteral("unpositioned")
+                             : (m_hasCover && sourceUs < m_coverPtsUs) ? QStringLiteral("backward")
+                                                                        : QStringLiteral("far-ahead"))
+                        .arg(quintptr(QThread::currentThreadId()))
+                        .toUtf8());
+    }
     if (needSeek && !seekVideoStream(sourceUs))
         return false;
 
@@ -2111,7 +2154,6 @@ bool ClipReader::decodePreviewVideoFrameAtOnce(drift::TimeUs sourceUs, PreviewVi
         return true;
     if (lookupCachedPreview(sourceUs, out))
         return true;
-
     if (!advanceVideoTo(sourceUs, maxWidth, maxHeight, hwFailure))
         return false;
     if (!m_coverFrame)
@@ -2170,7 +2212,13 @@ bool ClipReader::prefetchNextPreviewVideoFrame(int maxWidth, int maxHeight, drif
     if (!m_videoPositioned || m_sourceFrameDurationUs <= 0)
         return false;
 
-    drift::TimeUs target = m_lastVideoPtsUs + m_sourceFrameDurationUs;
+    // VEDIT (조박사님: "재생하면 가다 끊긴다"): step on from the frame shown (the cover), not from
+    // m_lastVideoPtsUs — that is the peek, one frame further, so stepping from it skipped every other
+    // frame: half the read-ahead was never kept, and each skipped frame the playhead then asked for
+    // was behind the decoder, which meant a seek back to the keyframe and a re-decode. On a heavy
+    // 4K source that was a 0.1-0.2 s stall twice a second.
+    // Hardware readers too: the same skip showed on DJI 4K HEVC (NVDEC) as a seek back twice a second.
+    drift::TimeUs target = (m_hasCover ? m_coverPtsUs : m_lastVideoPtsUs) + m_sourceFrameDurationUs;
     PreviewVideoFrame cached;
     while (target - m_lastRequestedPreviewUs < m_readAheadUs && lookupCachedPreview(target, cached))
         target += m_sourceFrameDurationUs;

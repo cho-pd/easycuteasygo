@@ -12,7 +12,8 @@ Column {
 
     readonly property string favoritesId: "__favorites__"
     readonly property var categories: EditorState.effectCategories()
-    readonly property var catalog: EditorState.effectCatalog()
+    // VEDIT: effects whose face / depth model is not installed would do nothing — not offered.
+    readonly property var catalog: EditorState.effectCatalog().filter(e => e.usable !== false)
     property string activeCategory: categories.length > 0 ? categories[0].id : ""
     readonly property string query: search.text.trim().toLowerCase()
     property int favoritesTick: 0

@@ -2,9 +2,11 @@ import QtQuick
 import QtQuick.Controls.Basic
 import Drift
 
-// Dialog allowing the user to select which attributes from the copied clip
-// (transform/motion, speed, volume, video/audio effects, transitions)
-// are pasted onto the selected clips in a single undo step.
+// VEDIT: 특성 붙여넣기 — laid out like CapCut's: the copied clip's attributes, grouped (effect
+// stacks only when it has some, so pasting never wipes a target's effects by surprise),
+// each group with its own check that turns its items on or off, all on to begin with, and a
+// "길이 맞추기" check at the bottom (CapCut's keyframe timing) that stretches the copied
+// keyframes and animation progress to the target clip's length. Fades always keep their seconds.
 ThemedDialog {
     id: root
 
@@ -14,16 +16,61 @@ ThemedDialog {
     rejectText: qsTr("Cancel")
 
     property var clipAttrs: ({})
-    property bool pasteTransform: true
-    property bool pasteSpeed: false
-    property bool pasteVolume: false
-    property bool pasteEffects: true
-    property bool pasteAudioEffects: false
-    property bool pasteTransitions: false
-    property bool replaceEffects: false
+    // key -> checked. Reassigned whole so bindings re-evaluate.
+    property var picked: ({})
+    property bool fitLength: true
 
-    readonly property bool hasAnySelected: pasteTransform || pasteSpeed || pasteVolume
-                                           || pasteEffects || pasteAudioEffects || pasteTransitions
+    readonly property var groups: [
+        { title: qsTr("Video"), items: [
+            { key: "transform", label: qsTr("Position & size (motion, rotation, opacity, mask)"), avail: "isVisual" },
+            { key: "animation", label: qsTr("Animation (in, out, combo)"), avail: "isVisual" },
+            { key: "effects", label: qsTr("Effects & adjustments"), avail: "hasEffects", count: "effectCount" }
+        ] },
+        { title: qsTr("Sound"), items: [
+            { key: "volume", label: qsTr("Volume"), avail: "isAudioOrVideo" },
+            { key: "audioEffects", label: qsTr("Sound effects"), avail: "hasAudioEffects", count: "audioEffectCount" },
+            { key: "channels", label: qsTr("Sound channels"), avail: "isAudioOrVideo" }
+        ] },
+        { title: qsTr("Basic"), items: [
+            { key: "fades", label: qsTr("Fade in / fade out"), avail: "hasClip" },
+            { key: "level", label: qsTr("Level"), avail: "hasClip" },
+            { key: "speed", label: qsTr("Speed"), avail: "isAudioOrVideo" },
+            { key: "transitions", label: qsTr("Transitions"), avail: "hasTransitions" }
+        ] }
+    ]
+
+    function itemShown(item) { return clipAttrs && clipAttrs[item.avail] === true }
+    function groupShown(group) {
+        for (let i = 0; i < group.items.length; ++i)
+            if (itemShown(group.items[i])) return true
+        return false
+    }
+    function groupChecked(group) {
+        let any = false
+        for (let i = 0; i < group.items.length; ++i) {
+            if (!itemShown(group.items[i])) continue
+            if (!picked[group.items[i].key]) return false
+            any = true
+        }
+        return any
+    }
+    function setPicked(key, on) {
+        const next = Object.assign({}, picked)
+        next[key] = on
+        picked = next
+    }
+    function setGroup(group, on) {
+        const next = Object.assign({}, picked)
+        for (let i = 0; i < group.items.length; ++i)
+            if (itemShown(group.items[i])) next[group.items[i].key] = on
+        picked = next
+    }
+    readonly property bool hasAnySelected: {
+        for (let g = 0; g < groups.length; ++g)
+            for (let i = 0; i < groups[g].items.length; ++i)
+                if (itemShown(groups[g].items[i]) && picked[groups[g].items[i].key]) return true
+        return false
+    }
 
     showAccept: hasAnySelected
 
@@ -31,65 +78,35 @@ ThemedDialog {
         clipAttrs = EditorState.clipboardAttributes()
         if (!clipAttrs || !clipAttrs.hasClip)
             return
-
-        pasteTransform = (clipAttrs.hasTransform !== false)
-        pasteSpeed = (clipAttrs.hasSpeed === true)
-        pasteVolume = false
-        pasteEffects = (clipAttrs.hasEffects === true)
-        pasteAudioEffects = (clipAttrs.hasAudioEffects === true)
-        pasteTransitions = (clipAttrs.hasTransitions === true)
-        replaceEffects = false
-
+        const all = {}
+        for (let g = 0; g < groups.length; ++g)
+            for (let i = 0; i < groups[g].items.length; ++i)
+                all[groups[g].items[i].key] = itemShown(groups[g].items[i])
+        picked = all
+        fitLength = true
         open()
     }
 
-    function selectAll() {
-        if (clipAttrs.hasTransform !== false)
-            pasteTransform = true
-        if (clipAttrs.hasSpeed !== false)
-            pasteSpeed = true
-        if (clipAttrs.isAudioOrVideo !== false)
-            pasteVolume = true
-        if (clipAttrs.hasEffects === true)
-            pasteEffects = true
-        if (clipAttrs.hasAudioEffects === true)
-            pasteAudioEffects = true
-        if (clipAttrs.hasTransitions === true)
-            pasteTransitions = true
-    }
-
-    function selectNone() {
-        pasteTransform = false
-        pasteSpeed = false
-        pasteVolume = false
-        pasteEffects = false
-        pasteAudioEffects = false
-        pasteTransitions = false
-    }
-
     onAccepted: {
-        EditorState.pasteAttributes({
-            "transform": root.pasteTransform,
-            "speed": root.pasteSpeed,
-            "volume": root.pasteVolume,
-            "effects": root.pasteEffects,
-            "audioEffects": root.pasteAudioEffects,
-            "transitions": root.pasteTransitions,
-            "replaceEffects": root.replaceEffects
-        })
+        const options = { "fitLength": root.fitLength, "replaceEffects": true }
+        for (let g = 0; g < groups.length; ++g)
+            for (let i = 0; i < groups[g].items.length; ++i) {
+                const item = groups[g].items[i]
+                options[item.key] = itemShown(item) && picked[item.key] === true
+            }
+        EditorState.pasteAttributes(options)
     }
 
     contentItem: Column {
         width: parent ? parent.width : Theme.dialogWidthMd
         spacing: Theme.spacingLg
 
-        // Context header
         Text {
             width: parent.width
             wrapMode: Text.WordWrap
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSm
+            font.pixelSize: 16
             text: {
                 const name = (root.clipAttrs && root.clipAttrs.clipName) ? root.clipAttrs.clipName : qsTr("Clip")
                 const targets = (root.clipAttrs && root.clipAttrs.targetClipCount) ? root.clipAttrs.targetClipCount : 1
@@ -97,144 +114,66 @@ ThemedDialog {
             }
         }
 
-        // Video Attributes Section
-        Column {
-            width: parent.width
-            spacing: Theme.spacingSm
-
-            ThemedLabel {
-                text: qsTr("Video Attributes")
-                size: "xs"
-                color: Theme.primary
-                font.weight: Font.DemiBold
-            }
-
-            ThemedCheckBox {
+        Repeater {
+            model: root.groups
+            delegate: Column {
+                id: groupColumn
+                required property var modelData
                 width: parent.width
-                text: qsTr("Transform (motion, position, scale, opacity)")
-                checked: root.pasteTransform
-                enabled: root.clipAttrs.hasTransform !== false
-                onToggled: root.pasteTransform = checked
-            }
+                spacing: Theme.spacingSm
+                visible: root.groupShown(modelData)
 
-            ThemedCheckBox {
-                width: parent.width
-                text: {
-                    if (root.clipAttrs.hasSpeed) {
-                        const spd = (root.clipAttrs.speed || 1.0).toFixed(2)
-                        const rev = root.clipAttrs.reverse ? qsTr(", reverse") : ""
-                        const curve = root.clipAttrs.hasSpeedCurve ? qsTr(", speed curve") : ""
-                        return qsTr("Speed / Retime (%1x%2%3)").arg(spd).arg(rev).arg(curve)
+                ThemedCheckBox {
+                    text: groupColumn.modelData.title
+                    font.weight: Font.DemiBold
+                    checked: root.groupChecked(groupColumn.modelData)
+                    onToggled: root.setGroup(groupColumn.modelData, checked)
+                }
+                Flow {
+                    width: parent.width
+                    leftPadding: Theme.spacingXl
+                    spacing: Theme.spacingLg
+                    Repeater {
+                        model: groupColumn.modelData.items
+                        delegate: ThemedCheckBox {
+                            required property var modelData
+                            visible: root.itemShown(modelData)
+                            text: {
+                                const n = modelData.count ? (root.clipAttrs[modelData.count] || 0) : -1
+                                return n > 0 ? modelData.label + " (" + n + ")" : modelData.label
+                            }
+                            checked: root.picked[modelData.key] === true
+                            onToggled: root.setPicked(modelData.key, checked)
+                        }
                     }
-                    return qsTr("Speed / Retime")
                 }
-                checked: root.pasteSpeed
-                enabled: root.clipAttrs.isAudioOrVideo !== false
-                onToggled: root.pasteSpeed = checked
-            }
-
-            ThemedCheckBox {
-                id: videoEffectsCheck
-                width: parent.width
-                text: {
-                    const count = root.clipAttrs.effectCount || 0
-                    return count > 0
-                        ? qsTr("Video Effects (%n effect(s))", "", count)
-                        : qsTr("Video Effects (none)")
+                Rectangle {
+                    width: parent.width
+                    height: Theme.borderWidth
+                    color: Theme.panelBorder
                 }
-                checked: root.pasteEffects
-                enabled: (root.clipAttrs.effectCount || 0) > 0
-                onToggled: root.pasteEffects = checked
             }
         }
 
-        // Audio Attributes Section
         Column {
             width: parent.width
-            spacing: Theme.spacingSm
-
-            ThemedLabel {
-                text: qsTr("Audio Attributes")
-                size: "xs"
-                color: Theme.primary
-                font.weight: Font.DemiBold
-            }
-
+            spacing: 2
             ThemedCheckBox {
                 width: parent.width
-                text: qsTr("Volume & Fades (volume keyframes, in/out ramps)")
-                checked: root.pasteVolume
-                enabled: root.clipAttrs.isAudioOrVideo !== false
-                onToggled: root.pasteVolume = checked
+                text: qsTr("Fit to length")
+                checked: root.fitLength
+                onToggled: root.fitLength = checked
             }
-
-            ThemedCheckBox {
-                id: audioEffectsCheck
+            Text {
                 width: parent.width
-                text: {
-                    const count = root.clipAttrs.audioEffectCount || 0
-                    return count > 0
-                        ? qsTr("Audio Effects (%n effect(s))", "", count)
-                        : qsTr("Audio Effects (none)")
-                }
-                checked: root.pasteAudioEffects
-                enabled: (root.clipAttrs.audioEffectCount || 0) > 0
-                onToggled: root.pasteAudioEffects = checked
-            }
-        }
-
-        // Transitions Section
-        Column {
-            width: parent.width
-            spacing: Theme.spacingSm
-            visible: (root.clipAttrs.transitionCount || 0) > 0
-
-            ThemedLabel {
-                text: qsTr("Transitions")
-                size: "xs"
-                color: Theme.primary
-                font.weight: Font.DemiBold
-            }
-
-            ThemedCheckBox {
-                width: parent.width
-                text: qsTr("Transitions (%n transition(s))", "", root.clipAttrs.transitionCount || 0)
-                checked: root.pasteTransitions
-                onToggled: root.pasteTransitions = checked
-            }
-        }
-
-        // Options separator
-        Rectangle {
-            width: parent.width
-            height: Theme.borderWidth
-            color: Theme.panelBorder
-        }
-
-        // Effect Options
-        ThemedCheckBox {
-            width: parent.width
-            text: qsTr("Replace existing effects (instead of appending)")
-            checked: root.replaceEffects
-            enabled: root.pasteEffects || root.pasteAudioEffects
-            onToggled: root.replaceEffects = checked
-        }
-
-        // Quick selection buttons
-        Row {
-            spacing: Theme.spacingMd
-            anchors.right: parent.right
-
-            ThemedButton {
-                variant: "ghost"
-                text: qsTr("Select All")
-                onClicked: root.selectAll()
-            }
-
-            ThemedButton {
-                variant: "ghost"
-                text: qsTr("Select None")
-                onClicked: root.selectNone()
+                leftPadding: Theme.spacingXl * 2
+                wrapMode: Text.WordWrap
+                color: Theme.mutedForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: 16
+                text: root.fitLength
+                      ? qsTr("Keyframes and animation stretch to the target clip's length. Fades keep their seconds.")
+                      : qsTr("Keyframes and animation keep their original times. Fades keep their seconds.")
             }
         }
     }

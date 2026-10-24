@@ -43,6 +43,10 @@ public:
 
     // Set from QSettings by PlaybackEngine; read on the compositor threads.
     static std::atomic<bool> previewProxiesEnabled;
+    // VEDIT (조박사님: "프록시 만드는 중에 편집하면 끊긴다, 캡컷처럼"): set while the timeline plays;
+    // background proxy building waits it out so playback keeps the machine to itself.
+    static std::atomic<bool> playbackActive;
+    static std::atomic<bool> proxyBuilding; // VEDIT: play trace — a proxy is being written
     static std::atomic<int> previewProxyShortSide;
 
     // Reads the on-disk index, dropping entries whose proxy or source is gone or whose source has

@@ -17,7 +17,7 @@ Item {
     readonly property bool audible: clipKind === "audio" || clipKind === "video" || clipKind === "composite"
     // Read straight from a media file: stream choice, denoise and transcription need one.
     readonly property bool fileAudio: (clipKind === "audio" || clipKind === "video") && !clipData.sequenceId
-    readonly property var propVolume: { "key": "volume", "label": qsTr("Volume"), "def": 1.0, "decimals": 2 }
+    readonly property var propVolume: { "key": "volume", "label": qsTr("Volume"), "def": 1.0, "decimals": 2, "reset": 1.0 }
 
     // "Recommended" packs by display width like openai-whisper does; the numbered entries cap
     // words per caption on top of that.
@@ -62,9 +62,138 @@ Item {
             keyframeList: (root.clipData.keyframes && root.clipData.keyframes.volume && root.clipData.keyframes.volume.points) || []
             useSlider: true
             sliderFrom: 0
-            sliderTo: 2
+            sliderTo: 4 // VEDIT: 400%
             percent: true
             decibels: true
+        }
+
+        // VEDIT: 드래그 없이 음량 — mute, half, normal or double in one press.
+        // Hidden once the volume changes over time (two or more keyframes): one press would only
+        // set it at the playhead, not for the whole clip.
+        Flow {
+            visible: root.audible
+                     && !(root.clipData.keyframes && root.clipData.keyframes.volume
+                          && root.clipData.keyframes.volume.points && root.clipData.keyframes.volume.points.length > 1)
+            width: parent.width
+            spacing: 6
+            Repeater {
+                model: [{ v: 0, label: qsTr("Mute") }, { v: 0.5, label: "50%" }, { v: 1, label: "100%" }, { v: 2, label: "200%" }]
+                delegate: ThemedChip {
+                    required property var modelData
+                    text: modelData.label
+                    selected: Math.abs(Number(root.clipData.volume !== undefined ? root.clipData.volume : 1) - modelData.v) < 0.01
+                    onClicked: EditorState.setClipKeyframe(EditorState.selectedTrack, EditorState.selectedClip,
+                                                           "volume", EditorState.playheadSeconds, modelData.v)
+                }
+            }
+        }
+
+        // VEDIT: CapCut's 음량 정규화 — one press sets a comfortable level for this clip.
+        ThemedButton {
+            visible: root.audible
+            width: parent.width
+            text: EditorState.loudnessBusy ? qsTr("Measuring the sound…") : qsTr("Match sound level")
+            enabled: !EditorState.loudnessBusy
+            onClicked: EditorState.matchClipLoudness(EditorState.selectedTrack, EditorState.selectedClip)
+            ToolTip.visible: hovered
+            ToolTip.delay: 600
+            ToolTip.text: qsTr("Makes this clip neither too quiet nor too loud")
+        }
+
+        // VEDIT: CapCut's 무음 제거 (by level).
+        ThemedButton {
+            visible: root.audible
+            width: parent.width
+            text: qsTr("Cut the quiet parts")
+            enabled: !EditorState.audioToolBusy
+            onClicked: EditorState.removeSilentParts(EditorState.selectedTrack, EditorState.selectedClip)
+            ToolTip.visible: hovered
+            ToolTip.delay: 600
+            ToolTip.text: qsTr("Finds the pauses where nobody talks, cuts them out and closes the gaps")
+        }
+
+        // VEDIT: CapCut's 소리 탭 페이드 — fade the sound in / out in one press, no curve editor.
+        Repeater {
+            model: root.audible && root.clipKind === "audio"
+                   ? [{ label: qsTr("Fade in"), key: "fadeIn" }, { label: qsTr("Fade out"), key: "fadeOut" }]
+                   : []
+            delegate: Column {
+                id: fadeRow
+                required property var modelData
+                width: parent.width
+                spacing: 4
+                readonly property real current: Number(root.clipData[modelData.key] || 0)
+                Text {
+                    text: fadeRow.modelData.label
+                    color: Theme.panelForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSm
+                }
+                Flow {
+                    width: parent.width
+                    spacing: 6
+                    Repeater {
+                        model: [0, 1, 2, 3]
+                        delegate: ThemedChip {
+                            required property int modelData
+                            text: modelData === 0 ? qsTr("None") : qsTr("%1 s").arg(modelData)
+                            selected: Math.abs(fadeRow.current - modelData) < 0.05
+                            onClicked: {
+                                const fadeIn = fadeRow.modelData.key === "fadeIn" ? modelData : Number(root.clipData.fadeIn || 0)
+                                const fadeOut = fadeRow.modelData.key === "fadeOut" ? modelData : Number(root.clipData.fadeOut || 0)
+                                EditorState.setClipFade(EditorState.selectedTrack, EditorState.selectedClip, fadeIn, fadeOut)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // VEDIT: CapCut's 음성 강화 — one press for a voice that is hard to make out.
+        ThemedButton {
+            visible: root.audible && (root.clipKind === "audio" || root.clipKind === "video")
+            width: parent.width
+            text: qsTr("Make the voice clearer")
+            onClicked: EditorState.enhanceVoice(EditorState.selectedTrack, EditorState.selectedClip)
+            ToolTip.visible: hovered
+            ToolTip.delay: 600
+            ToolTip.text: qsTr("Less boom, more presence, and quiet words brought up")
+        }
+
+        // VEDIT: background music usually outlasts the video — cut it at the end, fading out.
+        ThemedButton {
+            visible: root.audible && root.clipKind === "audio"
+            width: parent.width
+            text: qsTr("Fit the music to the video")
+            onClicked: EditorState.fitMusicToVideo(EditorState.selectedTrack, EditorState.selectedClip)
+            ToolTip.visible: hovered
+            ToolTip.delay: 600
+            ToolTip.text: qsTr("Ends the music where the video ends, fading out over the last two seconds")
+        }
+
+        // VEDIT: CapCut's 비트 맞추기 — the slideshow changes picture on the music's beat.
+        ThemedButton {
+            visible: root.audible && root.clipKind === "audio"
+            width: parent.width
+            text: EditorState.beatAnalysisRunning ? qsTr("Listening for the beat…")
+                                                  : qsTr("Change photos on the beat")
+            enabled: !EditorState.beatAnalysisRunning
+            onClicked: EditorState.matchPhotosToMusicBeats(EditorState.selectedTrack, EditorState.selectedClip)
+            ToolTip.visible: hovered
+            ToolTip.delay: 600
+            ToolTip.text: qsTr("Finds the beat of this music and makes each photo end on a beat")
+        }
+
+        // VEDIT: CapCut's 더킹 — offered on a sound-only clip, which is where the music sits.
+        ThemedButton {
+            visible: root.audible && root.clipKind === "audio"
+            width: parent.width
+            text: qsTr("Lower music while talking")
+            enabled: !EditorState.audioToolBusy
+            onClicked: EditorState.duckMusicUnderVoices(EditorState.selectedTrack, EditorState.selectedClip)
+            ToolTip.visible: hovered
+            ToolTip.delay: 600
+            ToolTip.text: qsTr("Turns this music down wherever a clip on another track has someone talking")
         }
 
         // ----- Pan (stereo balance) ----------------------------------------
@@ -111,6 +240,7 @@ Item {
 
             ThemedSlider {
                 id: panSlider
+                defaultValue: 0 // VEDIT
                 lockWhilePlaying: true
                 label: qsTr("Pan")
                 width: parent.width

@@ -12,6 +12,7 @@
 
 #ifdef Q_OS_ANDROID
 #include "engine/AndroidUri.h"
+#include <QThread> // VEDIT
 #include <QCryptographicHash>
 #include <QStandardPaths>
 #endif
@@ -1099,7 +1100,8 @@ void AssetLibrary::applyImportResult(const QString &assetId, const drift::MediaA
     asset->filmstripPath = filled.filmstripPath;
 
     // Re-importing a file whose proxy survived in the cache would otherwise suggest another.
-    if (suggestProxy && drift::ReverseProxyCache::previewProxiesEnabled
+    // VEDIT: with automatic proxies on there is nothing to suggest — it is made below.
+    if (!autoProxiesEnabled() && suggestProxy && drift::ReverseProxyCache::previewProxiesEnabled
         && drift::ReverseProxyCache::instance()
                .lookupPreview(asset->path, drift::ReverseProxyCache::previewProxyShortSide)
                .isEmpty())
@@ -1116,6 +1118,43 @@ void AssetLibrary::applyImportResult(const QString &assetId, const drift::MediaA
                          ThumbnailPathRole, FilmstripPathRole});
     emit assetMetadataChanged(assetId);
     emit assetCardChanged(assetId);
+    if (m_importPending.isEmpty()) // VEDIT: once per import batch, not once per file
+        autoProxyMissing();
+}
+
+// VEDIT: automatic preview proxies.
+bool AssetLibrary::autoProxiesEnabled()
+{
+    return s_autoProxyDefault && QSettings().value(QStringLiteral("preview/autoProxies"), true).toBool();
+}
+
+void AssetLibrary::setAutoProxiesEnabled(bool on)
+{
+    QSettings().setValue(QStringLiteral("preview/autoProxies"), on);
+}
+
+int AssetLibrary::autoProxyMissing()
+{
+    if (!m_project || !autoProxiesEnabled() || !drift::ReverseProxyCache::previewProxiesEnabled)
+        return 0;
+    const int shortSide = drift::ReverseProxyCache::previewProxyShortSide;
+    QStringList ids;
+    for (const QString &id : m_project->assetOrder()) {
+        const drift::MediaAsset *asset = m_project->asset(id);
+        if (!asset || asset->kind != drift::MediaKind::Video || asset->path.isEmpty())
+            continue;
+        if (m_importPending.contains(id))
+            continue; // not probed yet; its import result calls back here
+        // A copy no smaller than the original would only cost time and disk.
+        if (asset->width > 0 && asset->height > 0 && qMin(asset->width, asset->height) <= shortSide)
+            continue;
+        if (proxyState(id) != QLatin1String("none") || m_autoProxySkip.contains(id))
+            continue;
+        ids.append(id);
+    }
+    if (!ids.isEmpty())
+        createProxies(ids);
+    return ids.size();
 }
 
 QString AssetLibrary::proxyCurrentName() const
@@ -1266,11 +1305,19 @@ void AssetLibrary::startNextProxy()
     m_proxyCancel.storeRelaxed(0);
 
     (void)QtConcurrent::run(&m_proxyPool, [this, assetId, sourcePath, name, shortSide]() {
+        // VEDIT (조박사님, CapCut): a background job — the lowest priority, and it stands aside
+        // entirely while the timeline plays (see the progress callback).
+        QThread::currentThread()->setPriority(QThread::LowestPriority);
+        drift::ReverseProxyCache::proxyBuilding.store(true); // VEDIT: play trace
         const QString outPath = drift::newReversePath();
         QString error;
         const bool ok = !outPath.isEmpty()
             && drift::renderPreviewProxy(sourcePath, shortSide, outPath, &error,
                                          [this, posted = -1.0](double fraction) mutable {
+                                             // VEDIT: wait while playing (checked once per frame).
+                                             while (drift::ReverseProxyCache::playbackActive.load(std::memory_order_relaxed)
+                                                    && m_proxyCancel.loadRelaxed() == 0)
+                                                 QThread::msleep(100);
                                              // Called per frame; the bar only needs percents.
                                              if (fraction - posted >= 0.01) {
                                                  posted = fraction;
@@ -1285,6 +1332,7 @@ void AssetLibrary::startNextProxy()
                                              return m_proxyCancel.loadRelaxed() == 0;
                                          });
         const bool cancelled = m_proxyCancel.loadRelaxed() != 0;
+        drift::ReverseProxyCache::proxyBuilding.store(false); // VEDIT
 
         QMetaObject::invokeMethod(
             this,
@@ -1295,7 +1343,10 @@ void AssetLibrary::startNextProxy()
                                                                        outPath);
                     emit proxiesChanged();
                 } else if (!cancelled) {
+                    m_autoProxySkip.insert(assetId); // VEDIT
                     emit proxyFailed(name, error);
+                } else {
+                    m_autoProxySkip.insert(assetId); // VEDIT: the user stopped it
                 }
                 emit proxyStateChanged(assetId);
                 startNextProxy();

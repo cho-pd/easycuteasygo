@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "vedit-zoom-char",
+  "label": "Grow by letter",
+  "category": "character",
+  "sampleText": "Grow",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 301,
+  "defaults": {
+    "unit": "character",
+    "stagger": 0.05,
+    "duration": 0.4,
+    "ease": "easeOut"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "scale": 300,
+        "opacity": 0
+      }
+    }
+  ]
+}

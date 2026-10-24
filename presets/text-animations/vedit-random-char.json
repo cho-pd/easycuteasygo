@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "vedit-random-char",
+  "label": "Appear at random",
+  "category": "character",
+  "sampleText": "Random",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 304,
+  "defaults": {
+    "unit": "character",
+    "stagger": 0.04,
+    "duration": 0.2,
+    "ease": "linear",
+    "order": "random"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "opacity": 0
+      }
+    }
+  ]
+}

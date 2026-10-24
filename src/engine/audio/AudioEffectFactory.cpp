@@ -226,6 +226,14 @@ void buildCrystalizer(ChainProcessor &chain)
 
 // ---- space ------------------------------------------------------------------------------
 
+void buildReverb(ChainProcessor &chain) // VEDIT
+{
+    auto *reverb = chain.addStage<ReverbProcessor>();
+    chain.bind(QStringLiteral("room"), reverb, &ReverbProcessor::setRoomSize);
+    chain.bind(QStringLiteral("wet"), reverb, &ReverbProcessor::setWet);
+    chain.bind(QStringLiteral("damping"), reverb, &ReverbProcessor::setDamping);
+}
+
 void buildEcho(ChainProcessor &chain)
 {
     auto *echo = chain.addStage<EchoProcessor>();
@@ -299,6 +307,7 @@ const QHash<QString, Builder> &registry()
         {QStringLiteral("vinyl"), buildVinyl},
         {QStringLiteral("crystalizer"), buildCrystalizer},
         {QStringLiteral("echo"), buildEcho},
+        {QStringLiteral("reverb"), buildReverb}, // VEDIT
         {QStringLiteral("chorus"), buildChorus},
         {QStringLiteral("phaser"), buildPhaser},
         {QStringLiteral("autopan"), buildAutoPan},

@@ -1,6 +1,9 @@
 #include "FrameCompositor.h"
 
 #include "StillImage.h"
+#include "RenderCache.h" // VEDIT: 임시 렌더링
+#include <memory>
+#include <algorithm> // VEDIT
 
 #include "ClipReaderPool.h"
 #include "CompositorFrameHistory.h"
@@ -40,6 +43,13 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QSet>
+#include <QFile> // VEDIT: trace
+extern "C" { // VEDIT: LOST trace
+#include <libavutil/hwcontext.h>
+#include <libavutil/pixdesc.h>
+}
+#include <QDir> // VEDIT: trace
+#include <QElapsedTimer> // VEDIT: trace
 #include <cmath>
 #include <QtMath>
 
@@ -231,6 +241,71 @@ void collectActivePaths(const drift::Project *project, drift::TimeUs timelineUs,
 
 // Every video frame this composite will need, so the readers can decode them
 // concurrently on their own threads instead of one clip at a time on ours.
+// VEDIT (조박사님: "장면이 바뀔 때 튄다"): during playback, the clips starting within this window
+// are opened and their first frames decoded ahead of time. Otherwise the next clip's file is
+// opened, its hardware decoder started and its first frame sought only when the playhead reaches
+// it — long-GOP footage takes a few hundred ms for that, and the frames due meanwhile are dropped.
+constexpr drift::TimeUs kUpcomingWarmUs = 2'500'000; // VEDIT: was 1.5 s — a cold 4K open can take longer
+
+// VEDIT (Codex 검토 1): only the nearest few. Every clip starting inside the window used to be
+// opened, and a run of short 4K pieces held more decoders open than the pool's cap allows.
+constexpr int kMaxUpcomingWarm = 2;
+
+QList<ClipReaderPool::VideoRequest> collectUpcomingVideoRequests(const drift::Project *project,
+                                                                 drift::TimeUs timelineUs, int maxWidth,
+                                                                 int maxHeight)
+{
+    QList<QPair<drift::TimeUs, ClipReaderPool::VideoRequest>> found; // VEDIT: by start, nearest first
+    QList<ClipReaderPool::VideoRequest> requests;
+    if (!project)
+        return requests;
+    for (const drift::Track &track : project->tracks()) {
+        if (track.hidden || track.type == drift::TrackType::Audio)
+            continue;
+        for (const drift::Clip &clip : track.clips) {
+            if (clip.type != drift::ClipType::Video || clip.path.isEmpty())
+                continue;
+            if (clip.timelineStart <= timelineUs || clip.timelineStart > timelineUs + kUpcomingWarmUs)
+                continue;
+            const drift::VideoRead read = drift::resolveVideoRead(clip, clip.timelineStart, t_allowProxies);
+            found.append({clip.timelineStart,
+                          ClipReaderPool::VideoRequest{read.path, streamIdFor(clip.id), read.sourceUs,
+                                                       maxWidth, maxHeight, clip.rotationCorrection}});
+        }
+    }
+    std::stable_sort(found.begin(), found.end(),
+                     [](const auto &a, const auto &b) { return a.first < b.first; });
+    for (int i = 0; i < found.size() && i < kMaxUpcomingWarm; ++i)
+        requests.append(found.at(i).second);
+    return requests;
+}
+
+// Each upcoming clip is warmed once per approach, not on every frame composited before it.
+bool claimUpcomingWarm(quint64 streamId, drift::TimeUs sourceUs)
+{
+    static QMutex mutex;
+    static QHash<quint64, drift::TimeUs> warmed;
+    QMutexLocker lock(&mutex);
+    // VEDIT: per approach, not forever — playing the same cut again (조박사님 replays a lot) must
+    // warm the next piece again; its reader has moved on or been closed since.
+    static QHash<quint64, qint64> warmedAtMs;
+    static QElapsedTimer clock;
+    if (!clock.isValid())
+        clock.start();
+    const qint64 now = clock.elapsed();
+    const auto it = warmed.constFind(streamId);
+    if (it != warmed.constEnd() && it.value() == sourceUs
+        && now - warmedAtMs.value(streamId) < kUpcomingWarmUs / 1000 + 500)
+        return false;
+    if (warmed.size() > 512) {
+        warmed.clear();
+        warmedAtMs.clear();
+    }
+    warmed.insert(streamId, sourceUs);
+    warmedAtMs.insert(streamId, now);
+    return true;
+}
+
 QList<ClipReaderPool::VideoRequest> collectVideoRequests(const drift::Project *project,
                                                          drift::TimeUs timelineUs, int maxWidth,
                                                          int maxHeight)
@@ -669,6 +744,9 @@ double opacityForClip(const drift::Clip &clip, drift::TimeUs timelineUs)
         const drift::TimeUs relative = timelineUs - clip.timelineStart;
         value = qBound(0.0, clip.opacity.evaluateAt(relative), 1.0);
     }
+    // VEDIT: a picture's event level (the line along its top on the timeline) scales it too.
+    if (clip.type != drift::ClipType::Audio)
+        value *= qBound(0.0, clip.level, 1.0);
     // Edge-relative fades ride on top of any opacity keyframes.
     return value * clip.fadeMultiplier(timelineUs);
 }
@@ -813,28 +891,129 @@ int karaokeWordIndex(const drift::Clip &clip, const drift::SubtitleCue &cue, dri
     return drift::activeWordIndexAt(cue.text, cue.startUs, cue.endUs, localUs);
 }
 
+// VEDIT: the clip's 들어오기 / 나가기 / 콤보 pose at one instant.
+drift::ClipAnimSample clipBodyPose(const drift::Clip &clip, drift::TimeUs timelineUs, double layoutW,
+                                   double layoutH)
+{
+    drift::ClipAnimSample body =
+        drift::evaluateClipAnimation(clip.timelineStart, clip.timelineDuration, clip.animIn,
+                                     clip.animOut, timelineUs, layoutW, layoutH);
+    drift::applyClipAnimCombo(clip.animCombo, timelineUs - clip.timelineStart + clip.animComboOriginUs,
+                              clip.animComboSpanUs > 0 ? clip.animComboSpanUs : clip.timelineDuration, layoutW,
+                              layoutH, &body);
+    return body;
+}
+
+// VEDIT (조박사님: "움직임이 밋밋하다"): a moving clip smears along its path the way a camera
+// shutter records it — how far it slid, grew and turned over the last 1/30 s, handed to the
+// internal motion-blur pass at the end of the clip's effect chain. Still clips get nothing.
+void appendClipMotionBlur(const drift::Clip &clip, drift::TimeUs timelineUs, double layoutW,
+                          double layoutH, const QRectF &destRect, double rotationDeg,
+                          QList<drift::Effect> *effects)
+{
+    if (!effects || clip.type == drift::ClipType::Audio || clip.type == drift::ClipType::Subtitle)
+        return;
+    if (clip.animIn.kind == drift::ClipAnimKind::None && clip.animOut.kind == drift::ClipAnimKind::None
+        && clip.animCombo.isEmpty())
+        return;
+    if (destRect.width() < 2.0 || destRect.height() < 2.0)
+        return;
+    constexpr drift::TimeUs kShutterUs = 33'333;
+    const drift::TimeUs before = qMax(clip.timelineStart, timelineUs - kShutterUs);
+    if (before >= timelineUs)
+        return;
+    const drift::ClipAnimSample now = clipBodyPose(clip, timelineUs, layoutW, layoutH);
+    const drift::ClipAnimSample was = clipBodyPose(clip, before, layoutW, layoutH);
+    // A shorter look-back (near the start) is scaled up; 2.5 = a long, CapCut-like streak.
+    constexpr double kStrength = 2.5;
+    const double span = kStrength * double(kShutterUs) / double(timelineUs - before);
+    // Canvas motion into the picture's own axes (it is drawn turned by rotationDeg).
+    const double mx = (now.dx - was.dx) * span;
+    const double my = (now.dy - was.dy) * span;
+    const double rad = qDegreesToRadians(-rotationDeg);
+    const double lx = mx * std::cos(rad) - my * std::sin(rad);
+    const double ly = mx * std::sin(rad) + my * std::cos(rad);
+    const double sx0 = qMax(1e-3, was.scale * was.scaleX), sx1 = qMax(1e-3, now.scale * now.scaleX);
+    const double sy0 = qMax(1e-3, was.scale * was.scaleY), sy1 = qMax(1e-3, now.scale * now.scaleY);
+    const double vx = qBound(-0.35, -lx / destRect.width(), 0.35);
+    const double vy = qBound(-0.35, -ly / destRect.height(), 0.35);
+    const double zoomX = qBound(-0.8, std::log(sx1 / sx0) * span, 0.8);
+    const double zoomY = qBound(-0.8, std::log(sy1 / sy0) * span, 0.8);
+    const double spin = qBound(-0.8, qDegreesToRadians(now.rotationDeg - was.rotationDeg) * span, 0.8);
+    if (std::abs(vx) + std::abs(vy) < 0.004 && std::abs(zoomX) < 0.01 && std::abs(zoomY) < 0.01
+        && std::abs(spin) < 0.01)
+        return;
+    drift::Effect blur;
+    blur.name = QStringLiteral("Motion blur");
+    blur.catalogId = QStringLiteral("vedit.internal.motion_blur");
+    blur.parameters.insert(QStringLiteral("vx"), vx);
+    blur.parameters.insert(QStringLiteral("vy"), vy);
+    blur.parameters.insert(QStringLiteral("zoomX"), zoomX);
+    blur.parameters.insert(QStringLiteral("zoomY"), zoomY);
+    blur.parameters.insert(QStringLiteral("spin"), spin);
+    effects->append(blur);
+}
+
+// VEDIT: the special entrances' passes — a blur and the internal reveal pass (wipe, flash, glitch).
+void appendClipSpecialPasses(const drift::Clip &clip, drift::TimeUs timelineUs, double layoutW,
+                             double layoutH, QList<drift::Effect> *effects)
+{
+    if (!effects || clip.type == drift::ClipType::Audio || clip.type == drift::ClipType::Subtitle)
+        return;
+    if (clip.animIn.kind == drift::ClipAnimKind::None && clip.animOut.kind == drift::ClipAnimKind::None
+        && clip.animCombo.isEmpty())
+        return;
+    const drift::ClipAnimSample pose = clipBodyPose(clip, timelineUs, layoutW, layoutH);
+    if (pose.blurPx > 0.3) {
+        drift::Effect blur;
+        blur.name = QStringLiteral("Blur in");
+        blur.catalogId = QStringLiteral("stylize.blur");
+        blur.parameters.insert(QStringLiteral("sigma"), qBound(0.0, pose.blurPx, 20.0));
+        effects->append(blur);
+    }
+    if (pose.reveal < 0.999 || pose.flash > 0.001 || std::abs(pose.split) > 1e-4 || pose.slice > 1e-3) {
+        drift::Effect pass;
+        pass.name = QStringLiteral("Reveal");
+        pass.catalogId = QStringLiteral("vedit.internal.reveal");
+        pass.parameters.insert(QStringLiteral("reveal"), qBound(0.0, pose.reveal, 1.0));
+        pass.parameters.insert(QStringLiteral("flash"), qBound(0.0, pose.flash, 2.0));
+        pass.parameters.insert(QStringLiteral("split"), qBound(-0.2, pose.split, 0.2));
+        pass.parameters.insert(QStringLiteral("slice"), qBound(0.0, pose.slice, 1.0));
+        pass.parameters.insert(QStringLiteral("seed"), double((timelineUs / 70'000) % 997));
+        effects->append(pass);
+    }
+}
+
 // CapCut-style body intro/outro: opacity/offset/scale/rotation on top of fades and text anims.
 void applyClipBodyAnimation(const drift::Clip &clip, drift::TimeUs timelineUs, double layoutW,
-                            double layoutH, QRectF *destRect, double *opacity, double *rotation)
+                            double layoutH, QRectF *destRect, double *opacity, double *rotation,
+                            double *yaw = nullptr, double *pitch = nullptr)
 {
     if (!destRect || !opacity || !rotation)
         return;
     if (clip.type == drift::ClipType::Audio || clip.type == drift::ClipType::Subtitle)
         return;
-    if (clip.animIn.kind == drift::ClipAnimKind::None && clip.animOut.kind == drift::ClipAnimKind::None)
+    if (clip.animIn.kind == drift::ClipAnimKind::None && clip.animOut.kind == drift::ClipAnimKind::None
+        && clip.animCombo.isEmpty())
         return;
 
-    const drift::ClipAnimSample body =
-        drift::evaluateClipAnimation(clip.timelineStart, clip.timelineDuration, clip.animIn,
-                                     clip.animOut, timelineUs, layoutW, layoutH);
+    // VEDIT: CapCut's 콤보 over the whole clip is folded in by clipBodyPose.
+    drift::ClipAnimSample body = clipBodyPose(clip, timelineUs, layoutW, layoutH);
     *opacity *= body.opacity;
     destRect->translate(body.dx, body.dy);
-    if (!qFuzzyCompare(body.scale, 1.0)) {
+    // VEDIT: width and height scale separately for flips, stretches and jelly.
+    const double sx = body.scale * body.scaleX;
+    const double sy = body.scale * body.scaleY;
+    if (!qFuzzyCompare(sx, 1.0) || !qFuzzyCompare(sy, 1.0)) {
         const QPointF centre = destRect->center();
-        destRect->setSize(destRect->size() * body.scale);
+        destRect->setSize(QSizeF(destRect->width() * qMax(0.0, sx), destRect->height() * qMax(0.0, sy)));
         destRect->moveCenter(centre);
     }
     *rotation += body.rotationDeg;
+    if (yaw) // VEDIT: 3D turns
+        *yaw += body.yawDeg;
+    if (pitch)
+        *pitch += body.pitchDeg;
 }
 
 // A mask's media can be a still as easily as a video, and the two decode through different paths.
@@ -1158,9 +1337,34 @@ GpuLayer buildGpuLayer(const drift::Project &project, const drift::Clip &clip,
     if (!layer.hasPixels())
         return layer;
 
-    applyClipBodyAnimation(clip, timelineUs, w, h, &destRect, &opacity, &rotation);
+    applyClipBodyAnimation(clip, timelineUs, w, h, &destRect, &opacity, &rotation, &layer.yaw, &layer.pitch);
+    appendClipMotionBlur(clip, timelineUs, w, h, destRect, rotation, &layer.effects); // VEDIT
+    appendClipSpecialPasses(clip, timelineUs, w, h, &layer.effects); // VEDIT
 
     fillGpuLayerMasks(layer, clip, laneMasks, timelineUs, canvasWidth, canvasHeight);
+    // VEDIT: crop. destRect is the whole frame; draw only the inset part, where it already sat.
+    if (clip.hasCrop() && (clip.type == drift::ClipType::Video || clip.type == drift::ClipType::Image)) {
+        const double l = qBound(0.0, clip.cropL, 0.99);
+        const double t = qBound(0.0, clip.cropT, 0.99);
+        const double r = qBound(0.0, clip.cropR, 0.99 - l);
+        const double b = qBound(0.0, clip.cropB, 0.99 - t);
+        layer.uv = QRectF(l, t, 1.0 - l - r, 1.0 - t - b);
+        // Centre offset in the unrotated box (a flip mirrors which side an inset is on), then
+        // rotated with the clip so the kept content stays put on a rotated clip too.
+        double dx = (l - r) / 2.0 * destRect.width();
+        double dy = (t - b) / 2.0 * destRect.height();
+        if (clip.flipH)
+            dx = -dx;
+        if (clip.flipV)
+            dy = -dy;
+        const double rad = qDegreesToRadians(rotation);
+        const QPointF centre = destRect.center()
+                               + QPointF(dx * std::cos(rad) - dy * std::sin(rad),
+                                         dx * std::sin(rad) + dy * std::cos(rad));
+        const QSizeF size(destRect.width() * layer.uv.width(), destRect.height() * layer.uv.height());
+        destRect = QRectF(centre.x() - size.width() / 2.0, centre.y() - size.height() / 2.0,
+                          size.width(), size.height());
+    }
     layer.rect = destRect;
     layer.rotation = rotation;
     layer.flipH = clip.flipH;
@@ -1351,24 +1555,74 @@ bool FrameCompositor::prepare(drift::TimeUs timelineUs, const RenderOptions &opt
     if (width <= 0 || height <= 0)
         return false;
 
+    // VEDIT: inside a stretch that has a 임시 렌더링, the frame is that file, shown full frame —
+    // a one-clip timeline stands in for the project for this composite.
+    thread_local std::unique_ptr<drift::Project> t_renderCacheView;
+    const drift::Project *source = m_project;
+    RenderCache::Hit cacheHit;
+    // VEDIT (Codex 검토 3): the cache is rendered from the main timeline. Inside an opened
+    // composite the same time is a different picture, so it is not used there.
+    if (options.useRenderCache && m_project && m_project->activeSequenceId().isEmpty()
+        && RenderCache::instance().lookup(timelineUs, &cacheHit)) {
+        if (!t_renderCacheView)
+            t_renderCacheView = std::make_unique<drift::Project>();
+        drift::Project &view = *t_renderCacheView;
+        view.setResolution(projectWidth, projectHeight);
+        view.setFps(m_project->fps());
+        view.tracks().clear();
+        drift::Track track;
+        track.type = drift::TrackType::Video;
+        drift::Clip clip;
+        clip.id = QStringLiteral("rendercache-") + cacheHit.key;
+        clip.type = drift::ClipType::Video;
+        clip.path = cacheHit.path;
+        clip.timelineStart = cacheHit.startUs;
+        clip.timelineDuration = cacheHit.endUs - cacheHit.startUs;
+        clip.srcIn = 0;
+        clip.srcOut = clip.timelineDuration;
+        clip.suppressEmbeddedAudio = true;
+        track.clips.append(clip);
+        view.tracks().append(track);
+        source = &view;
+    }
+
     const AllowProxiesScope proxies(options.allowProxies);
     const NestedViewsScope nestedViews;
     QSet<QString> videoPaths;
     QSet<QString> audioPaths;
-    collectActivePaths(m_project, timelineUs, videoPaths, audioPaths);
+    collectActivePaths(source, timelineUs, videoPaths, audioPaths);
+    // VEDIT: while playing, the clips about to start stay open too (see kUpcomingWarmUs).
+    QList<ClipReaderPool::VideoRequest> upcoming;
+    const QList<ClipReaderPool::VideoRequest> onScreen = collectVideoRequests(source, timelineUs, width, height);
+    if (options.readAheadUs > 0) {
+        const QList<ClipReaderPool::VideoRequest> approaching =
+            collectUpcomingVideoRequests(source, timelineUs, width, height);
+        // VEDIT: these are the workers the decoder cap may not close; everything else goes first.
+        ClipReaderPool::instance().protectVideoStreams(onScreen + approaching);
+        for (const ClipReaderPool::VideoRequest &request : approaching) {
+            videoPaths.insert(request.path);
+            if (claimUpcomingWarm(request.streamId, request.sourceUs))
+                upcoming.append(request);
+        }
+    }
     ClipReaderPool::instance().retainActivePaths(videoPaths, audioPaths);
     ClipReaderPool::instance().setReadAheadUs(options.readAheadUs);
 
     // Start every clip's decode before compositing anything, so they run in
     // parallel across the per-path worker threads rather than serially below.
-    ClipReaderPool::instance().warmVideoFrames(
-        collectVideoRequests(m_project, timelineUs, width, height));
+    ClipReaderPool::instance().warmVideoFrames(onScreen);
+    if (!upcoming.isEmpty())
+        // VEDIT (조박사님: "자르고 나면 버벅인다"): the clip about to start gets only its first few
+        // frames ready (0.3 s), not the playing clip's whole read-ahead — after a cut both pieces
+        // share one file and so one decode thread, and the next piece's 2 s of prefetch was starving
+        // the piece on screen (a second a frame on 4K HEVC).
+        ClipReaderPool::instance().warmVideoFrames(upcoming, qMin<drift::TimeUs>(options.readAheadUs, 300'000));
 
     *widthOut = width;
     *heightOut = height;
     *renderScaleOut = renderScale;
     if (sceneOut)
-        *sceneOut = buildGpuScene(*m_project, timelineUs, width, height, renderScale, options);
+        *sceneOut = buildGpuScene(*source, timelineUs, width, height, renderScale, options);
     return true;
 }
 
@@ -1394,10 +1648,78 @@ GpuFrameTexture FrameCompositor::compositeToTextureAt(drift::TimeUs timelineUs,
     int width = 0;
     int height = 0;
     double renderScale = 1.0;
-    if (!prepare(timelineUs, options, &scene, &width, &height, &renderScale))
+    QElapsedTimer spikeClock; // VEDIT: temporary diagnosis of playback hitches
+    spikeClock.start();
+    if (!prepare(timelineUs, options, &scene, &width, &height, &renderScale)) {
+        if (options.readAheadUs > 0) { // VEDIT: LOST trace — the viewer keeps the previous frame
+            QFile f(QDir::temp().filePath(QStringLiteral("vedit-play-trace.log")));
+            if (f.open(QIODevice::Append | QIODevice::Text))
+                f.write(QStringLiteral("  LOST t=%1s prepare-failed\n")
+                            .arg(double(timelineUs) / 1e6, 0, 'f', 2).toUtf8());
+        }
         return {};
+    }
+    const qint64 preparedNs = spikeClock.nsecsElapsed();
 
-    return GpuCompositor::renderToTexture(scene);
+    GpuFrameTexture out = GpuCompositor::renderToTexture(scene);
+    // VEDIT (조박사님: "클립이 넘어갈 때 앞 클립 잔상이 잠깐 나왔다 넘어간다"): when a video layer
+    // could not be put on the GPU, renderToTexture publishes nothing and the viewer keeps the
+    // previous clip's last frame. Write it down, and try once more — the first frame of a freshly
+    // opened decoder is the one that misses.
+    if (options.readAheadUs > 0 && !out.isValid() && !scene.items.isEmpty()) {
+        QString layers;
+        for (const GpuItem &item : scene.items) {
+            if (!item.layer.video.isValid())
+                continue;
+            const AVFrame *av = item.layer.video.frame.get();
+            const char *fmt = av_get_pix_fmt_name(static_cast<AVPixelFormat>(av->format));
+            QString sw;
+            if (av->hw_frames_ctx) {
+                const auto *fc = reinterpret_cast<const AVHWFramesContext *>(av->hw_frames_ctx->data);
+                sw = QString::fromLatin1(av_get_pix_fmt_name(fc->sw_format));
+            }
+            layers += QStringLiteral(" %1/%2 %3x%4").arg(QString::fromLatin1(fmt ? fmt : "?"), sw)
+                          .arg(av->width).arg(av->height);
+        }
+        out = GpuCompositor::renderToTexture(scene);
+        static QMutex lostMutex;
+        QMutexLocker lock(&lostMutex);
+        QFile f(QDir::temp().filePath(QStringLiteral("vedit-play-trace.log")));
+        if (f.open(QIODevice::Append | QIODevice::Text))
+            f.write(QStringLiteral("  LOST t=%1s retry=%2 items=%3 video:%4\n")
+                        .arg(double(timelineUs) / 1e6, 0, 'f', 2)
+                        .arg(out.isValid() ? QStringLiteral("ok") : QStringLiteral("fail"))
+                        .arg(scene.items.size())
+                        .arg(layers)
+                        .toUtf8());
+    }
+    // VEDIT (temporary, 조박사님: "재생하면 가다 끊긴다"): a frame that took long while playing is
+    // written down with where the time went, to %TEMP%/vedit-play-trace.log.
+    const qint64 totalNs = spikeClock.nsecsElapsed();
+    if (options.readAheadUs > 0 && totalNs > 40'000'000) {
+        static QMutex logMutex;
+        QMutexLocker lock(&logMutex);
+        QFile f(QDir::temp().filePath(QStringLiteral("vedit-play-trace.log")));
+        if (f.open(QIODevice::Append | QIODevice::Text)) {
+            int effects = 0;
+            for (const GpuItem &item : scene.items)
+                effects += item.layer.effects.size();
+            f.write(QStringLiteral("  SLOW t=%1s total=%2ms prepare=%3ms gpu=%4ms decodeWait=%5ms items=%6 "
+                                   "effects=%7 cache=%8 %9x%10\n")
+                        .arg(double(timelineUs) / 1e6, 0, 'f', 2)
+                        .arg(double(totalNs) / 1e6, 0, 'f', 0)
+                        .arg(double(preparedNs) / 1e6, 0, 'f', 0)
+                        .arg(double(totalNs - preparedNs) / 1e6, 0, 'f', 0)
+                        .arg(double(ClipReaderPool::decodeWaitNs()) / 1e6, 0, 'f', 0)
+                        .arg(scene.items.size())
+                        .arg(effects)
+                        .arg(RenderCache::instance().lookup(timelineUs, nullptr) ? 1 : 0)
+                        .arg(width)
+                        .arg(height)
+                        .toUtf8());
+        }
+    }
+    return out;
 }
 
 bool FrameCompositor::buildSceneAt(drift::TimeUs timelineUs, const RenderOptions &options,

@@ -153,7 +153,8 @@ Item {
                         to: 100
                         stepSize: 1
                         valueFormatter: function (v) { return Math.round(v) }
-                        value: EditorState.background.blurStrength || 20
+                        defaultValue: 20 // VEDIT
+                        Binding on value { value: EditorState.background.blurStrength || 20 } // VEDIT
                         onPressedChanged: {
                             if (!pressed)
                                 EditorState.setBackground({ kind: "blur", blurStrength: value })
@@ -349,6 +350,22 @@ Item {
 
             SettingsSection {
                 title: qsTr("App")
+
+                // VEDIT: CapCut-style drafts — on by default.
+                // VEDIT: preview copies so long videos play smoothly.
+                ThemedSwitch {
+                    checked: EditorState.autoProxies
+                    text: qsTr("Make light preview copies automatically")
+                    tooltip: qsTr("Big videos get a smaller copy in the background so playback is smooth. The finished video always uses the original.")
+                    onToggled: EditorState.autoProxies = checked
+                }
+
+                ThemedSwitch {
+                    checked: EditorState.autoSaveEnabled
+                    text: qsTr("Save automatically")
+                    tooltip: qsTr("Keeps your work saved without asking. A new project gets a file in Documents › Easy Cut, Easy Go!")
+                    onToggled: EditorState.autoSaveEnabled = checked
+                }
 
                 ThemedSwitch {
                     checked: EditorState.reopenLastProject

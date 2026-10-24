@@ -66,6 +66,72 @@ Item {
                 font.pixelSize: Theme.fontSizeXs
             }
 
+            // VEDIT: CapCut's 기본 텍스트 — the first thing on the page: plain words in the middle of
+            // the picture at the playhead, already selected for typing over.
+            Rectangle {
+                width: parent.width
+                height: 96
+                radius: 10
+                color: defaultTextArea.containsMouse ? Theme.panelAccent : Theme.panelSecondaryBg
+                border.width: 1
+                border.color: defaultTextArea.containsMouse ? Theme.focusRing : Theme.panelBorder
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 4
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "+ " + qsTr("Default text")
+                        color: Theme.panelForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 22
+                        font.weight: Font.Bold
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: qsTr("Add words, then type them on the right")
+                        color: Theme.mutedForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 16
+                    }
+                }
+                MouseArea {
+                    id: defaultTextArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        EditorState.addDefaultText()
+                        root.added()
+                    }
+                }
+            }
+
+            // VEDIT: 자주 쓰는 글자 — ready-made words, one press, no typing.
+            Text {
+                text: qsTr("Ready-made words")
+                color: Theme.panelForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeBase
+                font.weight: Font.Medium
+            }
+            Flow {
+                width: parent.width
+                spacing: Theme.spacingSm
+                Repeater {
+                    model: EditorState.quickTextTemplates()
+                    delegate: ThemedButton {
+                        required property var modelData
+                        variant: "secondary"
+                        text: modelData.text
+                        tooltip: qsTr("Add these words at the playhead")
+                        onClicked: {
+                            EditorState.addQuickText(modelData.id)
+                            root.added()
+                        }
+                    }
+                }
+            }
+
             Item {
                 width: parent.width
                 height: Math.max(myStylesLabel.implicitHeight, importButton.height)

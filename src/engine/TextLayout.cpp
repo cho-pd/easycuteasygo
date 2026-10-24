@@ -31,8 +31,10 @@ quint64 styleHash(const drift::TextStyle &s)
     const drift::WordAccent &a = s.accent;
     return qHashMulti(0, s.fontFamily, s.pixelSize, s.fontWeight, s.italic, drift::textLayersHash(s.layers),
                       s.pathBend, static_cast<int>(s.align), static_cast<int>(s.valign), s.wordWrap,
-                      s.lineHeight, s.letterSpacing, s.boxEnabled, s.boxColor.rgba(), s.boxPadding,
-                      s.boxRadius, highlightHash(s.wordHighlight), s.underlineEnabled,
+                      s.lineHeight, s.letterSpacing, s.boxEnabled, s.boxColor.rgba(),
+                      qHashMulti(0, s.boxPadding, s.boxPaddingY), // VEDIT
+                      s.boxRadius, qHashMulti(0, s.bubbleShape, s.bubbleBorderColor.rgba(), s.bubbleBorderWidth), // VEDIT
+                      highlightHash(s.wordHighlight), s.underlineEnabled,
                       s.underlineColor.rgba(), s.underlineWidth, s.underlineOffset,
                       qHashMulti(0, static_cast<int>(a.rule), a.n, a.phase, a.colorEnabled,
                                  a.color.rgba(), a.sizeScale, a.outlineEnabled, a.outlineWidth,
@@ -411,7 +413,10 @@ double bleedFor(const drift::TextStyle &style)
     }
     double bleed = qMax(widest, stroke);
     if (style.boxEnabled)
-        bleed += style.boxPadding + style.boxRadius;
+        bleed += qMax(style.boxPadding, style.verticalBoxPadding()) + style.boxRadius; // VEDIT
+    // VEDIT: a bubble reaches past its box (tail, puffs, spikes) — room for the widest of them.
+    if (style.boxEnabled && !style.bubbleShape.isEmpty())
+        bleed += style.pixelSize * 2.2 + style.bubbleBorderWidth;
     bleed += qMax(highlightBleed(style.wordHighlight),
                   accented ? highlightBleed(accent.highlight) : 0.0);
     if (style.underlineEnabled)

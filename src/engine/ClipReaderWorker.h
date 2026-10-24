@@ -59,6 +59,9 @@ public slots:
     void prefetchNextPreviewVideo(quint64 streamId, int maxWidth, int maxHeight,
                                   drift::TimeUs readAheadUs);
     void resetVideoDecoders();
+    // VEDIT: hands this worker's open reader (and its hardware decoder) to another clip of the
+    // same file — see ClipReaderPool::ensureWorker.
+    void adoptStream(quint64 streamId);
 
 private:
     // Only clips overlapping right now need concurrent readers, and that is a handful at most.

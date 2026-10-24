@@ -22,6 +22,10 @@ QString fadeCurveToString(FadeCurve curve)
         return QStringLiteral("custom");
     case FadeCurve::Bezier:
         return QStringLiteral("bezier");
+    case FadeCurve::Slow:
+        return QStringLiteral("slow");
+    case FadeCurve::Sharp:
+        return QStringLiteral("sharp");
     }
     return QStringLiteral("smooth");
 }
@@ -36,6 +40,10 @@ FadeCurve fadeCurveFromString(const QString &curve)
         return FadeCurve::Custom;
     if (curve == QStringLiteral("bezier"))
         return FadeCurve::Bezier;
+    if (curve == QStringLiteral("slow"))
+        return FadeCurve::Slow;
+    if (curve == QStringLiteral("sharp"))
+        return FadeCurve::Sharp;
     return FadeCurve::Smooth;
 }
 

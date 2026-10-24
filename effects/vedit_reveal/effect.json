@@ -1,0 +1,24 @@
+{
+  "id": "vedit.internal.reveal",
+  "displayName": "Reveal",
+  "category": "internal",
+  "order": 9998,
+  "parameters": [
+    { "identifier": "reveal", "displayName": "Reveal", "type": "float", "minValue": 0, "maxValue": 1, "defaultValue": 1 },
+    { "identifier": "flash", "displayName": "Flash", "type": "float", "minValue": 0, "maxValue": 2, "defaultValue": 0 },
+    { "identifier": "split", "displayName": "Split", "type": "float", "minValue": -0.2, "maxValue": 0.2, "defaultValue": 0 },
+    { "identifier": "slice", "displayName": "Slice", "type": "float", "minValue": 0, "maxValue": 1, "defaultValue": 0 },
+    { "identifier": "seed", "displayName": "Seed", "type": "float", "minValue": 0, "maxValue": 1000, "defaultValue": 0 }
+  ],
+  "backend": "gpu",
+  "pipeline": {
+    "passes": [
+      {
+        "passIndex": 0,
+        "fragmentShader": "main.frag",
+        "inputs": [ { "type": "source_texture" } ],
+        "output": { "type": "canvas" }
+      }
+    ]
+  }
+}

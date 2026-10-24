@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "vedit-blink",
+  "label": "Blink",
+  "category": "light",
+  "sampleText": "Blink",
+  "slots": [
+    "loop"
+  ],
+  "order": 322,
+  "animators": [
+    {
+      "selectors": [
+        {
+          "driver": "wiggle",
+          "domain": "block",
+          "wave": "triangle",
+          "frequencyHz": 1.5,
+          "spatialPhaseDeg": 0,
+          "minAmount": 0,
+          "maxAmount": 100
+        }
+      ],
+      "props": {
+        "opacity": 15
+      }
+    }
+  ]
+}

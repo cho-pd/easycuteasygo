@@ -1,5 +1,7 @@
 #include "TimelineOps.h"
 
+#include <atomic> // VEDIT
+
 #include <QUuid>
 
 #include <algorithm>
@@ -28,6 +30,20 @@ void SnapTargets::build(const Project &project, TimeUs playheadUs,
     sorted.erase(std::unique(sorted.begin(), sorted.end()), sorted.end());
 }
 
+namespace {
+std::atomic<TimeUs> g_snapThresholdUs{kSnapThresholdUs}; // VEDIT
+}
+
+TimeUs snapThresholdUs()
+{
+    return g_snapThresholdUs.load(std::memory_order_relaxed);
+}
+
+void setSnapThresholdUs(TimeUs reach)
+{
+    g_snapThresholdUs.store(qMax<TimeUs>(1, reach), std::memory_order_relaxed);
+}
+
 TimeUs snapTimeTo(const SnapTargets &targets, TimeUs time, bool snapEnabled)
 {
     if (!snapEnabled || targets.sorted.empty())
@@ -38,7 +54,7 @@ TimeUs snapTimeTo(const SnapTargets &targets, TimeUs time, bool snapEnabled)
     // was no more meaningful and only reachable at exact microsecond equidistance.
     const auto it = std::lower_bound(targets.sorted.begin(), targets.sorted.end(), time);
     TimeUs best = time;
-    TimeUs bestDistance = kSnapThresholdUs;
+    TimeUs bestDistance = snapThresholdUs(); // VEDIT: follows the zoom
     if (it != targets.sorted.begin()) {
         const TimeUs candidate = *(it - 1);
         const TimeUs distance = qAbs(candidate - time);
@@ -181,6 +197,7 @@ TrackType trackTypeForClipType(ClipType type)
     case ClipType::Subtitle:
         return TrackType::Subtitle;
     case ClipType::Image:
+        return TrackType::Video; // VEDIT: a photo goes on the main video track, as in CapCut
     case ClipType::Shape:
     case ClipType::Vector:
     case ClipType::Model3d:
@@ -678,6 +695,23 @@ void hoistClipEffectsToAdjustmentLanes(Project &project)
     }
 }
 
+int orderedTrackInsertIndex(const Project &project, TrackType type, int wanted)
+{
+    const QList<Track> &tracks = project.tracks();
+    wanted = qBound(0, wanted, int(tracks.size()));
+    int firstSound = int(tracks.size());
+    int lastPicture = -1;
+    for (int i = 0; i < tracks.size(); ++i) {
+        if (tracks.at(i).type == TrackType::Audio)
+            firstSound = qMin(firstSound, i);
+        else
+            lastPicture = i;
+    }
+    if (type == TrackType::Audio)
+        return qMax(wanted, lastPicture + 1);
+    return qMin(wanted, firstSound);
+}
+
 int ensureTrackForClipType(Project &project, ClipType type, bool insertAtTop)
 {
     const int existing = defaultTrackForClipType(project, type);
@@ -685,11 +719,10 @@ int ensureTrackForClipType(Project &project, ClipType type, bool insertAtTop)
         return existing;
 
     const Track track{.type = trackTypeForClipType(type)};
-    if (insertAtTop)
-        project.tracks().prepend(track);
-    else
-        project.tracks().append(track);
-    return insertAtTop ? 0 : project.tracks().size() - 1;
+    // VEDIT: "top" / "bottom" within its own group — pictures above sounds.
+    const int at = orderedTrackInsertIndex(project, track.type, insertAtTop ? 0 : int(project.tracks().size()));
+    project.tracks().insert(at, track);
+    return at;
 }
 
 // Like ensureTrackForClipType, but it will not hand back a lane whose span is already taken.
@@ -731,14 +764,17 @@ int ensureFreeTrackForClipType(Project &project, ClipType type, TimeUs startUs, 
 
 int insertTrackAtTopForClipType(Project &project, ClipType type)
 {
-    project.tracks().prepend(Track{.type = trackTypeForClipType(type)});
-    return 0;
+    const TrackType t = trackTypeForClipType(type);
+    const int at = orderedTrackInsertIndex(project, t, 0); // VEDIT: top of its own group
+    project.tracks().insert(at, Track{.type = t});
+    return at;
 }
 
 int insertTrackAboveForClipType(Project &project, int trackIndex, ClipType type)
 {
-    const int at = qBound(0, trackIndex, project.tracks().size());
-    project.tracks().insert(at, Track{.type = trackTypeForClipType(type)});
+    const TrackType t = trackTypeForClipType(type);
+    const int at = orderedTrackInsertIndex(project, t, trackIndex); // VEDIT: pictures above sounds
+    project.tracks().insert(at, Track{.type = t});
     return at;
 }
 
@@ -847,6 +883,13 @@ bool splitClipAtOffsetMin(Clip &head, Clip &tail, TimeUs offset, TimeUs minEdgeU
         }
     }
 
+    // VEDIT: a 콤보 carries on across the cut — the tail starts where the head stopped.
+    if (!head.animCombo.isEmpty()) {
+        const TimeUs span = head.animComboSpanUs > 0 ? head.animComboSpanUs : head.timelineDuration;
+        head.animComboSpanUs = span;
+        tail.animComboSpanUs = span;
+        tail.animComboOriginUs = head.animComboOriginUs + offset;
+    }
     head.timelineDuration = offset;
     // A cut is invisible: neither half fades or animates at it. The outer fades stay where they
     // were (clamped to the shorter halves), and mergeClips puts the tail's fade-out back.
@@ -1009,6 +1052,10 @@ QList<ClipRef> linkedPartners(const Project &project, const Clip &clip)
 
     for (int trackIndex = 0; trackIndex < project.tracks().size(); ++trackIndex) {
         const Track &track = project.tracks().at(trackIndex);
+        // VEDIT: a locked track's clip does not follow its partner — not into a selection, a
+        // split, a move or a trim. The lock is the user saying "leave this one alone".
+        if (track.locked)
+            continue;
         for (int clipIndex = 0; clipIndex < track.clips.size(); ++clipIndex) {
             const Clip &candidate = track.clips.at(clipIndex);
             if (candidate.id == clip.id)
@@ -1212,6 +1259,13 @@ void shiftClipKeyframes(Clip &clip, TimeUs delta)
     forEachKeyframeTrack(clip, [delta](KeyframeTrack<double> &track) { track.shiftBy(delta); });
 }
 
+void scaleClipKeyframes(Clip &clip, double factor)
+{
+    if (factor <= 0.0 || qFuzzyCompare(factor, 1.0))
+        return;
+    forEachKeyframeTrack(clip, [factor](KeyframeTrack<double> &track) { track.scaleBy(factor); });
+}
+
 void rebaseKeyframesForSplitTail(Clip &tail, TimeUs offset)
 {
     if (offset <= 0)
@@ -1263,6 +1317,32 @@ void rebaseClipLayout(Project &project, int oldWidth, int oldHeight, double orig
             shiftTrackValues(clip.transformY, originY, 0.0);
         }
     }
+}
+
+// VEDIT
+bool soundOutOfSync(const Clip &sound, const QList<const Clip *> &videos)
+{
+    if (videos.isEmpty())
+        return false;
+    constexpr TimeUs kToleranceUs = 20'000; // about half a frame at 25 fps
+    const auto origin = [](const Clip &c) {
+        // The timeline moment that source time 0 falls on.
+        const double speed = c.speed > 0.0 ? c.speed : 1.0;
+        return double(c.timelineStart) - double(c.srcIn) / speed;
+    };
+    const TimeUs soundEnd = sound.timelineStart + sound.timelineDuration;
+    for (const Clip *video : videos) {
+        if (!video)
+            continue;
+        const TimeUs videoEnd = video->timelineStart + video->timelineDuration;
+        if (video->timelineStart >= soundEnd || sound.timelineStart >= videoEnd)
+            continue;
+        if (std::abs(video->speed - sound.speed) > 1e-6 || video->reverse != sound.reverse)
+            continue;
+        if (std::abs(origin(*video) - origin(sound)) <= double(kToleranceUs))
+            return false;
+    }
+    return true;
 }
 
 } // namespace drift

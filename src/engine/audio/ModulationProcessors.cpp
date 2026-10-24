@@ -499,6 +499,55 @@ void EchoProcessor::setDecay(float decay)
     m_decay.setTargetValue(juce::jlimit(0.0f, 1.0f, decay));
 }
 
+// --- VEDIT: reverb ------------------------------------------------------------------------------
+
+void ReverbProcessor::apply()
+{
+    m_reverb.setParameters(m_params);
+}
+
+void ReverbProcessor::setRoomSize(float size)
+{
+    m_params.roomSize = juce::jlimit(0.0f, 1.0f, size);
+    apply();
+}
+
+void ReverbProcessor::setWet(float wet)
+{
+    // JUCE's Reverb scales dryLevel by 2 and wetLevel by 3 internally, so unity dry is 0.5 and
+    // a full wet tail is about 1/3 — without this the voice itself came out 4-6 dB hotter.
+    const float w = juce::jlimit(0.0f, 1.0f, wet);
+    m_params.wetLevel = w / 3.0f;
+    // Keep the voice present: the dry signal only steps back as the room gets very wet.
+    m_params.dryLevel = (1.0f - 0.5f * w) / 2.0f;
+    apply();
+}
+
+void ReverbProcessor::setDamping(float damping)
+{
+    m_params.damping = juce::jlimit(0.0f, 1.0f, damping);
+    apply();
+}
+
+void ReverbProcessor::prepare(const juce::dsp::ProcessSpec &spec)
+{
+    m_params.width = 1.0f;
+    m_reverb.prepare(spec);
+    apply();
+    reset();
+}
+
+void ReverbProcessor::process(juce::dsp::AudioBlock<float> &block)
+{
+    juce::dsp::ProcessContextReplacing<float> context(block);
+    m_reverb.process(context);
+}
+
+void ReverbProcessor::reset()
+{
+    m_reverb.reset();
+}
+
 void EchoProcessor::prepare(const juce::dsp::ProcessSpec &spec)
 {
     m_sampleRate = spec.sampleRate;

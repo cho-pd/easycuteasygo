@@ -3,6 +3,7 @@
 #include "GpuEffectDefinition.h"
 #include "GpuPackageParse.h"
 
+#include <QCoreApplication> // VEDIT
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -60,6 +61,9 @@ EffectPresetEntry EffectPackageLoader::loadPackage(const QString &packageDir, QS
     entry.meta.displayName = root.value(QStringLiteral("displayName")).toString();
     if (entry.meta.displayName.isEmpty())
         entry.meta.displayName = entry.meta.id;
+    // VEDIT: package names are English; show them in the UI language (context EffectNames).
+    entry.meta.displayName = QCoreApplication::translate("EffectNames",
+                                                         entry.meta.displayName.toUtf8().constData());
     const QString categoryRaw = root.value(QStringLiteral("category")).toString();
     entry.meta.category =
         GpuPackageParse::slugifyCategory(categoryRaw.isEmpty() ? QStringLiteral("dreamy") : categoryRaw);

@@ -29,7 +29,7 @@ Column {
         width: tile.tileWidth
         height: Math.round(tile.tileWidth * 58 / 104)
         radius: Theme.radiusSm
-        color: Theme.textStylePreviewBg
+        color: "#000000" // VEDIT (조박사님, CapCut): black behind the moving words
         border.width: tile.selected ? Theme.borderWidthFocus : Theme.borderWidth
         border.color: tile.selected ? Theme.primary
                                     : (tileHover.hovered ? Theme.panelMuted : Theme.textStylePreviewBorder)
@@ -72,7 +72,7 @@ Column {
             text: qsTr("None")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeXs // VEDIT: CapCut-sized
         }
 
         // A tap synthesises hover on a phone, so hover only means anything with a pointer.
@@ -91,10 +91,13 @@ Column {
     Text {
         width: parent.width
         text: tile.label
+        // VEDIT: two lines at 16 px rather than cutting a Korean name short
+        wrapMode: Text.WordWrap
+        maximumLineCount: 2
         elide: Text.ElideRight
         horizontalAlignment: Text.AlignHCenter
         color: tile.selected ? Theme.primary : Theme.panelForeground
         font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeXs
+        font.pixelSize: Theme.fontSizeXs // VEDIT: CapCut-sized
     }
 }

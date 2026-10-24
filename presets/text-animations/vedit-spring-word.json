@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "id": "vedit-spring-word",
+  "label": "Spring by word",
+  "category": "word",
+  "sampleText": "Spring word",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 306,
+  "defaults": {
+    "unit": "word",
+    "stagger": 0.12,
+    "duration": 0.5,
+    "ease": "back"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "scale": 0,
+        "rotation": -12,
+        "opacity": 0
+      }
+    }
+  ]
+}

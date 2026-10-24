@@ -24,7 +24,9 @@ class WaveformBlockCache : public QObject
     Q_OBJECT
 
 public:
-    static constexpr int kPeaksPerSecond = 100;
+    // VEDIT: 1 ms per peak (was 10 ms) so the deepest timeline zoom (2000 px/s) still has a
+    // value per two pixels instead of a 20 px staircase — closer to Vegas' detail.
+    static constexpr int kPeaksPerSecond = 1000;
     static constexpr int kBlockSeconds = 30;
     static constexpr int kPeaksPerBlock = kPeaksPerSecond * kBlockSeconds;
 
@@ -49,6 +51,13 @@ public:
     // the timeline asks instead of probing the file again on the GUI thread.
     int channelCount(const QString &sourcePath, int streamOrdinal = 0) const;
     QStringList channelNames(const QString &sourcePath, int streamOrdinal = 0) const;
+
+    // VEDIT: what the timeline should draw for a source — "mono", "stereo", "left" (a stereo
+    // source whose right channel is silent), "right", "multi" (more than two channels), or ""
+    // while nothing has been decoded. Decided from the loudest peak seen per channel and
+    // latched one way: once a channel has carried sound it counts, so the lanes never flicker
+    // back as more of the file decodes.
+    QString channelLayout(const QString &sourcePath, int streamOrdinal = 0) const;
 
     // Drop everything decoded for a source. For media leaving the project (or the project
     // closing): nothing else ever removes a block, so without this a session accumulates every
@@ -79,6 +88,8 @@ private:
         // are kept is a property of the stream, not of a block, so a batch can never contain
         // a mix of the two.
         bool perChannel = false;
+        // VEDIT: loudest peak decoded so far, per channel (feeds channelLayout()).
+        QVector<float> channelMax;
         // Blocks stored for this stream. Exact indices rather than a key prefix scan — a
         // source path containing '#' or '|' already aliases in keyFor(), and making deletion
         // prefix-driven would turn that display collision into data loss.
@@ -104,7 +115,8 @@ private:
 
     // ~24 MB of peaks. A 30 s block is 3000 floats (12 KB) per channel, so this holds roughly
     // 2000 mono blocks — 16 hours of audio — or a quarter of that with 7.1 lanes turned on.
-    static constexpr qint64 kMaxStoredPeaks = 24 * 1024 * 1024 / static_cast<qint64>(sizeof(float));
+    // VEDIT: 10x the peaks per second, so a larger budget (~160 MB) keeps a similar span cached.
+    static constexpr qint64 kMaxStoredPeaks = 160LL * 1024 * 1024 / static_cast<qint64>(sizeof(float));
 
     QHash<QString, QVector<float>> m_blocks;
     qint64 m_storedPeaks = 0;

@@ -159,6 +159,15 @@ Item {
     function isHeightPreset(index, scale) {
         return Math.abs((tracks[index].heightScale || 1) - scale) < 0.01
     }
+    // VEDIT (조박사님): the per-track sizes are the same three heights as the corner switch
+    // (큰/보통/작은 = clip size 1.0 / 0.75 / 0.5), whatever the corner is set to — a track's
+    // "Large" is exactly as tall as every track under the corner's "Large".
+    function isAbsoluteSize(index, size) {
+        return Math.abs((tracks[index].heightScale || 1) * Theme.clipSizeScale - size) < 0.01
+    }
+    function setAbsoluteSize(index, size) {
+        EditorState.setTrackHeightScale(index, size / Theme.clipSizeScale)
+    }
 
     // Header button order: Video -> Video + waveform -> Waveform -> Video.
     function nextClipDisplay(mode) {
@@ -200,6 +209,26 @@ Item {
                 ordinal++
         }
         return Math.max(1, ordinal)
+    }
+
+    // VEDIT (조박사님, as in Vegas): a coloured strip at the front of each header, with the
+    // track's number, so rows tell apart at a glance.
+    readonly property real colorStripWidth: compact ? 6 : 36
+    readonly property var trackStripColors: ["#f2c94c", "#6fcf97", "#9b8fd9", "#e08fb6",
+                                             "#f0866e", "#f2a65a", "#56c2c4", "#6fa8f2"]
+    // "V1", "T1", "A1" — the short code shown in the strip (Vegas-like, the same in every language).
+    function trackStripCode(index) {
+        const t = tracks[index] ? tracks[index].type : ""
+        const code = t === "audio" ? "A" : t === "text" ? "T" : t === "subtitle" ? "S"
+                   : t === "shape" ? "G" : t === "adjustment" ? "FX" : "V"
+        return code + trackTypeOrdinal(index)
+    }
+    function trackRowNumber(index) {
+        let n = 0
+        for (let i = 0; i <= index && i < tracks.length; ++i)
+            if (trackOccupiesARow(i))
+                ++n
+        return n
     }
 
     function trackRowTop(index) {
@@ -256,6 +285,9 @@ Item {
             // getters) so the toggles rebind on tracksChanged.
             readonly property bool trackMuted: root.tracks[index].muted === true
             readonly property bool trackHidden: root.tracks[index].hidden === true
+            readonly property bool trackLocked: root.tracks[index].locked === true // VEDIT
+            readonly property bool hasCustomName: !!root.tracks[index].name && root.tracks[index].name.length > 0 // VEDIT
+            readonly property bool trackMagnet: root.tracks[index].magnet === true // VEDIT: 빈틈 닫기
             readonly property int clipDisplay: root.tracks[index].clipDisplay !== undefined
                                                ? root.tracks[index].clipDisplay : 1
             readonly property bool trackWaveform: clipDisplay === 2
@@ -315,7 +347,10 @@ Item {
                 pressAndHoldInterval: 400
                 preventStealing: root.touchMode ? armed : true
 
+                property real pressX: 0 // VEDIT
                 onPressed: (mouse) => {
+                    EditorState.noteTrackClicked(index) // VEDIT: where a paste lands
+                    pressX = mouse.x // VEDIT
                     pressY = mouse.y
                     moved = false
                     armed = false
@@ -366,6 +401,10 @@ Item {
                                               root.draggingTrackTo)
                     } else {
                         Haptics.drop()
+                        // VEDIT (조박사님): a plain click on the colour strip picks the whole track —
+                        // Delete or the toolbar's bin then removes it.
+                        if (!moved && pressX <= root.colorStripWidth)
+                            EditorState.selectTrackRow(index)
                     }
                     root.clearTrackDrag()
                 }
@@ -375,6 +414,15 @@ Item {
                 }
             }
 
+            // VEDIT (조박사님): the header row gets the same tint as its timeline row, so the
+            // 3 px line between tracks runs through the headers too.
+            Rectangle {
+                width: parent.width
+                height: root.trackHeight(index)
+                z: -1
+                color: Qt.rgba(Theme.panelAccent.r, Theme.panelAccent.g, Theme.panelAccent.b, 0.22)
+            }
+
             Rectangle {
                 anchors.right: parent.right
                 width: 1
@@ -382,10 +430,143 @@ Item {
                 color: Theme.panelBorder
             }
 
+            Rectangle { // VEDIT: a picked track — a bright frame round its header
+                visible: EditorState.selectedTrackRow === index
+                anchors.left: parent.left
+                width: parent.width
+                height: root.trackHeight(index)
+                color: Qt.rgba(1, 1, 1, 0.06)
+                border.width: 2
+                border.color: Theme.primary
+                z: 6
+            }
+
+            Rectangle { // VEDIT: the colour strip
+                anchors.left: parent.left
+                width: root.colorStripWidth
+                height: root.trackHeight(index)
+                radius: 2
+                color: root.trackStripColors[(root.trackRowNumber(index) - 1) % root.trackStripColors.length]
+                // VEDIT (조박사님): the video row's clip-display toggle lives here, under V1
+                IconGlyph {
+                    // VEDIT (조박사님): at the foot of the strip, 20 % larger again, black.
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 6
+                    visible: !root.compact && root.tracks[index].type === "video" && root.trackHeight(index) >= 40
+                    glyph: root.clipDisplayGlyph(trackLabelRow.clipDisplay)
+                    iconSize: 17
+                    iconColor: "#000000"
+                    ThemedToolTip {
+                        visible: stripDisplayMouse.containsMouse
+                        text: qsTr("Clips show: %1 (click to change)")
+                                  .arg(root.clipDisplayLabel(trackLabelRow.clipDisplay))
+                    }
+                    MouseArea {
+                        id: stripDisplayMouse
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            Haptics.press()
+                            EditorState.setTrackClipDisplay(
+                                index, root.nextClipDisplay(trackLabelRow.clipDisplay))
+                        }
+                    }
+                }
+                // The reorder grip and the short code inside the strip: stacked on a tall row,
+                // side by side on a short one.
+                Column {
+                    visible: !root.compact
+                    anchors.centerIn: parent
+                    spacing: 7 // 조박사님: more room between V1 and the icon below
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 1
+                        IconGlyph {
+                            anchors.verticalCenter: parent.verticalCenter
+                            glyph: Theme.icons.gripVertical
+                            iconSize: 10
+                            iconColor: "#2a2a2a"
+                            HoverHandler { id: stripGripHover }
+                            ThemedToolTip {
+                                visible: stripGripHover.hovered && root.draggingTrackFrom < 0
+                                text: qsTr("Drag the header to reorder this track")
+                            }
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.trackStripCode(index)
+                            color: "#1a1a1a"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 10 // 조박사님: 30% smaller than 14
+                            font.bold: true
+                        }
+                    }
+                    // VEDIT (조박사님): a sound row's stereo sides, under A1 — click to go round
+                    // as recorded → L on both → R on both → L/R mix (the whole track).
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        visible: root.tracks[index].type === "audio" && root.trackHeight(index) >= 40
+                        readonly property int mode: root.tracks[index].channelMode || 0
+                        text: ["L·R", "L→R", "R→L", "MIX", "L↔R"][mode]
+                        color: "#1a1a1a" // 조박사님: black — yellow did not show on the strip
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 9
+                        font.bold: true
+                        ThemedToolTip {
+                            visible: stripChannelMouse.containsMouse
+                            text: qsTr("Sound channels (whole track): %1 — click to change")
+                                  .arg([qsTr("as recorded"), qsTr("left on both sides"), qsTr("right on both sides"),
+                                        qsTr("left and right mixed"), qsTr("left and right swapped")][parent.mode])
+                        }
+                        MouseArea {
+                            id: stripChannelMouse
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            // VEDIT (조박사님, Vegas-style): a menu of the four choices, the current one ticked
+                            onClicked: channelMenu.popup(stripChannelMouse, 0, stripChannelMouse.height)
+                        }
+                        ThemedContextMenu {
+                            id: channelMenu
+                            implicitWidth: 230
+                            ThemedMenuItem {
+                                // the tick as a leading mark: the item's own indicator sat on the first letters
+                                text: ((root.tracks[index].channelMode || 0) === 0 ? "✓  " : "     ") + qsTr("As recorded (L·R)")
+                                onTriggered: EditorState.setTrackChannelMode(index, 0)
+                            }
+                            ThemedMenuItem {
+                                // the tick as a leading mark: the item's own indicator sat on the first letters
+                                text: ((root.tracks[index].channelMode || 0) === 1 ? "✓  " : "     ") + qsTr("Left on both sides (L → R)")
+                                onTriggered: EditorState.setTrackChannelMode(index, 1)
+                            }
+                            ThemedMenuItem {
+                                // the tick as a leading mark: the item's own indicator sat on the first letters
+                                text: ((root.tracks[index].channelMode || 0) === 2 ? "✓  " : "     ") + qsTr("Right on both sides (R → L)")
+                                onTriggered: EditorState.setTrackChannelMode(index, 2)
+                            }
+                            ThemedMenuItem {
+                                // the tick as a leading mark: the item's own indicator sat on the first letters
+                                text: ((root.tracks[index].channelMode || 0) === 3 ? "✓  " : "     ") + qsTr("Mix left and right (L/R mix)")
+                                onTriggered: EditorState.setTrackChannelMode(index, 3)
+                            }
+                            ThemedMenuItem {
+                                text: ((root.tracks[index].channelMode || 0) === 4 ? "✓  " : "     ") + qsTr("Swap left and right (L ↔ R)")
+                                onTriggered: EditorState.setTrackChannelMode(index, 4)
+                            }
+                        }
+                    }
+                }
+            }
+
             // Drag affordance — left-aligned reorder grip.
             IconGlyph {
+                visible: root.compact // VEDIT: the grip sits in the colour strip on a full header
                 anchors.left: parent.left
-                anchors.leftMargin: root.compact ? 4 : 8
+                anchors.leftMargin: root.colorStripWidth + 4
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.verticalCenterOffset: index < root.tracks.length - 1 ? -Theme.trackGap / 2 : 0
                 glyph: Theme.icons.gripVertical
@@ -423,7 +604,7 @@ Item {
                     visible: root.tracks[index].type === "video"
                              || root.tracks[index].type === "audio"
                     glyph: trackLabelRow.trackMuted ? Theme.icons.volumeOff : Theme.icons.volumeHigh
-                    iconSize: 16
+                    iconSize: 13 // VEDIT: 20% smaller
                     iconColor: trackLabelRow.trackMuted ? Theme.destructive : Theme.mutedForeground
                     anchors.verticalCenter: parent.verticalCenter
 
@@ -471,7 +652,7 @@ Item {
                                   && trackLabelRow.trackWaveform))
                              && laneChannels > 1
                     glyph: Theme.icons.split
-                    iconSize: 16
+                    iconSize: 13 // VEDIT: 20% smaller
                     iconColor: lanesOn ? Theme.primary : Theme.mutedForeground
                     anchors.verticalCenter: parent.verticalCenter
 
@@ -510,7 +691,7 @@ Item {
                              || root.tracks[index].type === "subtitle"
                              || root.tracks[index].type === "shape"
                     glyph: trackLabelRow.trackHidden ? Theme.icons.eyeOff : Theme.icons.eye
-                    iconSize: 16
+                    iconSize: 13 // VEDIT: 20% smaller
                     iconColor: trackLabelRow.trackHidden ? Theme.destructive : Theme.mutedForeground
                     anchors.verticalCenter: parent.verticalCenter
 
@@ -537,12 +718,68 @@ Item {
                     }
                 }
 
+                // VEDIT: 트랙 잠금 — locked rows cannot be grabbed, cut or dropped onto.
+                IconGlyph {
+                    glyph: trackLabelRow.trackLocked ? Theme.icons.lock : Theme.icons.lockOpen
+                    iconSize: 13 // VEDIT: 20% smaller
+                    iconColor: trackLabelRow.trackLocked ? Theme.primary : Theme.mutedForeground
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    ThemedToolTip {
+                        visible: lockMouse.containsMouse
+                        text: trackLabelRow.trackLocked ? qsTr("Unlock track") : qsTr("Lock track")
+                    }
+
+                    Accessible.role: Accessible.CheckBox
+                    Accessible.name: trackLabelRow.trackLocked ? qsTr("Unlock track") : qsTr("Lock track")
+                    Accessible.checked: trackLabelRow.trackLocked
+
+                    MouseArea {
+                        id: lockMouse
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: EditorState.setTrackLocked(index, !trackLabelRow.trackLocked)
+                    }
+                }
+
+                // VEDIT: 빈틈 닫기 — per track (CapCut keeps it on its main track; here every track
+                // has its own switch). On: the track keeps no gaps.
+                IconGlyph {
+                    visible: !root.tracks[index].isAdjustmentLane
+                    glyph: Theme.icons.foldHorizontal
+                    iconSize: 13 // VEDIT: 20% smaller
+                    iconColor: trackLabelRow.trackMagnet ? Theme.primary : Theme.mutedForeground
+                    opacity: trackLabelRow.trackMagnet ? 1.0 : 0.55
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    ThemedToolTip {
+                        visible: magnetMouse.containsMouse
+                        text: trackLabelRow.trackMagnet ? qsTr("Close gaps on this track: on (click to turn off)")
+                                                        : qsTr("Close gaps on this track: off (click to turn on)")
+                    }
+
+                    Accessible.role: Accessible.CheckBox
+                    Accessible.name: qsTr("Close gaps on this track")
+                    Accessible.checked: trackLabelRow.trackMagnet
+
+                    MouseArea {
+                        id: magnetMouse
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: EditorState.setTrackMagnet(index, !trackLabelRow.trackMagnet)
+                    }
+                }
+
                 // Cycles the track's clips through filmstrip / filmstrip + waveform bar /
                 // waveform.
                 IconGlyph {
-                    visible: !root.compact && root.tracks[index].type === "video"
+                    visible: false // VEDIT: moved into the colour strip so every row's icons line up
                     glyph: root.clipDisplayGlyph(trackLabelRow.clipDisplay)
-                    iconSize: 16
+                    iconSize: 13 // VEDIT: 20% smaller
                     iconColor: trackLabelRow.clipDisplay === 0 ? Theme.mutedForeground : Theme.primary
                     anchors.verticalCenter: parent.verticalCenter
 
@@ -571,10 +808,56 @@ Item {
             // top-anchored name and a vertically centered icon row without the two
             // overlapping), so the name sits inline here instead, between the grip and the
             // type/toggle icons.
-            Text {
-                visible: !root.compact && root.trackHeight(index) < 40
+            // VEDIT (조박사님): this row's own size — small / medium / large, stacked
+            // vertically right of the colour strip (the corner switch above sets every row).
+            Column {
+                id: rowSizeColumn
+                readonly property int rowIndex: index // the track's, not the size buttons' own index
+                visible: !root.compact && !root.tracks[index].isAdjustmentLane
                 anchors.left: parent.left
-                anchors.leftMargin: Theme.spacing3xl + Theme.spacingSm
+                anchors.leftMargin: root.colorStripWidth + 3
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 3 // VEDIT (조박사님): a little more room between them
+                z: 5
+                Repeater {
+                    // 10 % larger (조박사님)
+                    model: [{ "size": 1.0, "bar": 7, "label": qsTr("Large") },
+                            { "size": 0.75, "bar": 4.5, "label": qsTr("Medium") },
+                            { "size": 0.5, "bar": 2.5, "label": qsTr("Small") }]
+                    delegate: Item {
+                        required property var modelData
+                        readonly property bool active: root.isAbsoluteSize(rowSizeColumn.rowIndex, modelData.size)
+                        width: 15
+                        // 50 % taller hit areas (조박사님: hard to hit, and there is room)
+                        height: Math.max(12, Math.min(16.5, (root.trackHeight(rowSizeColumn.rowIndex) - 8) / 3))
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 11
+                            height: Math.min(parent.height - 1, modelData.bar)
+                            radius: 1
+                            color: parent.active ? Theme.primary
+                                                 : (rowSizeMouse.containsMouse ? Theme.foreground : Theme.mutedForeground)
+                        }
+                        MouseArea {
+                            id: rowSizeMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.setAbsoluteSize(rowSizeColumn.rowIndex, modelData.size)
+                        }
+                        ToolTip.visible: rowSizeMouse.containsMouse
+                        ToolTip.delay: 500
+                        ToolTip.text: qsTr("This track's height") + " — " + modelData.label
+                    }
+                }
+            }
+
+            Text {
+                // VEDIT (조박사님): "영상 1" / "소리 1" repeat the strip's V1 / A1 — only a name the
+                // user gave the track is shown.
+                visible: !root.compact && root.trackHeight(index) < 40 && trackLabelRow.hasCustomName
+                anchors.left: parent.left
+                anchors.leftMargin: root.colorStripWidth + 8 // VEDIT: right after the colour strip
                 anchors.right: trackIconRow.left
                 anchors.rightMargin: Theme.spacingSm
                 anchors.verticalCenter: parent.verticalCenter
@@ -594,7 +877,7 @@ Item {
             Text {
                 visible: root.compact
                 anchors.left: parent.left
-                anchors.leftMargin: 18
+                anchors.leftMargin: 18 + root.colorStripWidth // VEDIT
                 anchors.right: trackIconRow.left
                 anchors.rightMargin: Theme.spacingSm
                 anchors.verticalCenter: parent.verticalCenter
@@ -612,7 +895,7 @@ Item {
             IconGlyph {
                 visible: root.compact && root.tracks[index].type === "video"
                 anchors.left: parent.left
-                anchors.leftMargin: 4
+                anchors.leftMargin: 4 + root.colorStripWidth // VEDIT
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: (index < root.tracks.length - 1 ? Theme.trackGap : 0) + 4
                 glyph: root.clipDisplayGlyph(trackLabelRow.clipDisplay)
@@ -634,7 +917,7 @@ Item {
             // track this was beyond the type glyph.
             Text {
                 anchors.left: parent.left
-                anchors.leftMargin: Theme.spacing3xl + Theme.spacingSm
+                anchors.leftMargin: root.colorStripWidth + 8 // VEDIT: right after the colour strip
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.spacingLg
                 anchors.top: parent.top
@@ -644,7 +927,7 @@ Item {
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeTiny
                 elide: Text.ElideRight
-                visible: !root.compact && root.trackHeight(index) >= 40
+                visible: !root.compact && root.trackHeight(index) >= 40 && trackLabelRow.hasCustomName // VEDIT
             }
 
             // Track context menu. Right-click on desktop; on touch it is opened from the
@@ -719,21 +1002,21 @@ Item {
 
                         ThemedMenuItem {
                             text: qsTr("Short")
-                            icon.name: root.isHeightPreset(index, 0.6)
+                            icon.name: root.isAbsoluteSize(index, 0.5)
                                        ? Theme.icons.check : Theme.icons.listChevronsDownUp
-                            onTriggered: EditorState.setTrackHeightScale(index, 0.6)
+                            onTriggered: root.setAbsoluteSize(index, 0.5)
                         }
                         ThemedMenuItem {
                             text: qsTr("Tall")
-                            icon.name: root.isHeightPreset(index, 1.0)
+                            icon.name: root.isAbsoluteSize(index, 0.75)
                                        ? Theme.icons.check : Theme.icons.list
-                            onTriggered: EditorState.setTrackHeightScale(index, 1.0)
+                            onTriggered: root.setAbsoluteSize(index, 0.75)
                         }
                         ThemedMenuItem {
                             text: qsTr("Taller")
-                            icon.name: root.isHeightPreset(index, 1.6)
+                            icon.name: root.isAbsoluteSize(index, 1.0)
                                        ? Theme.icons.check : Theme.icons.listChevronsUpDown
-                            onTriggered: EditorState.setTrackHeightScale(index, 1.6)
+                            onTriggered: root.setAbsoluteSize(index, 1.0)
                         }
                         ThemedMenuSeparator {
                             visible: !root.touchMode

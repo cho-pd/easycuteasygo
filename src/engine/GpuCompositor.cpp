@@ -1,4 +1,6 @@
 #include "GpuCompositor.h"
+
+#include <QVector4D>
 #ifdef DRIFT_WITH_SKIA
 #include "SkiaRuntime.h"
 #endif
@@ -34,9 +36,10 @@ constexpr const char *kLayerVertexShader = R"(#version 330 core
 layout(location = 0) in vec2 a_position;
 layout(location = 1) in vec2 a_texCoord;
 uniform mat4 u_model;
+uniform vec4 u_uvRect; // VEDIT: crop — x, y, w, h of the texture drawn into the quad
 out vec2 v_texCoord;
 void main() {
-    v_texCoord = a_texCoord;
+    v_texCoord = u_uvRect.xy + a_texCoord * u_uvRect.zw;
     gl_Position = u_model * vec4(a_position, 0.0, 1.0);
 }
 )";
@@ -285,6 +288,18 @@ QMatrix4x4 modelMatrixFor(const GpuLayer &layer, const QSize &canvas)
     // own sizing: rotating the unrotated unit quad first and applying the layer
     // size after would shear it whenever the layer or the canvas is not square.
     m.rotate(float(layer.rotation), 0.f, 0.f, 1.f);
+    // VEDIT: a 3D turn — rotate the picture out of the screen plane, then let depth set w so the
+    // GPU divides (near edge larger, far edge smaller) and z is dropped so nothing is clipped.
+    if (!qFuzzyIsNull(layer.yaw) || !qFuzzyIsNull(layer.pitch)) {
+        const float d = float(2.2 * qMax(w, h)); // eye distance, px: a gentle lens
+        const QMatrix4x4 perspective(1.f, 0.f, 0.f, 0.f,
+                                     0.f, 1.f, 0.f, 0.f,
+                                     0.f, 0.f, 0.f, 0.f,
+                                     0.f, 0.f, 1.f / d, 1.f);
+        m = m * perspective;
+        m.rotate(float(layer.pitch), 1.f, 0.f, 0.f);
+        m.rotate(float(layer.yaw), 0.f, 1.f, 0.f);
+    }
     // Quad spans [-1, 1], so half the layer size takes it to the full rect.
     m.scale(float(w * 0.5), float(h * 0.5));
     m.scale(layer.flipH ? -1.f : 1.f, layer.flipV ? -1.f : 1.f);
@@ -802,6 +817,7 @@ GlTarget depthCanvasTarget(GlRuntime &rt, QOpenGLExtraFunctions *gl, const GpuLa
     gl->glClear(GL_COLOR_BUFFER_BIT);
     program->bind();
     program->setUniformValue("u_model", modelMatrixFor(layer, canvasSize));
+    program->setUniformValue("u_uvRect", QVector4D(layer.uv.x(), layer.uv.y(), layer.uv.width(), layer.uv.height())); // VEDIT
     program->setUniformValue("u_opacity", float(qBound(0.0, layer.opacity, 1.0)));
     program->setUniformValue("u_hasMask", maskTarget.isValid() ? 1.f : 0.f);
     program->setUniformValue("u_maskInvert", maskInvert);
@@ -877,8 +893,8 @@ void drawLayerOnCanvas(GlRuntime &rt, QOpenGLExtraFunctions *gl, GlTarget &canva
 
     // Only worth it when the quad is actually smaller than the texture; at ~1:1 the
     // single bilinear tap is already exact and the copy would be pure cost.
-    const bool minifies = layerTarget.width > layer.rect.width() * 1.05
-                          || layerTarget.height > layer.rect.height() * 1.05;
+    const bool minifies = layerTarget.width * layer.uv.width() > layer.rect.width() * 1.05
+                          || layerTarget.height * layer.uv.height() > layer.rect.height() * 1.05;
     GlTarget mipTarget = minifies ? mipmappedLayerCopy(rt, gl, layerTarget) : GlTarget{};
     const GLuint layerTex = mipTarget.isValid() ? mipTarget.texture() : layerTarget.texture();
     const float layerPremul = mipTarget.isValid() ? 1.f : 0.f;
@@ -916,6 +932,7 @@ void drawLayerOnCanvas(GlRuntime &rt, QOpenGLExtraFunctions *gl, GlTarget &canva
 
         program->bind();
         program->setUniformValue("u_model", model);
+        program->setUniformValue("u_uvRect", QVector4D(layer.uv.x(), layer.uv.y(), layer.uv.width(), layer.uv.height())); // VEDIT
         program->setUniformValue("u_opacity", float(layer.opacity));
         program->setUniformValue("u_hasMask", maskTex ? 1.f : 0.f);
         program->setUniformValue("u_maskInvert", maskInvert);
@@ -961,6 +978,7 @@ void drawLayerOnCanvas(GlRuntime &rt, QOpenGLExtraFunctions *gl, GlTarget &canva
 
     program->bind();
     program->setUniformValue("u_model", model);
+    program->setUniformValue("u_uvRect", QVector4D(layer.uv.x(), layer.uv.y(), layer.uv.width(), layer.uv.height())); // VEDIT
     program->setUniformValue("u_opacity", float(layer.opacity));
     program->setUniformValue("u_hasMask", maskTex ? 1.f : 0.f);
     program->setUniformValue("u_maskInvert", maskInvert);

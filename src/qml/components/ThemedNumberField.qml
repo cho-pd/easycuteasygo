@@ -19,10 +19,13 @@ ThemedTextField {
     property int decimals: 0
     // Appended to the range hint, e.g. "px", "s", "%".
     property string unit: ""
+    // VEDIT (조박사님): show and accept seconds as minutes:seconds ("3:43.00", "1:02:05.50"
+    // past an hour). Plain seconds typed in still work.
+    property bool clockFormat: false
 
     signal edited(real value)
 
-    inputMethodHints: Qt.ImhFormattedNumbersOnly
+    inputMethodHints: clockFormat ? Qt.ImhPreferNumbers : Qt.ImhFormattedNumbersOnly
 
     readonly property bool _bounded: from > -1e9 || to < 1e9
     readonly property string rangeHint: _bounded
@@ -35,6 +38,17 @@ ThemedTextField {
     }
 
     function format(v) {
+        if (clockFormat) {
+            const neg = v < 0
+            const total = Math.abs(Number(v))
+            const h = Math.floor(total / 3600)
+            const m = Math.floor((total - h * 3600) / 60)
+            let sec = (total - h * 3600 - m * 60).toFixed(decimals)
+            if (Number(sec) < 10)
+                sec = "0" + sec
+            const body = h > 0 ? h + ":" + (m < 10 ? "0" : "") + m + ":" + sec : m + ":" + sec
+            return (neg ? "-" : "") + body
+        }
         if (decimals > 0)
             return Number(v).toFixed(decimals)
         return String(Math.round(v))
@@ -57,8 +71,23 @@ ThemedTextField {
             edited(clamped)
     }
 
+    // VEDIT: "h:mm:ss.ss", "m:ss.ss" or plain seconds.
+    function parseText(t) {
+        if (!clockFormat || String(t).indexOf(":") < 0)
+            return parseFloat(t)
+        const parts = String(t).trim().split(":")
+        let total = 0
+        for (let i = 0; i < parts.length; ++i) {
+            const n = parseFloat(parts[i])
+            if (isNaN(n))
+                return NaN
+            total = total * 60 + n
+        }
+        return total
+    }
+
     function parseAndCommit() {
-        const v = parseFloat(text)
+        const v = parseText(text)
         if (isNaN(v)) {
             _flash(qsTr("Enter a number"))
             Haptics.error()

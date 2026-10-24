@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "vedit-beat-word",
+  "label": "Beat by word",
+  "category": "word",
+  "sampleText": "Beat word",
+  "slots": [
+    "loop"
+  ],
+  "order": 323,
+  "animators": [
+    {
+      "selectors": [
+        {
+          "driver": "wiggle",
+          "domain": "word",
+          "wave": "sine",
+          "frequencyHz": 1.2,
+          "spatialPhaseDeg": 120,
+          "minAmount": 0,
+          "maxAmount": 100
+        }
+      ],
+      "props": {
+        "scale": 118
+      }
+    }
+  ]
+}

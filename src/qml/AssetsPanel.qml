@@ -80,6 +80,14 @@ PanelFrame {
     // trim past its cut or merge, so refuse rather than confirm — for a bulk removal, refusing
     // the whole batch over one in-use item beats silently dropping it and surprising the user
     // with a smaller removal than they asked for.
+    // VEDIT (조박사님): Delete while items are picked in the bin removes them (with the usual
+    // confirmation when clips use them).
+    readonly property bool binOwnsDelete: mediaAssetsTab.visible && mediaAssetsTab.binActive
+                                          && mediaAssetsTab.selectedAssetIds.length > 0
+    function deleteSelectedAssets() {
+        requestRemoveAsset(mediaAssetsTab.selectedAssetIds)
+    }
+
     function requestRemoveAsset(assetIds) {
         const names = []
         let clipCount = 0
@@ -569,7 +577,8 @@ PanelFrame {
         if (tabId === "text" || tabId === "subtitles" || tabId === "stickers" || tabId === "shapes"
                 || tabId === "effects" || tabId === "templates" || tabId === "adjustment"
                 || tabId === "sounds" || tabId === "transitions" || tabId === "masks"
-                || tabId === "shortcuts" || tabId === "scenes" || tabId === "market")
+                || tabId === "shortcuts" || tabId === "scenes" || tabId === "market"
+                || tabId === "music" || tabId === "sfx") // VEDIT
             return false
         const kinds = kindsForTab(tabId)
         return kinds.length === 0 || kinds.indexOf(kind) >= 0
@@ -579,6 +588,8 @@ PanelFrame {
     // evaluated. Labels are translated via tabLabels below.
     property var tabLabels: ({
         "media": qsTr("Media"),
+        "music": "음악", // VEDIT
+        "sfx": "효과음", // VEDIT
         "market": qsTr("Market"),
         "text": qsTr("Text"),
         "subtitles": qsTr("Subtitles"),
@@ -589,7 +600,7 @@ PanelFrame {
         "effects": qsTr("Effects"),
         "templates": qsTr("Templates"),
         "transitions": qsTr("Transitions"),
-        "sounds": qsTr("Audio FX"),
+        "sounds": "음성 효과", // VEDIT: was "Audio FX" — distinct from the new 효과음 (sound effects) tab
         "shortcuts": qsTr("Shortcuts")
     })
 
@@ -598,17 +609,21 @@ PanelFrame {
     // tabId "sounds" is kept for favorites persistence (settings key).
     ListModel {
         id: tabsModel
+        // VEDIT: no Market tab — the product is offline and has no stock-media service.
         ListElement { tabId: "media"; icon: 0; separatorAfter: false }
-        ListElement { tabId: "market"; icon: 12; separatorAfter: true }
+        // VEDIT: the "music" tab (AudioLibraryTab kind "music") is hidden until a music pack ships.
+        ListElement { tabId: "sfx"; icon: 8; separatorAfter: true } // VEDIT
         ListElement { tabId: "text"; icon: 1; separatorAfter: false }
         ListElement { tabId: "subtitles"; icon: 2; separatorAfter: false }
         ListElement { tabId: "stickers"; icon: 3; separatorAfter: false }
+        // VEDIT: 효과 and 전환 up front next to each other, as in CapCut — 전환 used to sit past the
+        // panel's edge where nobody found it.
+        ListElement { tabId: "effects"; icon: 5; separatorAfter: false }
+        ListElement { tabId: "transitions"; icon: 7; separatorAfter: true }
         ListElement { tabId: "shapes"; icon: 4; separatorAfter: false }
         ListElement { tabId: "masks"; icon: 11; separatorAfter: true }
         ListElement { tabId: "scenes"; icon: 10; separatorAfter: true }
-        ListElement { tabId: "effects"; icon: 5; separatorAfter: false }
         ListElement { tabId: "templates"; icon: 6; separatorAfter: false }
-        ListElement { tabId: "transitions"; icon: 7; separatorAfter: false }
         ListElement { tabId: "sounds"; icon: 8; separatorAfter: true }
         ListElement { tabId: "shortcuts"; icon: 9; separatorAfter: false }
     }
@@ -620,12 +635,13 @@ PanelFrame {
         Theme.icons.shapes,
         Theme.icons.wand,
         Theme.icons.layers,
-        Theme.icons.chevronsRight,
+        "crossfade", // VEDIT: 전환 — the same crossing S-curves as the overlap button (조박사님)
         Theme.icons.audioLines,
         Theme.icons.keyboard,
         Theme.icons.listVideo,
         Theme.icons.mask,
-        Theme.icons.store
+        Theme.icons.store,
+        Theme.icons.music // VEDIT: 13
     ]
     property int activeTab: 0
 
@@ -707,8 +723,24 @@ PanelFrame {
         }
     }
 
+    // VEDIT: CapCut-style tabs across the top instead of the vertical rail (조박사님).
+    TopTabStrip {
+        id: topTabs
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        visible: !root.sheetMode
+        height: visible ? implicitHeight : 0
+        model: tabsModel
+        icons: root.tabIcons
+        labels: tabLabels
+        currentIndex: root.activeTab
+        onTabClicked: function(index) { root.activeTab = index }
+    }
+
     Row {
         anchors.fill: parent
+        anchors.topMargin: topTabs.height
         spacing: 0
 
         // Vertical tab rail. Up/Down move between tabs once it has focus.
@@ -716,9 +748,9 @@ PanelFrame {
         // Hidden in sheetMode — AndroidBottomRail drives showTab() instead.
         Flickable {
             id: tabRail
-            width: root.sheetMode ? 0 : Theme.tabRailWidth
+            width: 0 // VEDIT: replaced by topTabs
             height: parent.height
-            visible: !root.sheetMode
+            visible: false
             contentWidth: width
             contentHeight: tabRailColumn.height
             clip: true
@@ -768,6 +800,22 @@ PanelFrame {
                             Accessible.checked: root.activeTab === index
                         }
 
+                        // VEDIT: CapCut-style label under every rail icon, so tabs are
+                        // found by name rather than by hovering for a tooltip.
+                        Text {
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            text: tabLabels[model.tabId]
+                            color: root.activeTab === index ? Theme.foreground : Theme.mutedForeground
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSm
+                            elide: Text.ElideRight
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: root.activeTab = index
+                            }
+                        }
+
                         // Group divider — sits in the rail gap so related tabs
                         // cluster and prefs stay visually apart from content.
                         Item {
@@ -790,16 +838,9 @@ PanelFrame {
             }
         }
 
-        Rectangle {
-            width: root.sheetMode ? 0 : Theme.borderWidth
-            height: parent.height
-            visible: !root.sheetMode
-            color: Theme.panelBorder
-        }
-
         Column {
             id: assetsContent
-            width: parent.width - (root.sheetMode ? 0 : (Theme.tabRailWidth + Theme.borderWidth))
+            width: parent.width // VEDIT: no side rail any more
             height: parent.height
 
             Rectangle {
@@ -821,8 +862,8 @@ PanelFrame {
                     anchors.left: parent.left
                     anchors.leftMargin: Theme.pagePadding
                     anchors.verticalCenter: parent.verticalCenter
-                    // Sheet chrome already shows the tab title.
-                    visible: !root.sheetMode
+                    // Sheet chrome already shows the tab title. VEDIT: and the import box takes its place.
+                    visible: !root.sheetMode && !importSplit.visible
                     text: tabLabels[tabsModel.get(root.activeTab).tabId]
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
@@ -844,6 +885,89 @@ PanelFrame {
                     onClicked: emojiPicker.opened ? emojiPicker.close() : emojiPicker.open()
                 }
 
+                // Split button: the left half imports files, the chevron opens the
+                // folder variant. Both halves share one bordered box so the header
+                // reads as two actions, not three competing buttons.
+                Rectangle {
+                    id: importSplit
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: importFilesHalf.width
+                           + (importMenuHalf.visible ? importSplitDivider.width + importMenuHalf.width : 0)
+                    height: Theme.controlHeight
+                    radius: Theme.radiusSm
+                    color: "transparent"
+                    border.width: Theme.borderWidth
+                    border.color: Theme.panelBorder
+                    opacity: root.importing ? 0.6 : 1
+
+                    Row {
+                        anchors.fill: parent
+                        spacing: 0
+
+                        ThemedButton {
+                            id: importFilesHalf
+                            text: qsTr("Import")
+                            variant: "ghost"
+                            flat: true
+                            radius: Theme.radiusXs
+                            glyph: Theme.icons.upload
+                            tooltip: qsTr("Import video, audio or image files")
+                        font.pixelSize: Theme.fontSizeBase + 1
+                        font.weight: Font.DemiBold
+                        glyphSize: Theme.iconSizeLg
+                        leftPadding: Theme.spacingXl
+                        rightPadding: Theme.spacingXl
+                            enabled: !root.importing
+                            height: parent.height - Theme.borderWidth * 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            onClicked: root.importMedia()
+                        }
+
+                        Rectangle {
+                            id: importSplitDivider
+                            width: Theme.borderWidth
+                            height: parent.height - Theme.spacingLg
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Theme.panelBorder
+                            visible: importMenuHalf.visible
+                        }
+
+                        ThemedButton {
+                            id: importMenuHalf
+                            variant: "ghost"
+                            flat: true
+                            radius: Theme.radiusXs
+                            glyph: Theme.icons.chevronDown
+                            glyphSize: Theme.iconSizeSm
+                            leftPadding: Theme.spacingLg
+                            rightPadding: Theme.spacingLg
+                            tooltip: qsTr("More import options")
+                            enabled: !root.importing
+                            visible: !Theme.touchUi
+                            height: parent.height - Theme.borderWidth * 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            onClicked: importMenu.popup(0, importSplit.height + Theme.spacingSm)
+                        }
+                    }
+
+                    ThemedContextMenu {
+                        id: importMenu
+                        implicitWidth: 220
+
+                        ThemedMenuItem {
+                            text: qsTr("Import Files…")
+                            icon.name: Theme.icons.upload
+                            onTriggered: root.importMedia()
+                        }
+
+                        ThemedMenuItem {
+                            text: qsTr("Import Folder…")
+                            icon.name: Theme.icons.folderInput
+                            onTriggered: root.importFolder()
+                        }
+                    }
+                }
+
                 Row {
                     anchors.right: parent.right
                     anchors.rightMargin: 8
@@ -860,83 +984,6 @@ PanelFrame {
                         onClicked: newFolderDialog.open()
                     }
 
-                    // Split button: the left half imports files, the chevron opens the
-                    // folder variant. Both halves share one bordered box so the header
-                    // reads as two actions, not three competing buttons.
-                    Rectangle {
-                        id: importSplit
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: importFilesHalf.width
-                               + (importMenuHalf.visible ? importSplitDivider.width + importMenuHalf.width : 0)
-                        height: Theme.controlHeight
-                        radius: Theme.radiusSm
-                        color: "transparent"
-                        border.width: Theme.borderWidth
-                        border.color: Theme.panelBorder
-                        opacity: root.importing ? 0.6 : 1
-
-                        Row {
-                            anchors.fill: parent
-                            spacing: 0
-
-                            ThemedButton {
-                                id: importFilesHalf
-                                text: qsTr("Import")
-                                variant: "ghost"
-                                flat: true
-                                radius: Theme.radiusXs
-                                glyph: Theme.icons.upload
-                                tooltip: qsTr("Import video, audio or image files")
-                                enabled: !root.importing
-                                height: parent.height - Theme.borderWidth * 2
-                                anchors.verticalCenter: parent.verticalCenter
-                                onClicked: root.importMedia()
-                            }
-
-                            Rectangle {
-                                id: importSplitDivider
-                                width: Theme.borderWidth
-                                height: parent.height - Theme.spacingLg
-                                anchors.verticalCenter: parent.verticalCenter
-                                color: Theme.panelBorder
-                                visible: importMenuHalf.visible
-                            }
-
-                            ThemedButton {
-                                id: importMenuHalf
-                                variant: "ghost"
-                                flat: true
-                                radius: Theme.radiusXs
-                                glyph: Theme.icons.chevronDown
-                                glyphSize: Theme.iconSizeSm
-                                leftPadding: Theme.spacingLg
-                                rightPadding: Theme.spacingLg
-                                tooltip: qsTr("More import options")
-                                enabled: !root.importing
-                                visible: !Theme.touchUi
-                                height: parent.height - Theme.borderWidth * 2
-                                anchors.verticalCenter: parent.verticalCenter
-                                onClicked: importMenu.popup(0, importSplit.height + Theme.spacingSm)
-                            }
-                        }
-
-                        ThemedContextMenu {
-                            id: importMenu
-                            implicitWidth: 220
-
-                            ThemedMenuItem {
-                                text: qsTr("Import Files…")
-                                icon.name: Theme.icons.upload
-                                onTriggered: root.importMedia()
-                            }
-
-                            ThemedMenuItem {
-                                text: qsTr("Import Folder…")
-                                icon.name: Theme.icons.folderInput
-                                onTriggered: root.importFolder()
-                            }
-                        }
-                    }
                 }
             }
 
@@ -960,6 +1007,24 @@ PanelFrame {
 
             SubtitlesTab {
                 visible: tabsModel.get(activeTab).tabId === "subtitles"
+                width: parent.width
+                opacity: root.tabOpacity
+                height: parent.height - Theme.panelHeaderHeight
+                onAdded: root.addCompleted()
+            }
+
+            AudioLibraryTab { // VEDIT
+                visible: tabsModel.get(activeTab).tabId === "music"
+                kind: "music"
+                width: parent.width
+                opacity: root.tabOpacity
+                height: parent.height - Theme.panelHeaderHeight
+                onAdded: root.addCompleted()
+            }
+
+            AudioLibraryTab { // VEDIT
+                visible: tabsModel.get(activeTab).tabId === "sfx"
+                kind: "sfx"
                 width: parent.width
                 opacity: root.tabOpacity
                 height: parent.height - Theme.panelHeaderHeight
@@ -1244,8 +1309,19 @@ PanelFrame {
                                         cursorShape: Qt.PointingHandCursor
                                     }
 
+                                    // VEDIT: CapCut — a click puts it on the join nearest the playhead
+                                    // (or replaces the selected transition); dragging still works.
+                                    TapHandler {
+                                        enabled: !Theme.touchUi
+                                        acceptedButtons: Qt.LeftButton
+                                        onTapped: {
+                                            if (EditorState.addTransitionAtPlayhead(transitionCard.modelData.kind))
+                                                EditorState.previewSelectedTransition() // CapCut plays it at once
+                                        }
+                                    }
+
                                     ThemedToolTip {
-                                        text: qsTr("%1 — drag onto an overlap between two clips").arg(transitionCard.modelData.label)
+                                        text: qsTr("%1 — click to put it on the join nearest the playhead, or drag it onto a join").arg(transitionCard.modelData.label)
                                         visible: transitionHover.hovered
                                     }
 

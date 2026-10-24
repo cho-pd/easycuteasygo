@@ -318,10 +318,14 @@ Item {
     // edited, so leaving the tab out hid the lane at exactly the moment it was wanted. The
     // curve was still reachable by switching to Transform, which made it look inconsistent
     // rather than missing.
-    visible: (propertiesTab === "transform" || propertiesTab === "effects"
-              || propertiesTab === "stabilize" || propertiesTab === "masks"
-              || propertiesTab === "audio")
-             && hasClip && clip && allSeries.length > 0
+    // VEDIT (조박사님): never for a sound clip — its volume is edited on the clip's own volume
+    // line (VL), so the lane above the tracks is not needed there.
+    // VEDIT (조박사님): keyframes are worked on the clip itself (KEY line); this lane opens only
+    // from a clip's right-click menu (키프레임 트랙 보기).
+    property bool userShown: false
+    visible: userShown && (propertiesTab === "transform" || propertiesTab === "effects"
+              || propertiesTab === "stabilize" || propertiesTab === "masks")
+             && hasClip && clip && allSeries.length > 0 && clip.kind !== "audio"
 
     // Curve editing focuses one series: it gets tangent handles and owns the value axis,
     // while the others stay drawn as dimmed context. Handles from two series normalized to

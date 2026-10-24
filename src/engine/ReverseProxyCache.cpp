@@ -21,7 +21,7 @@ QString indexPath()
     return dir.isEmpty() ? QString() : QDir(dir).filePath(QStringLiteral("index.json"));
 }
 
-// The bake lives under AppDataLocation, which on this app is "CutWire Drift" —
+// The bake lives under AppDataLocation, whose path can hold
 // spaces. avformat_open_input is fine with spaces; some decode backends are not.
 // Keep a no-space copy in /tmp named by clip id so preview always has a clean path.
 QString bakePathForDecode(const Clip &clip)
@@ -56,6 +56,8 @@ QString previewProxyPath(const Clip &clip)
 } // namespace
 
 std::atomic<bool> ReverseProxyCache::previewProxiesEnabled{true};
+std::atomic<bool> ReverseProxyCache::playbackActive{false}; // VEDIT
+std::atomic<bool> ReverseProxyCache::proxyBuilding{false}; // VEDIT
 #ifdef Q_OS_ANDROID
 std::atomic<int> ReverseProxyCache::previewProxyShortSide{540};
 #else

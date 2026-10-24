@@ -20,6 +20,8 @@
 #include "models/BinFolderListModel.h"
 #include "models/CloudProviders.h"
 
+#include <QElapsedTimer> // VEDIT
+#include <QDateTime> // VEDIT
 #include <QAtomicInt>
 #include <QCursor>
 #include <QFuture>
@@ -61,6 +63,9 @@ struct MediaEditSpec;
 #include "playback/PlaybackEngine.h"
 
 // QML-facing controller over the core project model and undo stack.
+namespace drift { class VoiceRecorder; struct LoudnessResult; } // VEDIT
+
+struct AudioSyncJob; // VEDIT: 소리로 맞추기 (AppController.cpp)
 class AppController : public QObject
 {
     // Segmentation completion is normally reached only through a finished worker, which needs a
@@ -106,6 +111,14 @@ class AppController : public QObject
     Q_PROPERTY(double playheadSeconds READ playheadSeconds WRITE setPlayheadSeconds NOTIFY playheadSecondsChanged)
     Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY tracksChanged)
     Q_PROPERTY(bool playing READ playing WRITE setPlaying NOTIFY playingChanged)
+    // VEDIT (조박사님, Vegas volume envelope): the volume keyframe picked on an audio clip's
+    // envelope — {clipId, seconds}, empty for none. Delete removes it.
+    Q_PROPERTY(QVariantMap selectedVolumeKey READ selectedVolumeKey NOTIFY selectedVolumeKeyChanged)
+    // VEDIT (조박사님): a whole track picked from its header's colour strip — Delete (or the
+    // toolbar's bin) then removes the track. -1 for none; picking a clip drops it.
+    Q_PROPERTY(int selectedTrackRow READ selectedTrackRow NOTIFY selectedTrackRowChanged)
+    // VEDIT: 임시 렌더링 stretches for the ruler band: [{start, end, ready}] in seconds.
+    Q_PROPERTY(QVariantList renderCacheSegments READ renderCacheSegments NOTIFY renderCacheChanged)
     Q_PROPERTY(bool previewDragActive READ previewDragActive NOTIFY previewDragActiveChanged)
     Q_PROPERTY(bool snapEnabled READ snapEnabled WRITE setSnapEnabled NOTIFY snapEnabledChanged)
     Q_PROPERTY(bool rippleEnabled READ rippleEnabled WRITE setRippleEnabled NOTIFY rippleEnabledChanged)
@@ -137,6 +150,10 @@ class AppController : public QObject
     // in the project on every edit.
     Q_PROPERTY(bool timelineOverviewVisible READ timelineOverviewVisible
                    WRITE setTimelineOverviewVisible NOTIFY timelineOverviewVisibleChanged)
+    // VEDIT: one size for every clip row — 0 small, 1 medium, 2 large (the default). Video and
+    // sound rows keep the same proportion at every size.
+    Q_PROPERTY(int timelineClipSize READ timelineClipSize WRITE setTimelineClipSize
+                   NOTIFY timelineClipSizeChanged)
     Q_PROPERTY(qreal trackLabelsWidth READ trackLabelsWidth
                    WRITE setTrackLabelsWidth NOTIFY trackLabelsWidthChanged)
     // Timeline toolbar layout: action ids shown as buttons, then the ones in its More menu.
@@ -216,6 +233,8 @@ class AppController : public QObject
     Q_PROPERTY(bool redoAvailable READ redoAvailable NOTIFY undoStackChanged)
     Q_PROPERTY(bool exportInProgress READ exportInProgress NOTIFY exportInProgressChanged)
     Q_PROPERTY(double exportProgress READ exportProgress NOTIFY exportProgressChanged)
+    // VEDIT: "남은 시간 약 2분 · 지금 34 MB" while rendering, "파일 크기 120 MB · 3분 12초 걸림" after.
+    Q_PROPERTY(QString exportStatusText READ exportStatusText NOTIFY exportProgressChanged)
     Q_PROPERTY(bool canShareExport READ canShareExport NOTIFY canShareExportChanged)
     Q_PROPERTY(bool subtitleGenerating READ subtitleGenerating NOTIFY subtitleGeneratingChanged)
     // Id of the asset whose replacement is being probed, empty when idle. Only that one bin row
@@ -386,7 +405,19 @@ class AppController : public QObject
     Q_PROPERTY(QVariantMap recoveryInfo READ recoveryInfo NOTIFY recoveryChanged)
     Q_PROPERTY(QVariantList recentProjects READ recentProjects NOTIFY recentProjectsChanged)
     Q_PROPERTY(bool separateAudioAvailable READ canSeparateAudioSelection NOTIFY editCapabilitiesChanged)
+    Q_PROPERTY(bool restoreAudioAvailable READ canRestoreAudioSelection NOTIFY editCapabilitiesChanged) // VEDIT
+    Q_PROPERTY(bool loudnessBusy READ loudnessBusy NOTIFY loudnessBusyChanged) // VEDIT
+    // VEDIT: true while 조용한 부분 자르기 / 음악 줄이기 listen to the audio; the window blocks input.
+    Q_PROPERTY(bool audioToolBusy READ audioToolBusy NOTIFY audioToolBusyChanged)
+    Q_PROPERTY(bool voiceRecording READ voiceRecording NOTIFY voiceRecordingChanged) // VEDIT
+    Q_PROPERTY(double voiceRecordingSeconds READ voiceRecordingSeconds NOTIFY voiceLevelChanged) // VEDIT
+    Q_PROPERTY(double voiceLevel READ voiceLevel NOTIFY voiceLevelChanged) // VEDIT
     Q_PROPERTY(bool makeCompositeAvailable READ canMakeCompositeFromSelection NOTIFY editCapabilitiesChanged)
+    // VEDIT: 소리로 맞추기 — two or more selected clips with sound.
+    Q_PROPERTY(bool syncByAudioAvailable READ canSyncSelectionByAudio NOTIFY editCapabilitiesChanged)
+    // While the sound is being compared: the progress window and its 0–1 reading.
+    Q_PROPERTY(bool audioSyncBusy READ audioSyncBusy NOTIFY audioSyncChanged)
+    Q_PROPERTY(double audioSyncProgress READ audioSyncProgress NOTIFY audioSyncChanged)
     // Open composite tabs as [{id, name}], main timeline excluded; "" is the main timeline's id.
     Q_PROPERTY(QVariantList sequenceTabs READ sequenceTabs NOTIFY sequenceTabsChanged)
     Q_PROPERTY(QString activeSequenceId READ activeSequenceId NOTIFY sequenceTabsChanged)
@@ -396,6 +427,25 @@ class AppController : public QObject
     Q_PROPERTY(bool projectLayoutChosen READ projectLayoutChosen NOTIFY projectLayoutChosenChanged)
 
 public:
+    // VEDIT: overlap mode (Vegas-style auto dissolve) is on by default. Upstream test suites that
+    // assume Drift's default flip this off before creating controllers.
+    static inline bool s_defaultAllowClipOverlap = true;
+    // VEDIT: CapCut-style — deleting or trimming closes the gap it leaves. Same test escape hatch.
+    static inline bool s_defaultRippleEnabled = true;
+    // VEDIT: CapCut's main-track magnet — with 빈틈 닫기 on, the main track (the bottom-most video
+    // track) never keeps a gap: after every edit its clips sit end to end from 0 (a dissolve keeps
+    // its overlap). Tests that place clips with gaps on purpose turn it off.
+    static inline bool s_mainTrackMagnet = true;
+    // VEDIT: tests of the trim/delete gap closing written before 빈틈 닫기 went per track: every
+    // track closes gaps as if its switch were on.
+    static inline bool s_allTracksMagnet = false;
+    // VEDIT: an overlap always becomes a curved crossfade, even with the overlap switch off.
+    // Upstream tests of stacking (overlap without a fade) switch it off.
+    static inline bool s_alwaysCrossfadeOverlaps = true;
+    // VEDIT: a track left with no clips by an edit disappears (CapCut). Tests of upstream
+    // behaviour switch it off.
+    static inline bool s_autoRemoveEmptyTracks = true;
+
     explicit AppController(AssetLibrary *assetLibrary, QObject *parent = nullptr);
     ~AppController() override;
 
@@ -456,6 +506,13 @@ public:
     bool timelineOverviewVisible() const { return m_timelineOverviewVisible; }
     void setTimelineOverviewVisible(bool visible);
     qreal trackLabelsWidth() const { return m_trackLabelsWidth; }
+    int timelineClipSize() const { return m_timelineClipSize; } // VEDIT
+    bool loudnessBusy() const { return m_loudnessBusy; } // VEDIT
+    bool audioToolBusy() const { return m_audioToolBusy; } // VEDIT
+    bool voiceRecording() const; // VEDIT
+    double voiceRecordingSeconds() const; // VEDIT
+    double voiceLevel() const; // VEDIT
+    void setTimelineClipSize(int size); // VEDIT
     void setTrackLabelsWidth(qreal width);
     QStringList timelineToolbarItems() const { return m_timelineToolbarItems; }
     QStringList timelineMenuItems() const { return m_timelineMenuItems; }
@@ -497,6 +554,9 @@ public:
     bool redoAvailable() const { return m_undoStack.canRedo(); }
     bool exportInProgress() const { return m_exportInProgress; }
     double exportProgress() const;
+    QString exportStatusText() const { return m_exportStatusText; } // VEDIT
+    static QString veditDurationText(qint64 ms); // VEDIT
+    static QString veditSizeText(qint64 bytes); // VEDIT
     bool canShareExport() const;
     bool subtitleGenerating() const { return m_subtitleGenerating; }
     QString replacingAssetId() const { return m_replacingAssetId; }
@@ -797,6 +857,21 @@ public:
     // the given order starting at the playhead — not all stacked on top of each other at the
     // same start time. One undo step for the whole batch.
     Q_INVOKABLE void addClipsFromAssets(const QStringList &assetIds);
+    // VEDIT (조박사님): several bin items dropped on the timeline together go in one after another
+    // from `atSeconds`, in the order they were shot (the time in the file name, else the file's
+    // own date), as one undo step.
+    Q_INVOKABLE void addClipsFromAssetsAt(const QStringList &assetIds, double atSeconds);
+    Q_INVOKABLE QStringList sortAssetIdsByShotTime(const QStringList &assetIds) const;
+    // VEDIT: the selection a bin drag carries when the card grabbed was one of several picked.
+    Q_INVOKABLE void setDraggingAssetGroup(const QStringList &assetIds) { m_draggingAssetGroup = assetIds; }
+    Q_INVOKABLE QStringList draggingAssetGroup() const { return m_draggingAssetGroup; }
+    // VEDIT: 사진 슬라이드쇼 in one press — the photos among these assets go on the main track in
+    // order, `secondsEach` long, overlapping half a second so each change is a curved dissolve,
+    // alternating "slowly closer" and "slowly farther". One undo step; returns photos placed.
+    Q_INVOKABLE int makeSlideshow(const QStringList &assetIds, double secondsEach = 3.0);
+    // VEDIT: CapCut's 소리 추출 — the sound of a video in the bin goes on a new sound track at the
+    // playhead, without its picture (a grandchild's song as background music). One undo step.
+    Q_INVOKABLE bool addSoundFromVideo(const QString &assetId);
     Q_INVOKABLE void addClipFromAssetAt(int assetIndex, int trackIndex, double atSeconds);
     Q_INVOKABLE void addClipFromAssetOnNewTrack(int assetIndex, double atSeconds);
     // Same, but the new track goes at insertIndex rather than always on top, so
@@ -871,6 +946,10 @@ public:
     Q_INVOKABLE bool trackAcceptsKind(int trackIndex, const QString &mediaKind) const;
     Q_INVOKABLE QString trackTypeForKind(const QString &mediaKind) const;
     // presetId applies a built-in style pack on create; empty keeps the default text style.
+    // VEDIT: CapCut's 글자 템플릿, the simple way — ready-made words with a Korean look
+    // ({id, text, preset}). addQuickText puts one at the playhead, already written.
+    Q_INVOKABLE QVariantList quickTextTemplates() const;
+    Q_INVOKABLE bool addQuickText(const QString &templateId);
     Q_INVOKABLE void addTextClip(const QString &text, double atSeconds,
                                  const QString &presetId = QString());
     Q_INVOKABLE void addSubtitleClip(double atSeconds);
@@ -890,6 +969,9 @@ public:
     // clip). Returns false when the selection cannot be transcribed, e.g. clips overlap in time.
     Q_INVOKABLE bool generateSubtitlesForSelection(const QString &language = QString(),
                                                    int maxWordsPerCue = 0);
+    // VEDIT: every speaking clip on the timeline (videos, their sound, voice recordings).
+    Q_INVOKABLE bool generateSubtitlesForWholeVideo(const QString &language = QString(),
+                                                    int maxWordsPerCue = 0);
     // Same, for the given (track, clip) pairs instead of the selection.
     bool generateSubtitlesForClips(const QList<QPair<int, int>> &pairs, const QString &language = QString(),
                                    int maxWordsPerCue = 0);
@@ -967,6 +1049,39 @@ public:
     Q_INVOKABLE void seekSpeedCurvePreviewAtSource(double position);
     Q_INVOKABLE void applySpeedCurve();
     Q_INVOKABLE void clearClipSpeedCurve(int trackIndex, int clipIndex);
+    // VEDIT: CapCut's one-click curve presets ("montage", "hero", "bullet", "jumpcut",
+    // "flashin", "flashout"; "none" clears), applied to the clip in place. With ripple on, the
+    // clips after it on the same track follow the clip's new length.
+    Q_INVOKABLE void applySpeedCurvePreset(int trackIndex, int clipIndex, const QString &presetId);
+    // VEDIT: CapCut-style crop — insets 0..1 from each edge of the source frame.
+    Q_INVOKABLE void setClipCrop(int trackIndex, int clipIndex, double l, double t, double r, double b);
+    // VEDIT: the music / sound-effect library shipped in bundled-addons (kind "music" or "sfx").
+    // Each pack root has library.json: {"items":[{"file","title","category","seconds","author","license"}]}.
+    Q_INVOKABLE QVariantList bundledAudioLibrary(const QString &kind) const;
+    // Imports the file (once) and drops it on the timeline at the playhead.
+    Q_INVOKABLE bool addBundledAudio(const QString &path);
+    // VEDIT: the finished-export dialog's [폴더 열기] / [바로 보기] on desktop.
+    Q_INVOKABLE bool hasLastExport() const;
+    Q_INVOKABLE void revealLastExport();
+    // VEDIT (조박사님): the 일반 tab's file details for a clip — [{label, value}] rows: name,
+    // folder, size, dates, length, picture size, frame rate, codecs, sound. Empty without a file.
+    Q_INVOKABLE QVariantList clipFileDetails(int trackIndex, int clipIndex) const;
+    // Opens the file's folder with the file picked (Explorer on Windows).
+    Q_INVOKABLE void revealClipFile(int trackIndex, int clipIndex) const;
+    // VEDIT (조박사님): while an edge is dragged, the preview shows the frame at that edge, as
+    // a playhead drag would. The clip is trimmed in place for the picture only; endTrimEdge() puts
+    // it and the playhead back before the real trim is committed. side: -1 left, 1 right.
+    Q_INVOKABLE void showTrimEdge(int trackIndex, int clipIndex, int side, double seconds);
+    // VEDIT (조박사님, Vegas): drag an end of the overlap between two clips. The left end moves the
+    // incoming clip's head (earlier footage of it), the right end the outgoing clip's tail (later
+    // footage of it); the far ends of both clips stay put. Stops where a clip's footage runs out.
+    // side: -1 left end, 1 right end. Inside a preview drag (beginPreviewDrag / commitPreviewDrag).
+    Q_INVOKABLE void previewOverlapEdge(int trackIndex, int leftClipIndex, int rightClipIndex, int side,
+                                        double seconds);
+    Q_INVOKABLE void endTrimEdge();
+    Q_INVOKABLE void openLastExport();
+    Q_INVOKABLE void previewSetClipCrop(int trackIndex, int clipIndex, double l, double t, double r, double b);
+    Q_INVOKABLE QString clipSpeedCurvePreset(int trackIndex, int clipIndex) const;
 
     // Media-bin preview session. beginAssetPreview auditions the bin row; the page owns the
     // trim and crop values and hands them to saveAssetEdit itself.
@@ -994,6 +1109,21 @@ public:
     QString fadeCurveMode() const;
     Q_INVOKABLE void setFadeCurveHandles(double c1x, double c1y, double c2x, double c2y);
 
+    // VEDIT: Vegas fade types — the outgoing side's fade-out and the incoming side's fade-in.
+    // Curves: fast (equalPower) | linear | slow | smooth | sharp.
+    Q_INVOKABLE void setTransitionFadeTypes(int trackIndex, const QString &transitionId, const QString &outCurve,
+                                            const QString &inCurve);
+    // VEDIT: one edge's fade curve ("in" | "out") of a clip.
+    Q_INVOKABLE void setClipFadeEdgeCurve(int trackIndex, int clipIndex, const QString &edge, const QString &curve);
+    // VEDIT: Vegas's event level, dragged on the line along a clip's top (one undo step).
+    Q_INVOKABLE void setClipLevel(int trackIndex, int clipIndex, double level);
+    // VEDIT: the same while the line is being dragged — the picture and the sound follow live;
+    // commitPreviewDrag() makes it one undo step.
+    Q_INVOKABLE void previewSetClipLevel(int trackIndex, int clipIndex, double level);
+    // VEDIT: stereo sides — 0 follow the track (clip) / as recorded (track), 1 L on both, 2 R on
+    // both, 3 L/R mixed. Setting the track clears its clips' own choices (the whole track follows).
+    Q_INVOKABLE void setClipChannelMode(int trackIndex, int clipIndex, int mode);
+    Q_INVOKABLE void setTrackChannelMode(int trackIndex, int mode);
     Q_INVOKABLE void setTransitionEasing(int trackIndex, const QString &transitionId,
                                          const QString &curve);
     Q_INVOKABLE void beginTransitionCurveSession(int trackIndex, const QString &transitionId);
@@ -1062,6 +1192,9 @@ public:
     // Move the playhead to a detected scene. Scenes are in source time; this maps back
     // through the clip's trim and speed to reach the right timeline position.
     Q_INVOKABLE void seekToScene(int sceneIndex);
+    // VEDIT: CapCut's 장면 나누기 — after Find scenes, cuts the scanned clip at every shot change
+    // so each shot is its own clip. One undo step; returns how many cuts were made.
+    Q_INVOKABLE int splitAtScenes();
     // Sensitivity, persisted in QSettings so a scan does not forget it between sessions.
     Q_INVOKABLE double sceneThreshold() const;
     Q_INVOKABLE void setSceneThreshold(double threshold);
@@ -1160,6 +1293,16 @@ public:
     Q_INVOKABLE void duplicateSelectedClip();
     Q_INVOKABLE void moveClip(int trackIndex, int clipIndex, double newStart);
     Q_INVOKABLE void moveClipToTrack(int trackIndex, int clipIndex, int newTrackIndex, double newStart);
+    // VEDIT: the timeline's drop. `newTrackAt` >= 0 first makes a track of the clip's kind at that
+    // index (dragged above or below every row); `copy` (Ctrl held) leaves the originals where they
+    // were and drops copies. One undo step either way.
+    Q_INVOKABLE void dropClip(int trackIndex, int clipIndex, int toTrack, double newStart,
+                              int newTrackAt, bool copy);
+    // VEDIT (조박사님): 끼워 넣기. On a track with 빈틈 메움 on, a clip dropped with its head on the
+    // seam before `beforeClipId` goes in there: what follows moves right by its length, and the
+    // place it left closes up. Empty `beforeClipId` puts it after the last clip. One undo step.
+    Q_INVOKABLE void insertClipBefore(int trackIndex, int clipIndex, int toTrack, const QString &beforeClipId);
+    Q_INVOKABLE bool trackInsertsOnDrop(int trackIndex) const { return trackRipples(trackIndex); }
     // Shifts every clip on `trackIndex` starting at/after `gapStartSeconds` left by the
     // width of the gap immediately following that position, closing it. Linked partner
     // clips on other tracks (e.g. a companion audio clip) follow along to stay in sync.
@@ -1214,6 +1357,10 @@ public:
     Q_INVOKABLE void setClipTrim(int trackIndex, int clipIndex, double inPoint, double outPoint);
     Q_INVOKABLE void setClipStart(int trackIndex, int clipIndex, double start);
     Q_INVOKABLE void setClipDuration(int trackIndex, int clipIndex, double duration);
+    // VEDIT: CapCut's 사진 길이 한 번에 — every photo on the timeline gets this length, and what
+    // follows each one on its track moves with it so cuts, gaps and dissolves keep their shape.
+    // Locked tracks are left alone. One undo step; returns how many photos changed.
+    Q_INVOKABLE int setAllPhotoDurations(double seconds);
     Q_INVOKABLE void setClipTextContent(int trackIndex, int clipIndex, const QString &text);
     // Display label on the timeline / inspector. Does not rename the source file.
     Q_INVOKABLE void setClipName(int trackIndex, int clipIndex, const QString &name);
@@ -1232,6 +1379,32 @@ public:
     Q_INVOKABLE void upsertSubtitleCueAtPlayhead(int trackIndex, int clipIndex, const QString &text);
     Q_INVOKABLE void seekToSubtitleCue(int trackIndex, int clipIndex, int cueIndex);
     Q_INVOKABLE void setTextStyle(int trackIndex, int clipIndex, const QVariantMap &style);
+    // VEDIT: CapCut 글자 › 기본 — every basic setting of a text (or caption) as one flat map:
+    // text, fontFamily, pixelSize, bold, italic, underline, color, letterSpacing, lineHeight,
+    // align, valign, curve, stroke*/bg*/glow*/shadow* (On, Color, Width/Opacity/Radius/Blur/
+    // Distance/Angle/Padding), opacity, posX/posY (from the picture's centre, up is +), rotation.
+    Q_INVOKABLE QVariantMap textBasics(int trackIndex, int clipIndex) const;
+    // Any subset of the keys above (plus textCase: upper/lower/title) in ONE undo step. A text's
+    // box then hugs its words again, kept on the same centre — CapCut's text box.
+    Q_INVOKABLE void setTextBasics(int trackIndex, int clipIndex, const QVariantMap &patch);
+    // CapCut's 사전 설정 스타일 row: ready looks ({id, label, fill, stroke, bg, glow, shadow}).
+    Q_INVOKABLE QVariantList textLookPresets() const;
+    Q_INVOKABLE void applyReadyTextLook(int trackIndex, int clipIndex, const QString &lookId);
+    // left / hcenter / right / top / vcenter / bottom of the picture (5% margin).
+    Q_INVOKABLE void alignTextOnCanvas(int trackIndex, int clipIndex, const QString &where);
+    // VEDIT: CapCut 말풍선 / 편집효과 — the galleries ({id, label}; thumbnails are
+    // image://textstyle/<id>) and putting one on a text (or caption). "bubble-none" / "art-none"
+    // take it off. One undo step each; the text's box re-hugs the words and bubble.
+    Q_INVOKABLE QVariantList textBubbles() const;
+    Q_INVOKABLE QVariantList textWordArts() const;
+    Q_INVOKABLE void applyTextBubble(int trackIndex, int clipIndex, const QString &bubbleId);
+    Q_INVOKABLE void applyTextWordArt(int trackIndex, int clipIndex, const QString &artId);
+    // CapCut's 기본 텍스트: plain white words in the middle at the playhead, ready to type over.
+    Q_INVOKABLE void addDefaultText();
+    // VEDIT: the timeline tells how many pixels one second takes at its zoom; snapping then
+    // reaches about 18 px either way (never less than 1 frame at 60 fps, never more than 1.5 s).
+    Q_INVOKABLE void setSnapPixelsPerSecond(double pxPerSecond);
+    Q_INVOKABLE double snapReachSeconds() const;
     // The shading stack of a text, subtitle or shape clip: layers[0] is drawn first. Each call
     // is one undo step; the preview variants coalesce into one through begin/commitPreviewDrag.
     Q_INVOKABLE QString addStyleLayer(int trackIndex, int clipIndex, const QString &kind, int atIndex = -1);
@@ -1287,6 +1460,7 @@ public:
     Q_INVOKABLE QVariantList fontCategories() const;
     Q_INVOKABLE void setClipBlendMode(int trackIndex, int clipIndex, const QString &mode);
     Q_INVOKABLE void setClipSpeed(int trackIndex, int clipIndex, double speed);
+    bool applyClipSpeed(int trackIndex, int clipIndex, double speed); // VEDIT: no undo step
     Q_INVOKABLE void setClipReverse(int trackIndex, int clipIndex, bool reverse);
     // Turns reverse on for a video clip and renders the proxy that makes it play back smoothly.
     // Reverse itself applies immediately; cancelling the render leaves the clip reversed on the
@@ -1316,6 +1490,97 @@ public:
     Q_INVOKABLE void mergeAllSubtitlesOnTrack(int trackIndex);
     Q_INVOKABLE bool canSeparateAudioSelection() const;
     Q_INVOKABLE void separateAudioFromSelection();
+    // VEDIT: CapCut's 오디오 복구 — undo a separation: the split-off audio clips go away and the
+    // video plays its own sound again.
+    Q_INVOKABLE bool canRestoreAudioSelection() const;
+    // VEDIT: CapCut's 음량 정규화 — measure the clip in the background and set its level so it
+    // plays at a comfortable loudness without clipping. One undo step.
+    Q_INVOKABLE void matchClipLoudness(int trackIndex, int clipIndex);
+    // VEDIT: CapCut's 무음 제거 — cut the pauses out of the clip and close the gaps. Uses the
+    // bundled voice-activity model when it is there, the level otherwise. Returns pauses cut.
+    Q_INVOKABLE int removeSilentParts(int trackIndex, int clipIndex);
+    // VEDIT: CapCut's 더킹 — lower this (music) clip wherever a clip on another track talks over
+    // it. Returns how many stretches were lowered.
+    Q_INVOKABLE int duckMusicUnderVoices(int trackIndex, int clipIndex);
+    // VEDIT: 음악을 영상 길이에 맞추기 — a music clip that runs past the last picture is cut where
+    // the pictures end, and its last two seconds fade out. One undo step; false if nothing to do.
+    Q_INVOKABLE bool fitMusicToVideo(int trackIndex, int clipIndex);
+    // VEDIT: CapCut's 음성 강화 — a voice tone (less boom, more presence) and a gentle compressor so
+    // quiet words come up, added together. One undo step; false if the clip already has them.
+    Q_INVOKABLE bool enhanceVoice(int trackIndex, int clipIndex);
+    // VEDIT: CapCut's 녹음. Start plays the timeline from the playhead with the speakers muted so
+    // the picture can be narrated; stop puts the recording on a new sound track where it began.
+    Q_INVOKABLE bool startVoiceRecording();
+    // VEDIT: CapCut's 3-2-1 before recording — counts down a second at a time (voiceCountdown
+    // shows 3, 2, 1) and then starts. Pressing it again during the count cancels.
+    Q_INVOKABLE void requestVoiceRecording(int seconds = 3);
+    Q_PROPERTY(int voiceCountdown READ voiceCountdown NOTIFY voiceCountdownChanged)
+    int voiceCountdown() const { return m_voiceCountdown; }
+    Q_INVOKABLE void stopVoiceRecording();
+    Q_INVOKABLE void cancelVoiceRecording();
+    // VEDIT: places a finished recording (or any sound file) on a new track at `atSeconds`.
+    Q_INVOKABLE bool placeRecordedAudio(const QString &path, double atSeconds);
+    // VEDIT: imports a sound file and waits (up to 15 s) for its length to be read, so the clip
+    // made from it is as long as the sound — not the 5 s stand-in. Library index, or -1.
+    int importAudioAndWait(const QString &path);
+    // VEDIT: 빈틈 메움 after a clip changed length in place (duration, speed): with ripple on, the
+    // clips after it on its track move by the change in its end, linked sound following.
+    void rippleTrackAfterResize(int trackIndex, const QString &clipId, drift::TimeUs oldStart,
+                                drift::TimeUs oldEnd);
+    // VEDIT: CapCut's 글자 읽어주기 — speaks a text clip's words with a Windows voice (offline) and
+    // puts the sound on a new track where the text starts. False with a message when it can't.
+    Q_INVOKABLE bool readTextAloud(int trackIndex, int clipIndex);
+    // VEDIT: CapCut's 화면 캡처 — the picture at the playhead, at full project size, saved as a JPEG
+    // straight into Pictures\Easy Cut, Easy Go! (no file dialog). Returns the saved path, or "".
+    Q_INVOKABLE QString saveFrameAsPhoto();
+    // VEDIT: 내보내기 예상 크기 in MB for the whole timeline. With a fixed bitrate it is that rate
+    // times the length; with quality (CRF) encoding it is a rough guess from the picture size.
+    // rangeSeconds > 0: only that much is exported (the work area).
+    Q_INVOKABLE double estimatedExportMegabytes(int videoKbps, int audioKbps, int outputHeight,
+                                                bool fixedBitrate, double rangeSeconds = -1.0) const;
+    // VEDIT: CapCut's 자동 보정 — looks at the clip's middle picture on its own and sets 노출, 대비
+    // and 채도 so a dark, flat or dull shot comes out bright and clear. One undo step.
+    Q_INVOKABLE bool autoAdjustClip(int trackIndex, int clipIndex);
+    // VEDIT: CapCut's 색상 맞춤 — the clip's brightness, contrast, colour and colour cast set to look
+    // like the scene just before it (the nearest picture ending before it starts, else the next).
+    Q_INVOKABLE bool matchClipColor(int trackIndex, int clipIndex);
+    // VEDIT: 조정 [처음대로] — takes the clip's own adjustments (밝기 … 가장자리 어둡게) off again.
+    // Filters and the background key stay. One undo step; false if there was nothing to remove.
+    Q_INVOKABLE bool resetClipAdjust(int trackIndex, int clipIndex);
+    // VEDIT: CapCut's 자동 배경 제거 in one press — the bundled 사람만 남기기 model keeps the people
+    // in a video clip and makes the rest see-through (a matte on the clip itself; progress shows as
+    // segmenting / segmentProgress). False, with a message, when it cannot start.
+    Q_INVOKABLE bool keepOnlyPeople(int trackIndex, int clipIndex);
+    // VEDIT: CapCut's 바꾸기 — puts another photo or video in this clip's place: same spot and
+    // length on the timeline, same effects, filter, adjustments, animation and transition; the new
+    // picture is fitted to the screen. A video shorter than the clip shortens it. One undo step.
+    Q_INVOKABLE bool replaceClipMedia(int trackIndex, int clipIndex, const QUrl &url);
+    // VEDIT: 드래그 없이 순서 바꾸기 — swaps the clip with the one before (direction -1) or after
+    // (+1) on its track. The pair keeps the span it had (and its overlap, so a dissolve stays a
+    // dissolve), so nothing else moves. One undo step; false at the ends of the track.
+    Q_INVOKABLE bool moveClipInOrder(int trackIndex, int clipIndex, int direction);
+    // VEDIT: 드래그 없이 줄 옮기기 — the clip goes to the nearest track above (direction -1) or
+    // below (+1) that takes its kind and is free over its time, or onto a new track there; same
+    // time. One undo step.
+    Q_INVOKABLE bool moveClipToNeighbourTrack(int trackIndex, int clipIndex, int direction);
+    // The settings autoAdjustClip would choose for this picture: exposure (stops), contrast,
+    // saturation — all neutral (0, 1, 1) for a picture that already looks fine.
+    static QVariantMap autoAdjustValuesFor(const QImage &picture);
+    static QString s_framePhotoDirOverride; // VEDIT: tests write somewhere temporary
+    // VEDIT: the same for a caption clip — every line is spoken and placed, in order, on one new
+    // sound track at that line's time (a line that runs long pushes the next one later). One undo
+    // step; returns how many lines were read.
+    Q_INVOKABLE int readCaptionsAloud(int trackIndex, int clipIndex);
+    // VEDIT: CapCut keeps a caption to one short line. Lines longer than `maxChars` are broken at
+    // the space nearest their middle (after punctuation when there is some), repeatedly, and the
+    // time is shared out by length. Auto captions get this as they arrive; this button does it for
+    // any caption clip. One undo step; returns how many lines were added.
+    Q_INVOKABLE int splitLongCaptions(int trackIndex, int clipIndex, int maxChars = 24);
+    // VEDIT: 자막 위치 — puts a caption's band at the top, middle or bottom of the screen ("top" /
+    // "middle" / "bottom"), text aligned to match. One undo step; false for other clips.
+    Q_INVOKABLE bool setCaptionPlacement(int trackIndex, int clipIndex, const QString &where);
+    static QList<drift::SubtitleCue> splitLongCues(const QList<drift::SubtitleCue> &cues, int maxChars = 24);
+    Q_INVOKABLE void restoreAudioFromSelection();
 
     // Composite clips: a nested timeline played as one clip. Making one moves the selection (and
     // its linked partners) into a new sequence and leaves a composite clip in its place.
@@ -1333,6 +1598,24 @@ public:
     // Renders the composite clip's range to a new video file and swaps the clip (and any audio
     // separated from it) over to that file. Runs in the background on the export slot.
     Q_INVOKABLE bool flattenComposite(int trackIndex, int clipIndex);
+    // VEDIT: 합성 해제 — the reverse of makeCompositeFromSelection: the composite's own tracks and
+    // clips come back onto the timeline where the composite stood (only the part of it in use,
+    // if it was trimmed), and the composite clip goes. One undo step. False when there is
+    // nothing to bring back (or the composite is sped up, which has no clip-for-clip reverse).
+    Q_INVOKABLE bool ungroupComposite(int trackIndex, int clipIndex);
+    // VEDIT: 소리로 맞추기 (CapCut's audio sync) — the selected clips with sound (picked by a
+    // marquee or with Ctrl) are lined up by their sound: the one that starts earliest stays, the
+    // others move so the same moment is heard at the same time. A clip that would land on another
+    // clip in its own row gets a fresh row just below. Listening runs in the background;
+    // the move is one undo step. Clips whose sound does not match are left where they are.
+    bool canSyncSelectionByAudio() const;
+    Q_INVOKABLE void syncSelectionByAudio();
+    // The same, waiting for the answer (tests). Returns how many clips moved; -1 if it could not
+    // run at all.
+    int syncSelectionByAudioNow();
+    bool audioSyncBusy() const { return m_audioSyncBusy; }
+    double audioSyncProgress() const { return m_audioSyncProgress; }
+    Q_INVOKABLE void cancelAudioSync();
     Q_INVOKABLE void separateAllAudioTracks(int trackIndex, int clipIndex);
     Q_INVOKABLE void separateAllAudioTracksFromSelection();
     Q_INVOKABLE QVariantList clipAudioStreams(int trackIndex, int clipIndex) const;
@@ -1408,11 +1691,36 @@ public:
     // which: "animIn" | "animOut". Partial patch: kind / duration / curve (or legacy ease).
     Q_INVOKABLE void setClipAnimation(int trackIndex, int clipIndex, const QString &which,
                                       const QVariantMap &patch);
+    // VEDIT: CapCut's 콤보 — a whole-clip movement; it takes the place of 들어오기/나가기 (and they of
+    // it). Empty id removes it.
+    Q_INVOKABLE void setClipAnimCombo(int trackIndex, int clipIndex, const QString &comboId);
+    // VEDIT: the pose of a 100×100 picture `t` (0..1) of the way through a 2 s clip with this
+    // 들어오기 / 나가기 kind or 콤보 id — for the moving tiles. {opacity, dx, dy, scale, scaleX,
+    // scaleY, rotation}.
+    Q_INVOKABLE QVariantMap clipAnimPreview(const QString &slot, const QString &id, double t) const;
+    // VEDIT: CapCut plays what was just picked — the selected transition with half a second either
+    // side, or a clip's 들어오기 / 나가기 / 콤보 — then the playhead goes back where it was.
+    Q_INVOKABLE void previewSelectedTransition();
+    Q_INVOKABLE void previewClipAnimation(int trackIndex, int clipIndex, const QString &slot);
+    void previewSpan(drift::TimeUs fromUs, drift::TimeUs toUs);
     // linkedAudio: also add the same transition between the two clips' linked audio, when they sit
     // next to each other on one audio track.
+    // VEDIT (조박사님, Vegas): the way the UI adds a transition — only where the two clips overlap,
+    // and exactly as long as the overlap. Clips that merely touch have no room for one: refused
+    // with a hint to overlap them.
+    Q_INVOKABLE bool addTransitionOnOverlap(int trackIndex, int clipIndex, const QString &kind);
+    // VEDIT: this transition at every overlap on the track, each as long as its own overlap.
+    Q_INVOKABLE int applyTransitionToAllOverlaps(int trackIndex, const QString &kind);
     Q_INVOKABLE void addTransition(int trackIndex, int clipIndex, const QString &kind, double durationSeconds,
                                    bool linkedAudio = true);
     Q_INVOKABLE void removeTransition(int trackIndex, const QString &transitionId);
+    // VEDIT: CapCut's 모두에 적용 — the same transition at every cut on the track (photo
+    // slideshows). One undo step; returns how many cuts got it.
+    Q_INVOKABLE int applyTransitionToAllCuts(int trackIndex, const QString &kind, double durationSeconds);
+    // VEDIT: CapCut's click (or "+") on a transition card — with a transition selected it is
+    // replaced; otherwise the join nearest the playhead gets it (on the selected clip's track, else
+    // a 빈틈 닫기 video track, else any video track). False when there is no join to put it on.
+    Q_INVOKABLE bool addTransitionAtPlayhead(const QString &kind);
     Q_INVOKABLE void setTransitionDuration(int trackIndex, const QString &transitionId, double durationSeconds);
     Q_INVOKABLE void setTransitionKind(int trackIndex, const QString &transitionId, const QString &kind);
     Q_INVOKABLE bool setTransitionParam(int trackIndex, const QString &transitionId, const QString &key,
@@ -1439,6 +1747,22 @@ public:
     Q_INVOKABLE QVariantList clipKeyframes(int trackIndex, int clipIndex, const QString &prop) const;
     // Every property of the clip that carries an animation, in strip order.
     Q_INVOKABLE QStringList clipAnimatedProperties(int trackIndex, int clipIndex) const;
+    // VEDIT (CapCut): the clip's keyframe moments, every animated property together, for the ◆
+    // marks on the timeline clip — timeline seconds, ascending, one per moment.
+    Q_INVOKABLE QVariantList clipKeyframeMarks(int trackIndex, int clipIndex) const;
+    // VEDIT: drag a ◆ on the clip: every property's keyframe at `fromSeconds` moves to
+    // `toSeconds` (kept inside the clip). One undo step.
+    Q_INVOKABLE void moveClipKeyframesAt(int trackIndex, int clipIndex, double fromSeconds, double toSeconds);
+    // VEDIT (조박사님, CapCut keyframes on the clip): one ◆ holds every value at that moment.
+    // Add: position, size, rotation, opacity (and whatever else is already animated) are keyed at
+    // `seconds` with the values they have there. Delete: every keyframe at that moment goes.
+    Q_INVOKABLE void addClipKeyframesAt(int trackIndex, int clipIndex, double seconds);
+    Q_INVOKABLE void deleteClipKeyframesAt(int trackIndex, int clipIndex, double seconds);
+    // VEDIT (CapCut ◇ for a value made of several properties, e.g. 크기 = width, height, x, y):
+    // state {animated, atPlayhead, prev, next} over all of them, and one-step add/remove at the
+    // playhead.
+    Q_INVOKABLE QVariantMap clipPropsKeyState(int trackIndex, int clipIndex, const QStringList &props) const;
+    Q_INVOKABLE void toggleClipPropsKeyframe(int trackIndex, int clipIndex, const QStringList &props);
     // Whether a property's keyframes drive it. Switched off, the keys are kept but the property
     // holds its first key's value — the inspector row's label is what toggles this.
     Q_INVOKABLE bool clipPropertyKeyframesEnabled(int trackIndex, int clipIndex,
@@ -1466,11 +1790,77 @@ public:
     Q_INVOKABLE void setKeyframeInterpolation(int trackIndex, int clipIndex, const QString &prop,
                                               const QString &mode);
     Q_INVOKABLE void resetClipTransform(int trackIndex, int clipIndex);
+    // VEDIT (조박사님): 속성 모두 지우기 — the clip back to how it came in: effects and
+    // adjustments, keyframes, position/size/rotation/opacity, speed (its length follows), volume,
+    // level, sound channels, fades, animations, masks, crop and sound effects. The media, its
+    // place and its trim stay. One undo step.
+    Q_INVOKABLE void clearClipAttributes(int trackIndex, int clipIndex);
+    // VEDIT (Vegas volume envelope).
+    QVariantMap selectedVolumeKey() const { return m_selectedVolumeKey; }
+    // Picks the envelope point at `seconds` (and moves the playhead there, so the audio panel's
+    // volume edits that point).
+    Q_INVOKABLE void selectVolumeKey(int trackIndex, int clipIndex, double seconds);
+    Q_INVOKABLE void clearVolumeKeySelection();
+    int selectedTrackRow() const { return m_selectedTrackRow; } // VEDIT
+    Q_INVOKABLE void selectTrackRow(int trackIndex); // VEDIT
+    Q_INVOKABLE void clearTrackRowSelection(); // VEDIT
+    // Double-click on the envelope: a point at `seconds` with `gain` (1.0 = 0 dB), selected.
+    Q_INVOKABLE void addVolumeKey(int trackIndex, int clipIndex, double seconds, double gain);
+    Q_INVOKABLE void deleteSelectedVolumeKey();
     Q_INVOKABLE QVariantList effectCatalog() const;
     Q_INVOKABLE QVariantList effectCategories() const;
     Q_INVOKABLE QVariantList effectTemplateCatalog() const;
     Q_INVOKABLE QVariantList effectTemplateCategories() const;
     Q_INVOKABLE void addEffect(int trackIndex, int clipIndex, const QString &effectId);
+    // VEDIT: CapCut-style "Adjust" — one slider per colour control, straight on the selected clip.
+    // Values live on the clip's effect host like any other effect (so the pro Effects view shows
+    // them); a slider at its default removes nothing, it just leaves the effect neutral.
+    Q_INVOKABLE QVariantMap clipAdjustValues(int trackIndex, int clipIndex);
+    // VEDIT (CapCut ◇ on every 조정 slider): {animated, atPlayhead, prev, next} for one adjust
+    // value (prev/next: timeline seconds of the neighbouring keyframes, -1 for none).
+    Q_INVOKABLE QVariantMap clipAdjustKeyState(int trackIndex, int clipIndex, const QString &effectId,
+                                               const QString &key);
+    // ◇: a keyframe at the playhead with the value shown there, or — if there is one — take it out.
+    Q_INVOKABLE void toggleClipAdjustKeyframe(int trackIndex, int clipIndex, const QString &effectId,
+                                              const QString &key);
+    // VEDIT (CapCut's ◇ at the top of the 조정 panel): a keyframe at the playhead for every value
+    // listed ([{effect, key}]) — those already keyed there are left as they are. One undo step.
+    Q_INVOKABLE void keyframeAllClipAdjust(int trackIndex, int clipIndex, const QVariantList &controls);
+    // VEDIT: CapCut's 필터 — one look per clip, built from the bundled effects and scaled by
+    // `strength` (0..1). "none" takes it off. One undo step.
+    Q_INVOKABLE void applyClipFilter(int trackIndex, int clipIndex, const QString &filterId,
+                                     double strength);
+    // {"id": ..., "strength": ...} of the clip's look, id "none" when it has none.
+    Q_INVOKABLE QVariantMap clipFilter(int trackIndex, int clipIndex);
+    // VEDIT: CapCut's 모두 적용 for a look — this clip's filter (and strength) on every photo and
+    // video in the project, so the whole film has one colour. One undo step; returns clips changed.
+    Q_INVOKABLE int applyFilterToAllPictures(int trackIndex, int clipIndex);
+    // VEDIT: the same for 조정 — this clip's own adjustments (밝기, 대비, 노출 …, not the filter)
+    // replace those of every other photo and video. One undo step; returns clips changed.
+    Q_INVOKABLE int applyAdjustToAllPictures(int trackIndex, int clipIndex);
+    // VEDIT: 모든 사진에 이 움직임 — this clip's motion (천천히 다가가기 …) on every other photo,
+    // "slowly closer / farther" alternating like a slideshow. One undo step; returns photos changed.
+    Q_INVOKABLE int applyMotionToAllPhotos(int trackIndex, int clipIndex);
+    // VEDIT: CapCut's 콤보 애니메이션 — slow motion across the whole clip, the photo-slideshow
+    // look: "zoomIn", "zoomOut", "panRight", "panLeft", or "none" to hold still. Writes two
+    // position/size keys (clip start and end) from the clip's current framing. One undo step.
+    Q_INVOKABLE void applyClipMotion(int trackIndex, int clipIndex, const QString &motionId);
+    // VEDIT: CapCut's 화면 속 화면 in one press — the picture at a third of the screen's size in a
+    // corner ("topLeft", "topRight", "bottomLeft", "bottomRight"), "center", or back to "full"
+    // (fitted to the screen). Any motion on the clip is taken off. One undo step.
+    Q_INVOKABLE void placeClipOnScreen(int trackIndex, int clipIndex, const QString &where);
+    // VEDIT: 초록 배경 지우기 with a colour picker. beginChromaPick() arms the preview; a click there
+    // calls pickChromaKeyAt (canvas fraction) which reads that point of the frame as it looks
+    // without any keying and keys that colour out of the selected clip.
+    Q_PROPERTY(bool chromaPickActive READ chromaPickActive NOTIFY chromaPickActiveChanged)
+    bool chromaPickActive() const { return m_chromaPickActive; }
+    Q_INVOKABLE void beginChromaPick();
+    Q_INVOKABLE void cancelChromaPick();
+    Q_INVOKABLE void pickChromaKeyAt(double nx, double ny);
+    // Keys `hex` out of the clip (adding the key if it has none). False for a grey with no hue.
+    Q_INVOKABLE bool applyChromaKeyColor(int trackIndex, int clipIndex, const QString &hex);
+    Q_INVOKABLE void setClipAdjust(int trackIndex, int clipIndex, const QString &effectId,
+                                   const QString &key, double value);
     Q_INVOKABLE void applyEffectTemplate(int trackIndex, int clipIndex, const QString &templateId);
     Q_INVOKABLE void removeEffect(int trackIndex, int clipIndex, int effectIndex);
     Q_INVOKABLE void setEffectEnabled(int trackIndex, int clipIndex, int effectIndex, bool enabled);
@@ -1517,6 +1907,20 @@ public:
     Q_INVOKABLE bool clipboardHasEffects() const;
     Q_INVOKABLE void pasteEffectsFromClipboard(int trackIndex, int clipIndex);
 
+    // VEDIT: 특성 복사 — keeps every attribute of one clip (effects from its linked hosts too)
+    // for 특성 붙여넣기, apart from the clip clipboard that 복사 fills.
+    Q_INVOKABLE void copyAttributes(int trackIndex, int clipIndex);
+    // VEDIT: the track the user last clicked (a clip on it, its header or its empty space) —
+    // where a paste goes when more than one track has room.
+    Q_INVOKABLE void noteTrackClicked(int trackIndex);
+    // VEDIT (조박사님): a video clip's effects show as "FX" in its own band, not as a lane. These
+    // reach the adjustment holding them: select it (its effects open in the inspector), or
+    // 효과 줄 분리 — unlink it so it becomes a lane of its own that no longer follows the clip.
+    Q_INVOKABLE bool selectEffectHost(int trackIndex, int clipIndex);
+    Q_INVOKABLE bool separateEffectLane(int trackIndex, int clipIndex);
+    // VEDIT: whether a lane has anything to draw as a strip — a lane holding only effect stacks
+    // pinned to video clips is shown in those clips' bands instead.
+    bool laneShownAsStrip(int laneIndex) const;
     Q_INVOKABLE bool canPasteAttributes() const;
     Q_INVOKABLE QVariantMap clipboardAttributes() const;
     Q_INVOKABLE void requestPasteAttributes();
@@ -1536,6 +1940,13 @@ public:
     Q_INVOKABLE bool importUserEffectPreset(const QUrl &fileUrl);
     Q_INVOKABLE void setTrackMuted(int trackIndex, bool muted);
     Q_INVOKABLE void setTrackHidden(int trackIndex, bool hidden);
+    // VEDIT: CapCut's 트랙 잠금 — a locked track's clips cannot be selected, moved, cut or trimmed,
+    // and nothing can be dropped onto it.
+    Q_INVOKABLE void setTrackLocked(int trackIndex, bool locked);
+    // VEDIT: 빈틈 닫기, per track (CapCut has it on its main track only; here any track can).
+    Q_INVOKABLE void setTrackMagnet(int trackIndex, bool on);
+    bool trackRipples(int trackIndex) const;
+    bool trackIsLocked(int trackIndex) const;
     // Empty name clears the custom label, falling back to the type+position display
     // ("Video 1") again.
     Q_INVOKABLE bool renameTrack(int trackIndex, const QString &name);
@@ -1549,6 +1960,8 @@ public:
     // Per-track row height multiplier (DAW-style lane resize). Clamped to
     // trackHeightScaleMin()..trackHeightScaleMax().
     Q_INVOKABLE void setTrackHeightScale(int trackIndex, double scale);
+    // VEDIT (조박사님): the corner size switch sets every row alike — each row's own size goes.
+    Q_INVOKABLE void resetTrackHeightScales();
     Q_INVOKABLE double trackHeightScale(int trackIndex) const;
     Q_INVOKABLE void nudgeTrackHeightScale(int trackIndex, int steps);
     // The touch timeline has no per-lane resize handle and no room in the tool strip for a control
@@ -1575,10 +1988,13 @@ public:
     // Track indices of those lanes, topmost first.
     Q_INVOKABLE QVariantList adjustmentLanes(int trackIndex) const;
 
-    Q_INVOKABLE double trackHeightScaleMin() const { return 0.6; }
+    Q_INVOKABLE double trackHeightScaleMin() const { return 0.5; } // VEDIT: per-track "Small" under the corner's "Large"
     Q_INVOKABLE double trackHeightScaleMax() const { return 4.0; }
     Q_INVOKABLE void moveTrack(int fromIndex, int toIndex);
     Q_INVOKABLE void addTrack(const QString &type);
+    // VEDIT (조박사님): right-click on a track's empty space → a new track of the same kind right
+    // there (pictures above it, sounds below it).
+    Q_INVOKABLE void addTrackNear(int trackIndex);
     Q_INVOKABLE void removeTrack(int trackIndex);
     Q_INVOKABLE void addBookmark(double seconds, const QString &label);
     Q_INVOKABLE void removeBookmark(int index);
@@ -1680,6 +2096,8 @@ public:
     // Channels the decoder found for a source, 0 until a block has landed. Answered from the
     // block cache — never probes the file, so it is safe from a binding or a menu.
     Q_INVOKABLE int waveformChannelCount(const QString &path, int audioStreamIndex = 0) const;
+    // VEDIT: "mono" | "stereo" | "left" | "right" | "multi" | "" (not decoded yet).
+    Q_INVOKABLE QString waveformChannelLayout(const QString &path, int audioStreamIndex = 0) const;
     // Widest channel count over a track's clips, for sizing the row when the lanes turn on.
     Q_INVOKABLE int trackMaxChannelCount(int trackIndex) const;
     // title / author / description / createdAt / modifiedAt, for the properties dialog.
@@ -1694,6 +2112,13 @@ public:
     // Explicitly triggered from the keyframe strip: it renders the mix, so it must never
     // fire off a mere selection change. Result lands in `beatAnalysis`.
     Q_INVOKABLE void analyzeBeats(double startSeconds, double durSeconds);
+    // VEDIT: CapCut's 비트 맞추기. Finds the beats of this music clip (in the background), shows
+    // them on the ruler, and then cuts the photos on the main track on the beat.
+    Q_INVOKABLE void matchPhotosToMusicBeats(int trackIndex, int clipIndex);
+    // The cutting step on its own, from beat times in timeline seconds. Photos run about three
+    // seconds, each ending on a beat; what follows on the track moves with them. One undo step.
+    // Returns how many photos changed.
+    Q_INVOKABLE int fitPhotosToBeatTimes(const QVariantList &beats);
     Q_INVOKABLE void clearBeatAnalysis();
     QVariantMap beatAnalysis() const { return m_beatAnalysis; }
     bool beatAnalysisRunning() const { return m_beatAnalysisRunning; }
@@ -1745,6 +2170,19 @@ public:
     // Removes one path from the recents list without deleting the file on disk.
     Q_INVOKABLE void removeRecentProject(const QString &path);
     Q_INVOKABLE void restoreAutosave();
+    // VEDIT: CapCut keeps every project as a draft without asking. When on (the default), a dirty
+    // project is saved to its file quietly every autosave tick; a project that was never saved
+    // gets a file under Documents/Easy Cut, Easy Go! named after today. Returns true if it saved.
+    Q_INVOKABLE bool autoSaveNow();
+    Q_PROPERTY(bool autoSaveEnabled READ autoSaveEnabled WRITE setAutoSaveEnabled NOTIFY autoSaveEnabledChanged)
+    // VEDIT: light preview copies made automatically for big videos.
+    Q_PROPERTY(bool autoProxies READ autoProxies WRITE setAutoProxies NOTIFY autoProxiesChanged)
+    bool autoProxies() const;
+    void setAutoProxies(bool on);
+    bool autoSaveEnabled() const { return m_autoSaveEnabled; }
+    void setAutoSaveEnabled(bool on);
+    // Where never-saved projects go; tests point it at a temporary folder.
+    static inline QString s_autoSaveDirOverride;
     Q_INVOKABLE void discardAutosave();
     // Clears dirty + recovery without mutating the timeline. Used when the user
     // chooses Don't Save before quitting so the next launch does not offer restore.
@@ -1835,6 +2273,9 @@ signals:
     void previewDragActiveChanged();
     void playheadSecondsChanged();
     void playingChanged();
+    void renderCacheChanged(); // VEDIT
+    void selectedVolumeKeyChanged(); // VEDIT
+    void selectedTrackRowChanged(); // VEDIT
     void audioOutputDevicesChanged();
     void audioOutputDeviceIdChanged();
     void snapEnabledChanged();
@@ -1925,6 +2366,17 @@ signals:
     void currentBinFolderIdChanged();
     void selectionChanged();
     void editCapabilitiesChanged();
+    void audioSyncChanged(); // VEDIT: 소리로 맞추기 progress
+    void timelineClipSizeChanged(); // VEDIT
+    void autoSaveEnabledChanged(); // VEDIT
+    void autoProxiesChanged(); // VEDIT
+    void loudnessBusyChanged(); // VEDIT
+    void audioToolBusyChanged(); // VEDIT
+    void voiceRecordingChanged(); // VEDIT
+    void voiceCountdownChanged(); // VEDIT
+    void chromaPickActiveChanged(); // VEDIT
+    void voiceLevelChanged(); // VEDIT
+    void clipLoudnessMatched(bool ok); // VEDIT: for tests
     void sequenceTabsChanged();
     void selectedClipDataChanged();
     void selectedTransitionDataChanged();
@@ -2015,6 +2467,10 @@ protected:
         drift::Clip clip;
     };
     TrimComputation computeTrimLeft(int trackIndex, int clipIndex, double newStart) const;
+    // VEDIT: see showTrimEdge().
+    QString m_trimEdgeClipId;
+    drift::Clip m_trimEdgeOriginal;
+    drift::TimeUs m_trimEdgePlayheadUs = -1;
     TrimComputation computeTrimRight(int trackIndex, int clipIndex, double newEnd) const;
     int applyTrim(int trackIndex, int clipIndex, const TrimComputation &computed);
     static QVariantMap trimPreviewToMap(const TrimComputation &computed);
@@ -2345,6 +2801,12 @@ protected:
     void setDirty(bool dirty);
     void setCurrentProjectPath(const QString &path);
     void addRecentProject(const QString &path);
+    // VEDIT: start-screen card for a project — a picture from its first shot and its length,
+    // remembered when it is saved or opened.
+    void rememberProjectCard(const QString &path);
+public:
+    static QString veditWhenText(const QDateTime &when, const QDateTime &now); // VEDIT
+protected:
     void writeRecoveryFile();
     void deleteRecoveryFile();
     void detectRecoveryFile();
@@ -2413,8 +2875,23 @@ protected:
     drift::TimeUs m_playheadUs = 0;
     bool m_playing = false;
     bool m_snapEnabled = true;
-    bool m_rippleEnabled = false;
-    bool m_allowClipOverlap = false;
+    bool m_rippleEnabled = s_defaultRippleEnabled; // VEDIT
+    int m_emptyTrackCleanupHold = 0; // VEDIT: >0 inside a compound edit, or for addTrack
+    bool removeEmptyTracks(); // VEDIT: immediate; true if any went
+public:
+    // VEDIT: media placed by the old fit (pinned to the top-left corner) moves to the middle.
+    // Only untouched layouts: a clip the user moved, resized or animated keeps its framing.
+    // Returns how many clips moved.
+    int recentreLegacyFittedClips();
+protected:
+    // VEDIT: runs after the edit has returned, so a caller's track indices stay valid for the
+    // rest of its own work; the removal joins the edit's undo step.
+    void scheduleEmptyTrackCleanup();
+    void runEmptyTrackCleanup();
+    bool m_emptyTrackCleanupQueued = false;
+    // VEDIT: tracks the user added with + — kept while still empty, until they get a clip.
+    QSet<QString> m_userAddedTrackIds;
+    bool m_allowClipOverlap = s_defaultAllowClipOverlap; // VEDIT: overlapping clips dissolve (Vegas-style)
     bool m_loopWorkAreaEnabled = false;
     bool m_darkModeOverridden = false;
     bool m_darkModePreferred = true;
@@ -2424,6 +2901,19 @@ protected:
     bool m_autoKeyEnabled = false;
     bool m_timelineOverviewVisible = false;
     qreal m_trackLabelsWidth = 130;
+    int m_timelineClipSize = 2; // VEDIT: large
+    bool m_autoSaveEnabled = true; // VEDIT
+    bool m_quietSave = false; // VEDIT: an auto-save shows no "Project saved" toast
+    bool m_loudnessBusy = false; // VEDIT
+    void finishClipLoudness(const drift::LoudnessResult &measured, const QString &audibleId); // VEDIT
+    bool m_audioToolBusy = false; // VEDIT
+    QString m_pendingBeatFitClipId; // VEDIT: music clip waiting for its beats to fit photos to
+    drift::VoiceRecorder *m_voice = nullptr; // VEDIT: made on first use
+    double m_voiceStartSeconds = 0.0; // VEDIT
+    int m_voiceCountdown = 0; // VEDIT: seconds left before recording starts; 0 = not counting
+    bool m_chromaPickActive = false; // VEDIT
+    QTimer *m_voiceCountdownTimer = nullptr; // VEDIT
+    void setAudioToolBusy(bool busy); // VEDIT
     QStringList m_timelineToolbarItems;
     QStringList m_timelineMenuItems;
     bool m_reopenLastProject = false;
@@ -2442,6 +2932,11 @@ protected:
     int m_selectedSubtitleCue = -1;
     bool m_exportInProgress = false;
     double m_exportProgress = 0.0;
+    // VEDIT: export clock and file for the remaining-time / size line.
+    QElapsedTimer m_exportClock;
+    QString m_exportOutputPath;
+    QString m_exportStatusText;
+    void updateExportStatusText(bool finished, bool ok);
     QAtomicInt m_exportCancel = 0;
     QUrl m_lastExportUrl;
     QString m_lastExportName;
@@ -2619,12 +3114,34 @@ protected:
     QHash<QString, QString> m_shortcuts;
     QHash<QString, QSet<QString>> m_assetFavorites;
     int m_draggingAssetIndex = -1;
+    QStringList m_draggingAssetGroup; // VEDIT
+    QString m_groupDropTrackId; // VEDIT: a group drop that would overlap goes to this new track
+    QVariantMap m_selectedVolumeKey; // VEDIT
+    int m_selectedTrackRow = -1; // VEDIT
+    void addClipsFromAssetsFrom(const QStringList &assetIds, drift::TimeUs startUs); // VEDIT
     bool m_assetPreviewWindowOpen = false;
     QString m_lastMessage;
     QString m_lastMessageSeverity = QStringLiteral("info");
     bool m_inlineTextEditing = false;
     bool m_previewDragActive = false;
     drift::Clip *textClipAt(int trackIndex, int clipIndex);
+    // VEDIT: 소리로 맞추기
+    bool m_audioSyncBusy = false;
+    void compactMainTrack(); // VEDIT: closes the gaps on every track with 빈틈 닫기 on
+    QTimer *m_spanPreviewTimer = nullptr; // VEDIT: previewSpan
+    QTimer *m_renderCacheTimer = nullptr; // VEDIT: 임시 렌더링 re-key after edits settle
+public:
+    QVariantList renderCacheSegments() const; // VEDIT
+private:
+    drift::TimeUs m_spanPreviewEnd = 0;
+    drift::TimeUs m_spanPreviewReturn = 0;
+    drift::TimeUs m_spanPreviewLast = 0;
+    bool m_spanPreviewLoopWas = false;
+    void applyDefaultTrackMagnet(); // VEDIT: the main video track gets 빈틈 닫기 until the user chooses
+    bool m_trackMagnetChosen = false; // VEDIT: the user has switched 빈틈 닫기 on a track
+    double m_audioSyncProgress = 0.0;
+    QAtomicInt m_audioSyncCancel{0};
+    int applyAudioSync(const QList<AudioSyncJob> &jobs, const QList<double> &lags);
     // A text, subtitle or shape clip: anything that carries a shading stack.
     drift::Clip *styledClipAt(int trackIndex, int clipIndex, bool textOnly = false);
     static void applyTextStylePatch(drift::TextStyle &style, const QVariantMap &patch);
@@ -2655,6 +3172,9 @@ protected:
         QList<drift::Mask> masks;
     };
     QList<ClipboardItem> m_clipboard;
+    QList<ClipboardItem> m_attrClipboard; // VEDIT: 특성 복사
+    QString m_lastClickedTrackId;          // VEDIT
+    ClipboardItem attributeItemFor(int trackIndex, int clipIndex); // VEDIT
 
     // Whole-file peaks, for the dialogs that show a complete clip at once (Denoise, Speed
     // Curve). The timeline uses m_waveformBlocks instead — see waveformPeaksRange.

@@ -503,6 +503,7 @@ Column {
             }
             ThemedSlider {
                 id: darkenSlider
+                defaultValue: 0.5 // VEDIT
                 lockWhilePlaying: true
                 width: parent.width
                 label: qsTr("Darken")

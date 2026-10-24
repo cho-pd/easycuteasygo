@@ -1,4 +1,6 @@
 #include <QtTest>
+#include "engine/VoiceRecorder.h"
+#include <QSignalSpy>
 #include "core/Transcript.h"
 #include "models/CloudProviders.h"
 
@@ -47,6 +49,8 @@ class McpTest : public QObject
     Q_OBJECT
 
 private slots:
+    // VEDIT: these cases pin Drift's behaviour with overlap mode off.
+    void initTestCase() { AppController::s_defaultAllowClipOverlap = false; AppController::s_defaultRippleEnabled = false; AppController::s_mainTrackMagnet = false; AppController::s_allTracksMagnet = true; AppController::s_autoRemoveEmptyTracks = false; AssetLibrary::s_autoProxyDefault = false; AppController::s_alwaysCrossfadeOverlaps = false; AppController::s_autoSaveDirOverride = QDir::tempPath() + QStringLiteral("/vedit-autosave-test"); }
     void catalogListsToolboxes();
     void sceneToolboxExposesSchemas();
     void sceneOpsRequireAnalysisFirst();
@@ -136,6 +140,15 @@ private slots:
     void writingAtAKeyframeReadbackTimeReusesTheKey();
     void keyframeWritesStayInsideTheClip();
     void normalizeVolumeIsRelativeAndIdempotent();
+    void vedit_matchSoundLevelButton();
+    void vedit_exportStatusTextFormats();
+    void vedit_cutQuietPartsButton();
+    void vedit_lowerMusicWhileTalkingButton();
+    void vedit_recordedVoiceLandsOnNewTrack();
+    void vedit_startScreenCardWording();
+    void vedit_autoSaveKeepsDrafts();
+    void vedit_wholeVideoCaptionsSkipMusic();
+    void vedit_voiceCountdown();
     void duckUnderIsIdempotentAndKeepsTheEnvelope();
     void audioReadOpsAreNotUndoable();
     void armedBeatGridMakesMoveClipSnap();
@@ -958,7 +971,9 @@ void McpTest::generateSubtitlesRejectsOverlappingSources()
         clip.type = drift::ClipType::Audio;
         clip.path = QStringLiteral("/tmp/does-not-matter.wav");
         clip.timelineStart = drift::secondsToUs(1.0 * i);
-        clip.timelineDuration = drift::secondsToUs(3.0);
+        // VEDIT: a partial overlap is a dissolve and is captioned; refusal is for one clip
+        // wholly inside another, so the second sits inside the first.
+        clip.timelineDuration = drift::secondsToUs(i == 0 ? 5.0 : 3.0);
         clip.srcOut = clip.timelineDuration;
         project.tracks()[i].clips.append(clip);
     }
@@ -1777,6 +1792,282 @@ void McpTest::normalizeVolumeIsRelativeAndIdempotent()
     QVERIFY2(qAbs(second.value(QStringLiteral("measured_lufs")).toDouble() + 20.0) < 1.0,
              qPrintable(QStringLiteral("measured %1 after normalising to -20")
                             .arg(second.value(QStringLiteral("measured_lufs")).toDouble())));
+}
+
+// VEDIT P31: the 소리 크기 맞추기 button measures off the UI thread and lands the clip at
+// -14 LUFS, or as close as the -1 dBTP ceiling allows. One undo puts the level back. The tone
+// is a hot one (-6 dBFS) so it has to come down: turning up stops at the volume cap (400%).
+void McpTest::vedit_matchSoundLevelButton()
+{
+    if (ffmpegPath().isEmpty())
+        QSKIP("ffmpeg not available to generate a test clip");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString source = dir.filePath(QStringLiteral("loud.wav"));
+    QVERIFY(runFfmpeg({QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                       QStringLiteral("sine=frequency=1000:sample_rate=48000:duration=3"),
+                       QStringLiteral("-af"), QStringLiteral("volume=4"),
+                       QStringLiteral("-c:a"), QStringLiteral("pcm_s16le"), source}));
+
+    AssetLibrary library;
+    AppController state(&library);
+    drift::mcp::McpDispatcher dispatcher(&state);
+    const QString id = importAndPlace(dispatcher, source, 0.0);
+    QVERIFY(!id.isEmpty());
+    int t = -1, c = -1;
+    for (int ti = 0; ti < state.project()->tracks().size(); ++ti)
+        for (int ci = 0; ci < state.project()->tracks().at(ti).clips.size(); ++ci)
+            if (state.project()->tracks().at(ti).clips.at(ci).id == id) { t = ti; c = ci; }
+    QVERIFY(t >= 0);
+
+    const double before = state.mcpAnalyzeLoudness(t, c, 0, 0).value(QStringLiteral("lufs")).toDouble();
+    QSignalSpy done(&state, &AppController::clipLoudnessMatched);
+    state.matchClipLoudness(t, c);
+    QVERIFY(state.loudnessBusy());
+    QVERIFY(done.wait(30000));
+    QCOMPARE(done.first().first().toBool(), true);
+    QVERIFY(!state.loudnessBusy());
+
+    const QJsonObject after = state.mcpAnalyzeLoudness(t, c, 0, 0);
+    const double lufs = after.value(QStringLiteral("lufs")).toDouble();
+    const double peak = after.value(QStringLiteral("true_peak_db")).toDouble();
+    QVERIFY2(lufs < before - 1.0, qPrintable(QStringLiteral("%1 -> %2").arg(before).arg(lufs)));
+    QVERIFY2(qAbs(lufs + 14.0) < 1.0 || qAbs(peak + 1.0) < 0.6,
+             qPrintable(QStringLiteral("lufs %1 peak %2").arg(lufs).arg(peak)));
+    QVERIFY2(peak < -0.4, qPrintable(QString::number(peak)));
+
+    state.undo();
+    const double undone = state.mcpAnalyzeLoudness(t, c, 0, 0).value(QStringLiteral("lufs")).toDouble();
+    QVERIFY(qAbs(undone - before) < 0.3);
+}
+
+// VEDIT P36: 조용한 부분 자르기 — tone, 2 s of silence, tone: the pause is cut and the clip closes
+// up to about 4 s. One undo restores it.
+void McpTest::vedit_cutQuietPartsButton()
+{
+    if (ffmpegPath().isEmpty())
+        QSKIP("ffmpeg not available to generate a test clip");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString source = dir.filePath(QStringLiteral("pause.wav"));
+    QVERIFY(runFfmpeg({QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                       QStringLiteral("aevalsrc='if(between(t,2,4),0,0.5*sin(2*PI*440*t))':s=48000:d=6"),
+                       QStringLiteral("-c:a"), QStringLiteral("pcm_s16le"), source}));
+    AssetLibrary library;
+    AppController state(&library);
+    drift::mcp::McpDispatcher dispatcher(&state);
+    const QString id = importAndPlace(dispatcher, source, 0.0);
+    QVERIFY(!id.isEmpty());
+    int t = -1, c = -1;
+    for (int ti = 0; ti < state.project()->tracks().size(); ++ti)
+        for (int ci = 0; ci < state.project()->tracks().at(ti).clips.size(); ++ci)
+            if (state.project()->tracks().at(ti).clips.at(ci).id == id) { t = ti; c = ci; }
+    QVERIFY(t >= 0);
+    const auto total = [&]() {
+        drift::TimeUs sum = 0;
+        for (const drift::Clip &clip : state.project()->tracks().at(t).clips)
+            sum += clip.timelineDuration;
+        return drift::usToSeconds(sum);
+    };
+    QVERIFY(qAbs(total() - 6.0) < 0.05);
+
+    QCOMPARE(state.removeSilentParts(t, c), 1);
+    QVERIFY(!state.audioToolBusy());
+    QVERIFY2(total() > 3.9 && total() < 4.6, qPrintable(QString::number(total())));
+    QCOMPARE(state.project()->tracks().at(t).clips.size(), 2);
+
+    state.undo();
+    QVERIFY(qAbs(total() - 6.0) < 0.05);
+}
+
+// VEDIT P37: 말할 때 음악 줄이기 — music under a voice clip on another track dips while the voice
+// talks and is back at full level before and after.
+void McpTest::vedit_lowerMusicWhileTalkingButton()
+{
+    if (ffmpegPath().isEmpty())
+        QSKIP("ffmpeg not available to generate a test clip");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString voice = dir.filePath(QStringLiteral("voice.wav"));
+    QVERIFY(writeHalfSilentTone(voice)); // 2 s of tone then 2 s of silence
+    const QString bed = dir.filePath(QStringLiteral("bed.wav"));
+    QVERIFY(runFfmpeg({QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                       QStringLiteral("sine=frequency=220:sample_rate=48000:duration=10"),
+                       QStringLiteral("-c:a"), QStringLiteral("pcm_s16le"), bed}));
+    AssetLibrary library;
+    AppController state(&library);
+    drift::mcp::McpDispatcher dispatcher(&state);
+    const QString music = importAndPlace(dispatcher, bed, 0.0);
+    QVERIFY(!music.isEmpty());
+    QVERIFY(dispatcher.applyOne(QStringLiteral("import_media"),
+                                {{QStringLiteral("paths"), QJsonArray{voice}}})
+                .value(QStringLiteral("ok")).toBool());
+    QVERIFY(dispatcher.applyOne(QStringLiteral("place_clip"),
+                                {{QStringLiteral("asset"), QStringLiteral("voice.wav")},
+                                 {QStringLiteral("at"), 3.0}, {QStringLiteral("new_track"), true}})
+                .value(QStringLiteral("ok")).toBool());
+    int t = -1, c = -1;
+    for (int ti = 0; ti < state.project()->tracks().size(); ++ti)
+        for (int ci = 0; ci < state.project()->tracks().at(ti).clips.size(); ++ci)
+            if (state.project()->tracks().at(ti).clips.at(ci).id == music) { t = ti; c = ci; }
+    QVERIFY(t >= 0);
+
+    QVERIFY(state.duckMusicUnderVoices(t, c) >= 1);
+    const auto level = [&](double at) {
+        return state.propertyValueAt(t, c, QStringLiteral("volume"), at, 1.0);
+    };
+    QVERIFY2(level(4.0) < 0.5, qPrintable(QString::number(level(4.0)))); // voice talking 3-5 s
+    QVERIFY2(level(1.0) > 0.95, qPrintable(QString::number(level(1.0))));
+    QVERIFY2(level(8.0) > 0.95, qPrintable(QString::number(level(8.0))));
+
+    state.undo();
+    QVERIFY(level(4.0) > 0.95);
+}
+
+// VEDIT P38: a finished voice recording goes on a new sound track where the recording began,
+// without touching what is already on the timeline. (The microphone itself is not exercised here.)
+void McpTest::vedit_recordedVoiceLandsOnNewTrack()
+{
+    if (ffmpegPath().isEmpty())
+        QSKIP("ffmpeg not available to generate a test clip");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString bed = dir.filePath(QStringLiteral("bed.wav"));
+    QVERIFY(runFfmpeg({QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                       QStringLiteral("sine=frequency=220:sample_rate=48000:duration=10"),
+                       QStringLiteral("-c:a"), QStringLiteral("pcm_s16le"), bed}));
+    const QString voice = dir.filePath(QStringLiteral("voice.flac"));
+    QVERIFY(runFfmpeg({QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                       QStringLiteral("sine=frequency=440:sample_rate=48000:duration=3"),
+                       voice}));
+    AssetLibrary library;
+    AppController state(&library);
+    drift::mcp::McpDispatcher dispatcher(&state);
+    const QString bedId = importAndPlace(dispatcher, bed, 0.0);
+    QVERIFY(!bedId.isEmpty());
+    const int tracksBefore = state.project()->tracks().size();
+
+    QVERIFY(!state.voiceRecording());
+    QVERIFY(state.placeRecordedAudio(voice, 4.0));
+    QCOMPARE(state.project()->tracks().size(), tracksBefore + 1);
+    const drift::Clip *placed = nullptr;
+    int bedCount = 0;
+    for (const drift::Track &track : state.project()->tracks())
+        for (const drift::Clip &clip : track.clips) {
+            if (clip.path == voice)
+                placed = &clip;
+            if (clip.id == bedId)
+                ++bedCount;
+        }
+    QVERIFY(placed);
+    QCOMPARE(placed->type, drift::ClipType::Audio);
+    QVERIFY(qAbs(drift::usToSeconds(placed->timelineStart) - 4.0) < 0.01);
+    QCOMPARE(bedCount, 1);
+    // No microphone on a test machine is fine; asking must not crash.
+    (void)drift::VoiceRecorder::microphoneAvailable();
+}
+
+// VEDIT P39: the start-screen draft card says when a project was last worked on in plain words.
+void McpTest::vedit_startScreenCardWording()
+{
+    const QDateTime now(QDate(2026, 10, 15), QTime(18, 0));
+    QCOMPARE(AppController::veditWhenText(QDateTime(QDate(2026, 10, 15), QTime(14, 20)), now),
+             QStringLiteral("Today 14:20"));
+    QCOMPARE(AppController::veditWhenText(QDateTime(QDate(2026, 10, 14), QTime(23, 0)), now),
+             QStringLiteral("Yesterday"));
+    QCOMPARE(AppController::veditWhenText(QDateTime(QDate(2026, 10, 12), QTime(9, 0)), now),
+             QStringLiteral("3 day(s) ago"));
+    QCOMPARE(AppController::veditWhenText(QDateTime(QDate(2026, 9, 3), QTime(9, 0)), now),
+             QStringLiteral("2026.9.3"));
+}
+
+// VEDIT P41: 자동 저장 — a never-saved project with something on the timeline gets its own file
+// without a dialog, and later edits keep going into that same file.
+void McpTest::vedit_autoSaveKeepsDrafts()
+{
+    if (ffmpegPath().isEmpty())
+        QSKIP("ffmpeg not available to generate a test clip");
+    QTemporaryDir media;
+    QTemporaryDir drafts;
+    QVERIFY(media.isValid() && drafts.isValid());
+    const QString saved = AppController::s_autoSaveDirOverride;
+    AppController::s_autoSaveDirOverride = drafts.path();
+    const QString tone = media.filePath(QStringLiteral("tone.wav"));
+    QVERIFY(runFfmpeg({QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                       QStringLiteral("sine=frequency=440:sample_rate=48000:duration=3"),
+                       QStringLiteral("-c:a"), QStringLiteral("pcm_s16le"), tone}));
+    AssetLibrary library;
+    AppController state(&library);
+    state.setAutoSaveEnabled(true);
+    drift::mcp::McpDispatcher dispatcher(&state);
+
+    QVERIFY(!state.autoSaveNow()); // empty timeline: no file
+    QVERIFY(QDir(drafts.path()).entryList({QStringLiteral("*.drift")}).isEmpty());
+
+    QVERIFY(!importAndPlace(dispatcher, tone, 0.0).isEmpty());
+    QVERIFY(state.hasUnsavedChanges());
+    QVERIFY(state.autoSaveNow());
+    const QStringList files = QDir(drafts.path()).entryList({QStringLiteral("*.drift")});
+    QCOMPARE(files.size(), 1);
+    QVERIFY(!state.hasUnsavedChanges());
+    const QString path = state.currentProjectPath();
+    QVERIFY(path.endsWith(QStringLiteral(".drift")));
+
+    QVERIFY(!importAndPlace(dispatcher, tone, 3.0).isEmpty());
+    QVERIFY(state.autoSaveNow());
+    QCOMPARE(state.currentProjectPath(), path);
+    QCOMPARE(QDir(drafts.path()).entryList({QStringLiteral("*.drift")}).size(), 1);
+    AppController::s_autoSaveDirOverride = saved;
+}
+
+// VEDIT P45: 영상 전체 자막 — with only music on the timeline there is nothing to caption, and it
+// says so instead of transcribing the song.
+void McpTest::vedit_wholeVideoCaptionsSkipMusic()
+{
+    if (ffmpegPath().isEmpty())
+        QSKIP("ffmpeg not available to generate a test clip");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString bed = dir.filePath(QStringLiteral("music.wav"));
+    QVERIFY(runFfmpeg({QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                       QStringLiteral("sine=frequency=220:sample_rate=48000:duration=3"),
+                       QStringLiteral("-c:a"), QStringLiteral("pcm_s16le"), bed}));
+    AssetLibrary library;
+    AppController state(&library);
+    drift::mcp::McpDispatcher dispatcher(&state);
+    QVERIFY(!importAndPlace(dispatcher, bed, 0.0).isEmpty());
+    QVERIFY(!state.generateSubtitlesForWholeVideo(QStringLiteral("ko"), 0));
+    QVERIFY(!state.subtitleGenerating());
+}
+
+// VEDIT P66: the record button counts 3-2-1 first; pressing again during the count calls it off.
+void McpTest::vedit_voiceCountdown()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    QSignalSpy ticks(&state, &AppController::voiceCountdownChanged);
+    state.requestVoiceRecording(2);
+    QCOMPARE(state.voiceCountdown(), 2);
+    state.requestVoiceRecording(2); // cancel
+    QCOMPARE(state.voiceCountdown(), 0);
+    QVERIFY(!state.voiceRecording());
+    state.requestVoiceRecording(1);
+    QTRY_COMPARE_WITH_TIMEOUT(state.voiceCountdown(), 0, 3000);
+    // With no microphone on a test machine the start may fail; either way the count has ended.
+    state.cancelVoiceRecording();
+}
+
+// VEDIT P32: the export dialog's time and size wording.
+void McpTest::vedit_exportStatusTextFormats()
+{
+    QCOMPARE(AppController::veditDurationText(400), QStringLiteral("1 s"));
+    QCOMPARE(AppController::veditDurationText(45000), QStringLiteral("45 s"));
+    QCOMPARE(AppController::veditDurationText(192000), QStringLiteral("3 min 12 s"));
+    QCOMPARE(AppController::veditDurationText(120000), QStringLiteral("2 min"));
+    QCOMPARE(AppController::veditDurationText(3900000), QStringLiteral("1 h 5 min"));
+    QCOMPARE(AppController::veditSizeText(5 * 1024 * 1024 + 300000), QStringLiteral("5.3 MB"));
+    QCOMPARE(AppController::veditSizeText(qint64(120) * 1024 * 1024), QStringLiteral("120 MB"));
+    QCOMPARE(AppController::veditSizeText(qint64(1536) * 1024 * 1024), QStringLiteral("1.5 GB"));
 }
 
 // Times come back over MCP rounded to 3 decimals, so a caller that reads a keyframe's time and

@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "id": "vedit-pen-write-caret",
+  "label": "Writing with cursor",
+  "category": "character",
+  "sampleText": "Writing…",
+  "slots": [
+    "in"
+  ],
+  "order": 331,
+  "defaults": {
+    "unit": "character",
+    "stagger": 0.07,
+    "duration": 0.22,
+    "ease": "linear"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "wipe": {
+          "enabled": true,
+          "angleDeg": 0,
+          "softness": 0.1
+        }
+      }
+    }
+  ],
+  "caret": {
+    "enabled": true,
+    "leadUs": 60000,
+    "blinkOnUs": 250000,
+    "blinkOffUs": 250000,
+    "holdAfterUs": 600000
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "id": "vedit-wave-in",
+  "label": "Wave in",
+  "category": "character",
+  "sampleText": "Wave in",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 303,
+  "defaults": {
+    "unit": "character",
+    "stagger": 0.04,
+    "duration": 0.45,
+    "ease": "back"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "position": {
+          "x": 0,
+          "y": 0.7,
+          "unit": "em"
+        },
+        "opacity": 0
+      }
+    }
+  ]
+}

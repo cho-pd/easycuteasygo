@@ -42,6 +42,8 @@ class CoreTest : public QObject
     Q_OBJECT
 
 private slots:
+    void vedit_textAnimationPresetsResolve();
+    void vedit_koreanTextStylesComeFirst();
     void timeConversion();
     void transcriptJsonRoundTrip();
     void transcriptWordsInRange();
@@ -898,7 +900,7 @@ void CoreTest::trackAllowsClipTypes()
 {
     drift::Track videoTrack{.type = drift::TrackType::Video};
     QVERIFY(videoTrack.allowsClipType(drift::ClipType::Video));
-    QVERIFY(!videoTrack.allowsClipType(drift::ClipType::Image));
+    QVERIFY(videoTrack.allowsClipType(drift::ClipType::Image)); // VEDIT: photos share the video track
     QVERIFY(!videoTrack.allowsClipType(drift::ClipType::Audio));
 
     drift::Track audioTrack{.type = drift::TrackType::Audio};
@@ -1055,10 +1057,12 @@ void CoreTest::insertTrackAtTopAllowsDuplicateTypes()
     QCOMPARE(project.tracks()[0].type, drift::TrackType::Video);
     QCOMPARE(project.tracks()[1].type, drift::TrackType::Video);
 
+    // VEDIT (조박사님): pictures above sounds — "top" for a sound track is the top of the sound
+    // group, just below the last picture track, never above the pictures.
     const int second = drift::insertTrackAtTopForClipType(project, drift::ClipType::Audio);
-    QCOMPARE(second, 0);
+    QCOMPARE(second, 2);
     QCOMPARE(project.tracks().size(), 3);
-    QCOMPARE(project.tracks()[0].type, drift::TrackType::Audio);
+    QCOMPARE(project.tracks()[2].type, drift::TrackType::Audio);
 }
 
 void CoreTest::multiTrackSerializationRoundTrip()
@@ -3317,10 +3321,21 @@ void CoreTest::bezierShapeRoundTrips()
 
 void CoreTest::transitionAudioCurves()
 {
-    // crossfade: linear, sums to 1 at every point.
+    // crossfade: equal-power — the curves cross above the midpoint and the power sums to 1.
     const auto mid = drift::transitionAudioGains(QStringLiteral("crossfade"), 0.5);
-    QCOMPARE(mid.outgoing, 0.5);
-    QCOMPARE(mid.incoming, 0.5);
+    QVERIFY(qAbs(mid.outgoing - 0.70710678) < 1e-6);
+    QVERIFY(qAbs(mid.incoming - 0.70710678) < 1e-6);
+    for (double p = 0.0; p <= 1.0; p += 0.125) {
+        const auto g = drift::transitionAudioGains(QStringLiteral("crossfade"), p);
+        QVERIFY(qAbs(g.outgoing * g.outgoing + g.incoming * g.incoming - 1.0) < 1e-9);
+    }
+    QCOMPARE(drift::transitionAudioGains(QStringLiteral("crossfade"), 0.0).outgoing, 1.0);
+    QVERIFY(drift::transitionAudioGains(QStringLiteral("crossfade"), 1.0).outgoing < 1e-9);
+
+    // linear: the old straight X, sums to 1 in amplitude.
+    const auto lin = drift::transitionAudioGains(QStringLiteral("linear"), 0.5);
+    QCOMPARE(lin.outgoing, 0.5);
+    QCOMPARE(lin.incoming, 0.5);
 
     // dip: silent at the midpoint, matching the visual dip through black.
     const auto dip = drift::transitionAudioGains(QStringLiteral("dip"), 0.5);
@@ -3627,7 +3642,7 @@ void CoreTest::clipAnimationSerializationAndSample()
     const drift::ClipAnimSample zoomMid =
         drift::evaluateClipAnimation(zoom.timelineStart, zoom.timelineDuration, zoom.animIn, {},
                                      drift::secondsToUs(0.5), 100.0, 100.0);
-    QVERIFY(qAbs(zoomMid.scale - 0.8) < 1e-6); // 0.6 + 0.4 * 0.5
+    QVERIFY(qAbs(zoomMid.scale - 0.65) < 1e-6); // VEDIT: 0.3 + 0.7 * 0.5 (zoom starts smaller now)
     QVERIFY(zoomMid.scale < 1.0);
 
     // Smooth style bends motion progress vs linear at quarter-time.
@@ -3639,7 +3654,9 @@ void CoreTest::clipAnimationSerializationAndSample()
     const drift::ClipAnimSample linearQuarter =
         drift::evaluateClipAnimation(zoom.timelineStart, zoom.timelineDuration, zoom.animIn, {},
                                      drift::secondsToUs(0.25), 100.0, 100.0);
-    QVERIFY(smoothMid.scale < linearQuarter.scale - 0.01);
+    // VEDIT: the default (Smooth) is CapCut's quick-start ease-out now, so a quarter in it is
+    // further along than linear.
+    QVERIFY(smoothMid.scale > linearQuarter.scale + 0.01);
 }
 
 // A canvas resize must not move or rescale anything: clips that relied on the
@@ -5688,6 +5705,55 @@ void CoreTest::transcriptWordsFollowClipsOnTimeline()
     QCOMPARE(all[4].word.text, QStringLiteral("world."));
     QCOMPARE(all[4].word.startUs, drift::secondsToUs(20.0));
     QCOMPARE(drift::transcriptWordsOnTimeline(project, 0, drift::secondsToUs(100), QStringLiteral("rev")).size(), 3);
+}
+
+// VEDIT: the CapCut-style text animation recipes all load and expand into animators for every
+// slot they claim.
+void CoreTest::vedit_textAnimationPresetsResolve()
+{
+    drift::TextAnimationPresetCatalog::instance().reload();
+    const QStringList ids{"vedit-pop-char", "vedit-zoom-char", "vedit-drop-char", "vedit-wave-in",
+                          "vedit-random-char", "vedit-color-pop", "vedit-spring-word", "vedit-flip-word",
+                          "vedit-slide-word", "vedit-rotate-word", "vedit-blur-zoom", "vedit-stretch",
+                          "vedit-slam", "vedit-spread-out", "vedit-hop", "vedit-rock-char", "vedit-blink",
+                          "vedit-beat-word"};
+    for (const QString &id : ids) {
+        const auto preset = drift::TextAnimationPresetCatalog::instance().presetForId(id);
+        QVERIFY2(preset.has_value(), qPrintable(id));
+        QVERIFY2(!preset->slotKinds.isEmpty(), qPrintable(id));
+        for (drift::TextAnimSlotKind kind : preset->slotKinds) {
+            const drift::ResolvedPresetSlot r =
+                drift::resolvePresetSlot(*preset, preset->defaultParams(), kind);
+            QVERIFY2(r.valid && !r.animators.isEmpty(), qPrintable(id));
+        }
+    }
+}
+
+// VEDIT P60: the Korean text styles lead the list, use the bundled Korean fonts, and every
+// animation they name exists.
+void CoreTest::vedit_koreanTextStylesComeFirst()
+{
+    const QList<drift::TextPreset> &presets = drift::textPresets();
+    QVERIFY(presets.size() >= 43);
+    QCOMPARE(presets.first().id, QStringLiteral("ko-title"));
+    // Named as the font picker lists the bundled families (P89).
+    QCOMPARE(presets.first().style.fontFamily, QStringLiteral("검은고딕"));
+    const QStringList koFonts{QStringLiteral("검은고딕"), QStringLiteral("Pretendard"), QStringLiteral("나눔손글씨 펜"),
+                              QStringLiteral("나눔손글씨 붓"), QStringLiteral("주아"), QStringLiteral("고운바탕"),
+                              QStringLiteral("도현"), QStringLiteral("나눔명조")};
+    drift::TextAnimationPresetCatalog::instance().reload();
+    for (const drift::TextPreset &p : presets) {
+        if (!p.id.startsWith(QStringLiteral("ko-")))
+            continue;
+        QVERIFY2(koFonts.contains(p.style.fontFamily), qPrintable(p.id));
+        for (const drift::TextAnimationSlot *slot : {&p.style.animation.in, &p.style.animation.out,
+                                                    &p.style.animation.loop}) {
+            if (slot->presetId.isEmpty())
+                continue;
+            QVERIFY2(drift::TextAnimationPresetCatalog::instance().presetForId(slot->presetId).has_value(),
+                     qPrintable(p.id + QStringLiteral(" → ") + slot->presetId));
+        }
+    }
 }
 
 QTEST_MAIN(CoreTest)

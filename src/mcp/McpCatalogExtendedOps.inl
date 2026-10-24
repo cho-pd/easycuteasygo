@@ -1134,7 +1134,7 @@
                {QStringLiteral("max_distance"), propWithDefault(numberProp(QStringLiteral("Leave a clip alone when the nearest grid time is further than this many seconds")), 0.25)}},
               {{QStringLiteral("track"), integerProp(QStringLiteral("Quantise every clip on this track index; ignored when clips is given"))}})) },
         { "set_volume", "audio", "Make a clip louder or quieter, or keyframe a duck",
-          "Set a clip's volume. 1 is unity, 0 is silent, 2 is the maximum the mixer allows. "
+          "Set a clip's volume. 1 is unity, 0 is silent, 4 is the maximum the mixer allows. "
           "Without `at` this sets the clip's constant level; with `at` it writes a keyframe at that "
           "TIMELINE second, which is how you ramp or duck. WARNING: once a clip has more than one "
           "volume keyframe, a call without `at` retargets the key nearest the playhead rather than "

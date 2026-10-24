@@ -123,6 +123,8 @@ bool parseParameters(const QJsonArray &params, QList<drift::EffectParamSpec> *ou
         if (spec.key.isEmpty())
             spec.key = p.value(QStringLiteral("key")).toString();
         spec.label = p.value(QStringLiteral("displayName")).toString();
+        // VEDIT: effect / transition parameter names in the UI language.
+        spec.label = QCoreApplication::translate("EffectParams", spec.label.toUtf8().constData());
         if (spec.label.isEmpty())
             spec.label = p.value(QStringLiteral("label")).toString();
         if (spec.label.isEmpty())

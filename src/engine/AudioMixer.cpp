@@ -36,12 +36,62 @@ float softClip(float sample)
     return std::copysign(shaped, sample);
 }
 
+// VEDIT (조박사님, Vegas volume line): the line's own scale — the same as TimelineClipItem's
+// envGainToY: 0.5 = 0 dB, 1 = +12 dB, 0 = -48 dB and below. Between two points the volume follows
+// a smooth S-curve on this scale, so what is heard rises and falls the way the line is drawn
+// (an S-curve on the raw gain looked — and sounded — like a sharp V near the quiet end).
+double envelopeNorm(double gain)
+{
+    if (gain <= 1e-4)
+        return 0.0;
+    const double db = 20.0 * std::log10(gain);
+    return db >= 0.0 ? 0.5 + 0.5 * qMin(1.0, db / 12.0) : 0.5 * qMax(0.0, 1.0 + db / 48.0);
+}
+
+double envelopeGain(double n)
+{
+    n = qBound(0.0, n, 1.0);
+    if (n <= 0.0005)
+        return 0.0;
+    const double db = n >= 0.5 ? (n - 0.5) / 0.5 * 12.0 : (n / 0.5 - 1.0) * 48.0;
+    return std::pow(10.0, db / 20.0);
+}
+
+double volumeEnvelopeAt(const drift::KeyframeTrack<double> &track, drift::TimeUs relative)
+{
+    const auto &keys = track.keyframes();
+    if (keys.size() < 2 || !track.enabled())
+        return track.evaluateAt(relative);
+    auto hi = keys.upperBound(relative);
+    if (hi == keys.cbegin())
+        return hi.value().value;
+    if (hi == keys.cend())
+        return std::prev(hi).value().value;
+    const auto lo = std::prev(hi);
+    // VEDIT (Codex 검토 4): the S between two keys is only the default. A held key steps, and a
+    // segment the user bent with handles follows that curve as the graph draws it.
+    if (lo.value().hold)
+        return lo.value().value;
+    if (lo.value().outDx != 0.0 || lo.value().outDy != 0.0 || hi.value().inDx != 0.0
+        || hi.value().inDy != 0.0)
+        return track.evaluateAt(relative);
+    const double t = double(relative - lo.key()) / double(qMax<drift::TimeUs>(1, hi.key() - lo.key()));
+    const double st = t * t * (3.0 - 2.0 * t);
+    const double n0 = envelopeNorm(lo.value().value);
+    const double n1 = envelopeNorm(hi.value().value);
+    return envelopeGain(n0 + (n1 - n0) * st);
+}
+
 double volumeForClip(const drift::Clip &clip, drift::TimeUs timelineUs)
 {
+    // VEDIT: a sound clip's event level (the line along its top) rides on the volume.
+    const double level = clip.type == drift::ClipType::Audio ? qBound(0.0, clip.level, 1.0) : 1.0;
     if (clip.volume.isEmpty())
-        return 1.0;
+        return level;
     const drift::TimeUs relative = qMax<drift::TimeUs>(0, timelineUs - clip.timelineStart);
-    return qBound(0.0, clip.volume.evaluateAt(relative), 2.0);
+    const double gain = clip.type == drift::ClipType::Audio ? volumeEnvelopeAt(clip.volume, relative) // VEDIT
+                                                            : clip.volume.evaluateAt(relative);
+    return qBound(0.0, gain, 4.0) * level; // VEDIT: 400% (조박사님), was 200%
 }
 
 // Balance law: attenuate one side, leave the other alone. Unity at centre, unlike a
@@ -66,6 +116,15 @@ double transitionGainForClip(const drift::Track &track, const drift::Clip &clip,
     const double p = drift::transitionProgress(*transition, timelineUs, windowStart, windowEnd);
     const TransitionPresetEntry *def = transitionDefForId(transition->kindId);
     const QString curve = def ? def->audioCurve : QStringLiteral("crossfade");
+    // VEDIT: Vegas fade types — each side follows its own curve over the window.
+    if (transition->splitCurves && curve != QLatin1String("hold") && curve != QLatin1String("dip")) {
+        const double lin = drift::transitionProgress(timelineUs, windowStart, windowEnd);
+        if (clip.id == transition->fromClipId)
+            return drift::shapedProgress(1.0 - lin, transition->outCurve, transition->easingShape);
+        if (clip.id == transition->toClipId)
+            return drift::shapedProgress(lin, transition->inCurve, transition->easingShape);
+        return 1.0;
+    }
     // Clips that only touch: each side crossfades when it has media past the cut, and dips when
     // it doesn't. Overlapping clips have real audio across the window already.
     if (clip.id == transition->fromClipId) {
@@ -356,6 +415,8 @@ void accumulateClipAudio(const drift::Project &project, const drift::Clip &clip,
     float panL = 1.0f;
     float panR = 1.0f;
     panGainsForClip(clip, &panL, &panR);
+    // VEDIT: the clip's own channel choice, else its track's.
+    const int channelMode = clip.channelMode != 0 ? clip.channelMode : track.channelMode;
     for (int i = 0; i < frames; ++i) {
         const drift::TimeUs sampleTimeUs =
             timelineStartUs + static_cast<drift::TimeUs>((static_cast<int64_t>(i) * drift::kUsPerSecond) / sampleRate);
@@ -364,8 +425,17 @@ void accumulateClipAudio(const drift::Project &project, const drift::Clip &clip,
                                               * transitionGainForClip(track, clip, sampleTimeUs, edge)
                                               * clip.fadeMultiplier(sampleTimeUs, edge.ownsIn, edge.ownsOut)
                                               * clip.audioEdgeMultiplier(sampleTimeUs, edge.ownsIn, edge.ownsOut));
-        mixBuffer[i * 2] += chunk[i * 2] * gain * panL;
-        mixBuffer[i * 2 + 1] += chunk[i * 2 + 1] * gain * panR;
+        float left = chunk[i * 2];
+        float right = chunk[i * 2 + 1];
+        switch (channelMode) { // VEDIT: L on both, R on both, or L/R mixed
+        case 1: right = left; break;
+        case 2: left = right; break;
+        case 3: left = right = (left + right) * 0.5f; break;
+        case 4: std::swap(left, right); break; // VEDIT: L/R swapped
+        default: break;
+        }
+        mixBuffer[i * 2] += left * gain * panL;
+        mixBuffer[i * 2 + 1] += right * gain * panR;
     }
 }
 

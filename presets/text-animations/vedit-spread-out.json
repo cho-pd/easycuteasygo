@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "id": "vedit-spread-out",
+  "label": "Spread away",
+  "category": "basic",
+  "sampleText": "Spread",
+  "slots": [
+    "out"
+  ],
+  "order": 313,
+  "defaults": {
+    "unit": "character",
+    "stagger": 0.02,
+    "duration": 0.6,
+    "ease": "easeIn",
+    "order": "centerOut"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "tracking": 1.2,
+        "trackingUnit": "em",
+        "blur": 10,
+        "opacity": 0
+      }
+    }
+  ]
+}

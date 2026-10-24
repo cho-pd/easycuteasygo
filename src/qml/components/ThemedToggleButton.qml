@@ -12,6 +12,11 @@ AbstractButton {
     id: root
 
     property string glyph: ""
+    // VEDIT: senior-sized labels (16 px+) and the B / I / U letters drawn as what they do.
+    property real labelSize: Theme.fontSizeXs
+    property bool labelBold: false
+    property bool labelItalic: false
+    property bool labelUnderline: false
     property real glyphSize: Theme.iconSizeMd
     property string tooltip: ""
     property real toggleHeight: Theme.controlHeightSm
@@ -95,8 +100,10 @@ AbstractButton {
             color: root._fg
             opacity: root.enabled ? 1 : 0.5
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
-            font.weight: root.checked ? Font.Medium : Font.Normal
+            font.pixelSize: root.labelSize
+            font.weight: root.labelBold ? Font.Bold : (root.checked ? Font.Medium : Font.Normal)
+            font.italic: root.labelItalic
+            font.underline: root.labelUnderline
             elide: Text.ElideRight
             width: Math.min(implicitWidth, root.availableWidth)
             horizontalAlignment: Text.AlignHCenter

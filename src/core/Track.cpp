@@ -67,7 +67,9 @@ bool Track::allowsClipType(ClipType clipType) const
         return clipType == ClipType::Image || clipType == ClipType::Shape
             || clipType == ClipType::Vector || clipType == ClipType::Model3d;
     case TrackType::Video:
-        return clipType == ClipType::Video || clipType == ClipType::Composite;
+        // VEDIT: photos sit on the video track with the videos, as in CapCut (조박사님).
+        return clipType == ClipType::Video || clipType == ClipType::Composite
+            || clipType == ClipType::Image;
     case TrackType::Adjustment:
         return clipType == ClipType::Adjustment;
     }

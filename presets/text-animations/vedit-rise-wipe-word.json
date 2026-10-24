@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "id": "vedit-rise-wipe-word",
+  "label": "Rise from a line",
+  "category": "word",
+  "sampleText": "Rise up",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 332,
+  "defaults": {
+    "unit": "word",
+    "stagger": 0.12,
+    "duration": 0.5,
+    "ease": "easeOut"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "wipe": {
+          "enabled": true,
+          "angleDeg": -90,
+          "softness": 0.15
+        },
+        "position": {
+          "x": 0,
+          "y": 0.5,
+          "unit": "em"
+        }
+      }
+    }
+  ]
+}

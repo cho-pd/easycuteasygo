@@ -50,7 +50,7 @@ ApplicationWindow {
     // Use visibility only — setting both this and `visible` makes Qt warn
     // "Conflicting properties 'visible' and 'visibility'" (Maximized + hidden).
     visibility: Window.Hidden
-    title: "CutWire Drift"
+    title: "Easy Cut, Easy Go!" // VEDIT
     color: Theme.appBackground
 
     LayoutMirroring.enabled: Qt.application.layoutDirection === Qt.RightToLeft
@@ -63,7 +63,20 @@ ApplicationWindow {
         // Before any of the branches below, so a quit that is cancelled at the
         // unsaved prompt still records where the window was.
         window.persistLayout()
-        if (window.forceClose || !EditorState.hasUnsavedChanges)
+        if (window.forceClose)
+            return
+        // VEDIT (조박사님, CapCut): closing the editor goes back to the project list; only closing
+        // the list quits. The work is saved first (auto-save); if auto-save is off, the usual
+        // "save changes?" question comes from requestCloseProject.
+        if (!window.showStartScreen) {
+            close.accepted = false
+            if (window.previewFullscreen)
+                window.togglePreviewFullscreen()
+            EditorState.autoSaveNow()
+            window.requestCloseProject()
+            return
+        }
+        if (!EditorState.hasUnsavedChanges)
             return
         close.accepted = false
         // Leave preview fullscreen so the save prompt isn't sitting on a blank
@@ -309,12 +322,17 @@ ApplicationWindow {
         }
     }
 
+    // VEDIT: CapCut-style — no setup dialog. The first video/photo on the timeline sets the
+    // canvas: its size (rotation-aware, so a phone's portrait video makes a 9:16 project) and
+    // its frame rate. Changing it later is still possible from the project settings.
     function configureAndAddAsset(assetIndex, runner) {
-        if (!EditorState.shouldConfigureProjectForAsset(assetIndex)) {
-            runner()
-            return
+        if (EditorState.shouldConfigureProjectForAsset(assetIndex)) {
+            const suggested = EditorState.suggestedProjectSetupForAsset(assetIndex)
+            EditorState.setProjectSetup(suggested.width || 1920, suggested.height || 1080,
+                                        suggested.fps || 30)
+            EditorState.markProjectLayoutChosen()
         }
-        projectSetupDialog.openForAsset(assetIndex, runner)
+        runner()
     }
 
     // "Decide later" closes the first-run chooser without settling on a canvas size.
@@ -342,6 +360,9 @@ ApplicationWindow {
     }
 
     function promptLayoutChooserIfNeeded() {
+        // VEDIT: never ask for a layout up front; the first clip decides (configureAndAddAsset).
+        if (true)
+            return
         if (EditorState.needsUiLanguagePrompt || languageChooserDialog.visible)
             return
         if (EditorState.recoveryAvailable || EditorState.projectLayoutChosen)
@@ -352,9 +373,9 @@ ApplicationWindow {
         // New / Open / a recent project rather than racing them with this dialog too.
         if (window.showStartScreen)
             return
-        if (layoutChooserDialog.visible || recoveryDialog.visible)
+        if ((layoutChooserDialogLoader.item && layoutChooserDialogLoader.item.visible) || recoveryDialog.visible)
             return
-        layoutChooserDialog.openChooser()
+        layoutChooserDialogLazy().openChooser()
     }
 
     // Quiet catalog refresh for the header attention indicator.
@@ -364,11 +385,23 @@ ApplicationWindow {
 
     // Settings / header: reopen platform layout picker anytime.
     function openLayoutChooser() {
-        layoutChooserDialog.openFromSettings()
+        layoutChooserDialogLazy().openFromSettings()
     }
 
-    ProjectSetupDialog {
-        id: projectSetupDialog
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: projectSetupDialogLoader
+        active: false
+        sourceComponent: Component {
+            ProjectSetupDialog {
+                id: projectSetupDialog
+            }
+        }
+    }
+    function projectSetupDialogLazy() {
+        projectSetupDialogLoader.active = true
+        return projectSetupDialogLoader.item
     }
 
     LanguageChooserDialog {
@@ -378,11 +411,23 @@ ApplicationWindow {
         onClosed: window.continueStartupAfterLanguage()
     }
 
-    LayoutChooserDialog {
-        id: layoutChooserDialog
-        // rejected() fires before closed(), so the flag is already set by the time
-        // callers check it.
-        onFirstRunDismissed: window.layoutPromptDismissed = true
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: layoutChooserDialogLoader
+        active: false
+        sourceComponent: Component {
+            LayoutChooserDialog {
+                id: layoutChooserDialog
+                // rejected() fires before closed(), so the flag is already set by the time
+                // callers check it.
+                onFirstRunDismissed: window.layoutPromptDismissed = true
+            }
+        }
+    }
+    function layoutChooserDialogLazy() {
+        layoutChooserDialogLoader.active = true
+        return layoutChooserDialogLoader.item
     }
 
     RecoveryDialog {
@@ -398,42 +443,130 @@ ApplicationWindow {
         id: reverseProgressDialog
     }
 
-    AddonManagerDialog {
-        id: addonManagerDialog
+    AudioSyncProgressDialog { // VEDIT: 소리로 맞추기 진행
+        id: audioSyncProgressDialog
+    }
+
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: addonManagerDialogLoader
+        active: false
+        sourceComponent: Component {
+            AddonManagerDialog {
+                id: addonManagerDialog
+            }
+        }
+    }
+    function addonManagerDialogLazy() {
+        addonManagerDialogLoader.active = true
+        return addonManagerDialogLoader.item
     }
 
     AddonStartupDialog {
         id: addonStartupDialog
     }
 
-    MissingAddonsDialog {
-        id: missingAddonsDialog
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: missingAddonsDialogLoader
+        active: false
+        sourceComponent: Component {
+            MissingAddonsDialog {
+                id: missingAddonsDialog
+            }
+        }
+    }
+    function missingAddonsDialogLazy() {
+        missingAddonsDialogLoader.active = true
+        return missingAddonsDialogLoader.item
     }
 
-    UpdateDialog {
-        id: updateDialog
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: updateDialogLoader
+        active: false
+        sourceComponent: Component {
+            UpdateDialog {
+                id: updateDialog
+            }
+        }
+    }
+    function updateDialogLazy() {
+        updateDialogLoader.active = true
+        return updateDialogLoader.item
     }
 
-    DebugInfoDialog {
-        id: debugInfoDialog
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: debugInfoDialogLoader
+        active: false
+        sourceComponent: Component {
+            DebugInfoDialog {
+                id: debugInfoDialog
+            }
+        }
+    }
+    function debugInfoDialogLazy() {
+        debugInfoDialogLoader.active = true
+        return debugInfoDialogLoader.item
     }
 
-    SettingsDialog {
-        id: settingsDialog
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: settingsDialogLoader
+        active: false
+        sourceComponent: Component {
+            SettingsDialog {
+                id: settingsDialog
+            }
+        }
+    }
+    function settingsDialogLazy() {
+        settingsDialogLoader.active = true
+        return settingsDialogLoader.item
     }
 
-    PasteAttributesDialog {
-        id: pasteAttributesDialog
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: pasteAttributesDialogLoader
+        active: false
+        sourceComponent: Component {
+            PasteAttributesDialog {
+                id: pasteAttributesDialog
+            }
+        }
+    }
+    function pasteAttributesDialogLazy() {
+        pasteAttributesDialogLoader.active = true
+        return pasteAttributesDialogLoader.item
     }
 
-    SegmentationWindow {
-        id: segmentationWindow
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: segmentationWindowLoader
+        active: false
+        sourceComponent: Component {
+            SegmentationWindow {
+                id: segmentationWindow
+            }
+        }
+    }
+    function segmentationWindowLazy() {
+        segmentationWindowLoader.active = true
+        return segmentationWindowLoader.item
     }
 
     Connections {
         target: EditorState
         function onOpenSegmentationWindowRequested(track, clip, startSeconds, durationSeconds) {
-            segmentationWindow.openFor(track, clip, startSeconds, durationSeconds, true)
+            segmentationWindowLazy().openFor(track, clip, startSeconds, durationSeconds, true)
         }
         function onOpenPasteAttributesRequested() {
             window.openPasteAttributes()
@@ -441,8 +574,20 @@ ApplicationWindow {
     }
 
     // Another view of the same timeline rather than an editor of its own — see MulticamWindow.
-    MulticamWindow {
-        id: multicamWindow
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: multicamWindowLoader
+        active: false
+        sourceComponent: Component {
+            MulticamWindow {
+                id: multicamWindow
+            }
+        }
+    }
+    function multicamWindowLazy() {
+        multicamWindowLoader.active = true
+        return multicamWindowLoader.item
     }
 
     DownloadsWindow {
@@ -464,57 +609,105 @@ ApplicationWindow {
         }
     }
 
-    DenoiseWindow {
-        id: denoiseWindow
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: denoiseWindowLoader
+        active: false
+        sourceComponent: Component {
+            DenoiseWindow {
+                id: denoiseWindow
+            }
+        }
+    }
+    function denoiseWindowLazy() {
+        denoiseWindowLoader.active = true
+        return denoiseWindowLoader.item
     }
 
-    SpeedCurveWindow {
-        id: speedCurveWindow
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: speedCurveWindowLoader
+        active: false
+        sourceComponent: Component {
+            SpeedCurveWindow {
+                id: speedCurveWindow
+            }
+        }
+    }
+    function speedCurveWindowLazy() {
+        speedCurveWindowLoader.active = true
+        return speedCurveWindowLoader.item
     }
 
-    FadeCurveWindow {
-        id: fadeCurveWindow
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: fadeCurveWindowLoader
+        active: false
+        sourceComponent: Component {
+            FadeCurveWindow {
+                id: fadeCurveWindow
+            }
+        }
+    }
+    function fadeCurveWindowLazy() {
+        fadeCurveWindowLoader.active = true
+        return fadeCurveWindowLoader.item
     }
 
-    MediaPreviewWindow {
-        id: mediaPreviewWindow
+    // VEDIT: made on first use — building every dialog and window up front cost
+    // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    Loader {
+        id: mediaPreviewWindowLoader
+        active: false
+        sourceComponent: Component {
+            MediaPreviewWindow {
+                id: mediaPreviewWindow
+            }
+        }
+    }
+    function mediaPreviewWindowLazy() {
+        mediaPreviewWindowLoader.active = true
+        return mediaPreviewWindowLoader.item
     }
 
     // Opened from the clip inspector; a window rather than a dialog so the timeline stays visible.
     function openSegmentation(track, clip, startSeconds, durationSeconds) {
-        segmentationWindow.openFor(track, clip, startSeconds, durationSeconds)
+        segmentationWindowLazy().openFor(track, clip, startSeconds, durationSeconds)
     }
 
     function openDenoise(track, clip, durationSeconds) {
-        denoiseWindow.openFor(track, clip, durationSeconds)
+        denoiseWindowLazy().openFor(track, clip, durationSeconds)
     }
 
     function openSpeedCurve(track, clip) {
-        speedCurveWindow.openFor(track, clip)
+        speedCurveWindowLazy().openFor(track, clip)
     }
 
     function openFadeCurve(track, clip) {
-        fadeCurveWindow.openFor(track, clip)
+        fadeCurveWindowLazy().openFor(track, clip)
     }
 
     function openTransitionCurve(track, transitionId) {
-        fadeCurveWindow.openForTransition(track, transitionId)
+        fadeCurveWindowLazy().openForTransition(track, transitionId)
     }
 
     function openMediaPreview(assetIndex) {
-        mediaPreviewWindow.openFor(assetIndex)
+        mediaPreviewWindowLazy().openFor(assetIndex)
     }
 
     // Opened from the header and from the "multicam" shortcut. Unlike the windows above it is
     // not bound to one clip, so it survives any edit and only closes when the document does.
     function openMulticam() {
-        multicamWindow.openSession()
+        multicamWindowLazy().openSession()
     }
 
     // Opened from the header's Settings menu. Every preference lives here now; the
     // assets rail no longer carries a settings tab.
     function openSettings() {
-        settingsDialog.open()
+        settingsDialogLazy().open()
     }
 
     // ── Project lifecycle: New / Open / Open recent / Close ─────────────────────
@@ -596,9 +789,9 @@ ApplicationWindow {
     // Opened from the header, and from every empty state that a missing addon causes.
     function openAddonManager(kind) {
         if (kind === undefined)
-            addonManagerDialog.open()
+            addonManagerDialogLazy().open()
         else
-            addonManagerDialog.openForKind(kind)
+            addonManagerDialogLazy().openForKind(kind)
     }
 
     // Header Extras button: open the essential/update nudge when the icon is pulsing,
@@ -611,15 +804,15 @@ ApplicationWindow {
 
     // Opened from the header badge, which only exists while there is something to show.
     function openUpdateDialog() {
-        updateDialog.open()
+        updateDialogLazy().open()
     }
 
     function openDebugInfo() {
-        debugInfoDialog.open()
+        debugInfoDialogLazy().open()
     }
 
     function openPasteAttributes() {
-        pasteAttributesDialog.openDialog()
+        pasteAttributesDialogLazy().openDialog()
     }
 
     function promptRecoveryIfNeeded() {
@@ -735,15 +928,15 @@ ApplicationWindow {
         // Multicam addresses tracks by index, so it has nothing to act on either once the
         // document behind those indices is gone.
         function onProjectReset() {
-            segmentationWindow.close()
-            denoiseWindow.close()
-            speedCurveWindow.close()
-            fadeCurveWindow.close()
-            multicamWindow.close()
+            if (segmentationWindowLoader.item) segmentationWindowLoader.item.close()
+            if (denoiseWindowLoader.item) denoiseWindowLoader.item.close()
+            if (speedCurveWindowLoader.item) speedCurveWindowLoader.item.close()
+            if (fadeCurveWindowLoader.item) fadeCurveWindowLoader.item.close()
+            if (multicamWindowLoader.item) multicamWindowLoader.item.close()
         }
 
         function onOpenMulticamWindowRequested() {
-            multicamWindow.openSession()
+            multicamWindowLazy().openSession()
         }
 
         // Terminal result of a loadProject()/loadProjectJson() call, from any source —
@@ -784,7 +977,7 @@ ApplicationWindow {
         }
 
         function onMissingAddons(addons) {
-            missingAddonsDialog.openFor(addons)
+            missingAddonsDialogLazy().openFor(addons)
         }
 
         function onPackageFinished(ok, message) {
@@ -910,6 +1103,17 @@ ApplicationWindow {
         if (id === "zoomOut") {
             if (timelinePanel.visible)
                 timelinePanel.setZoom(timelinePanel.zoom / 1.5)
+            return
+        }
+        // VEDIT (조박사님): Delete with items picked in the media bin removes them.
+        if (id === "delete" && assetsPanel.binOwnsDelete) {
+            assetsPanel.deleteSelectedAssets()
+            return
+        }
+        // VEDIT: Shift+Z shows the whole video at once (CapCut).
+        if (id === "zoomFit") {
+            if (timelinePanel.visible)
+                timelinePanel.fitZoom()
             return
         }
         EditorState.triggerAction(id)
@@ -1194,4 +1398,135 @@ ApplicationWindow {
 
     // Notification host — above all panels, so any message lands in one place.
     ToastHost { }
+
+    // VEDIT: while 조용한 부분 자르기 / 음악 줄이기 listen to the audio, nothing else can be edited —
+    // the clips they are cutting must stay put. A plain cover that says what is happening.
+    Rectangle {
+        anchors.fill: parent
+        z: 10000
+        visible: EditorState.audioToolBusy
+        color: Qt.rgba(0, 0, 0, 0.55)
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.AllButtons
+            onWheel: (wheel) => wheel.accepted = true
+        }
+        Column {
+            anchors.centerIn: parent
+            spacing: Theme.spacingLg
+            IconGlyph {
+                anchors.horizontalCenter: parent.horizontalCenter
+                glyph: Theme.icons.spinner
+                spinning: true
+                iconSize: Theme.iconSizeXl * 2
+                iconColor: Theme.primary
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: qsTr("Listening to the sound… please wait")
+                color: "#ffffff"
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeBase * 1.3
+            }
+        }
+    }
+
+    // VEDIT: 목소리 녹음 — while recording, a bar at the top says so, shows the time and how loud
+    // the voice is coming in, and holds the two ways out.
+    Rectangle {
+        id: voiceBar
+        z: 9000
+        visible: EditorState.voiceRecording
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 64
+        width: voiceRow.implicitWidth + 32
+        height: 56
+        radius: 28
+        color: "#1a1a1a"
+        border.color: "#e5484d"
+        border.width: 2
+
+        Row {
+            id: voiceRow
+            anchors.centerIn: parent
+            spacing: 14
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 14; height: 14; radius: 7
+                color: "#e5484d"
+                SequentialAnimation on opacity {
+                    running: voiceBar.visible
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 0.25; duration: 600 }
+                    NumberAnimation { to: 1.0; duration: 600 }
+                }
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("Recording") + "  " + Math.floor(EditorState.voiceRecordingSeconds / 60) + ":"
+                      + ("0" + Math.floor(EditorState.voiceRecordingSeconds % 60)).slice(-2)
+                color: "#ffffff"
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeBase * 1.2
+                font.bold: true
+            }
+            // Input level: green while the voice comes in well, red if it is too loud.
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 120; height: 10; radius: 5
+                color: "#333333"
+                Rectangle {
+                    width: parent.width * Math.min(1, Math.sqrt(EditorState.voiceLevel))
+                    height: parent.height
+                    radius: 5
+                    color: EditorState.voiceLevel > 0.9 ? "#e5484d" : "#46a758"
+                }
+            }
+            ThemedButton {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("Stop")
+                onClicked: EditorState.stopVoiceRecording()
+            }
+            ThemedButton {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("Cancel")
+                onClicked: EditorState.cancelVoiceRecording()
+            }
+        }
+    }
+
+    // VEDIT: the 3-2-1 before a voice recording — a big number in the middle of the window.
+    Rectangle {
+        z: 9001
+        visible: EditorState.voiceCountdown > 0
+        anchors.centerIn: parent
+        width: 180
+        height: 180
+        radius: 90
+        color: Qt.rgba(0, 0, 0, 0.7)
+        border.color: "#e5484d"
+        border.width: 3
+        Column {
+            anchors.centerIn: parent
+            spacing: 4
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: EditorState.voiceCountdown
+                color: "#ffffff"
+                font.family: Theme.fontFamily
+                font.pixelSize: 84
+                font.bold: true
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: qsTr("Get ready to speak")
+                color: "#ffffff"
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeBase
+            }
+        }
+    }
 }

@@ -1,3 +1,4 @@
+#include <limits> // VEDIT
 #include "PlaybackEngine.h"
 
 #include "engine/AndroidUri.h"
@@ -8,6 +9,17 @@
 
 #include <QSettings>
 #include <QVariantMap>
+#include <QDateTime> // VEDIT: play trace
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+#include <QThread>
+#include "engine/RenderCache.h"
+#include <QDir>
+#include <QFile>
 
 #ifdef Q_OS_ANDROID
 #include <QJniEnvironment>
@@ -194,6 +206,16 @@ PlaybackEngine::PlaybackEngine(QObject *parent)
     : QObject(parent)
     , m_audio(QStringLiteral("PlaybackAudio"), this)
 {
+    // VEDIT: decoder and preview quality start on Auto (조박사님, 2026-10-16): a fixed hardware
+    // decoder flickered on some machines. Applied once; a later choice in ⚙ is kept.
+    {
+        QSettings settings;
+        if (!settings.value(QStringLiteral("vedit/previewAutoDefaults"), false).toBool()) {
+            settings.setValue(QStringLiteral("preview/decodeMode"), QStringLiteral("auto"));
+            settings.setValue(QStringLiteral("preview/quality"), QStringLiteral("auto"));
+            settings.setValue(QStringLiteral("vedit/previewAutoDefaults"), true);
+        }
+    }
     const QString saved = QSettings().value(QStringLiteral("preview/quality")).toString().toLower();
     if (isKnownPreviewQuality(saved))
         m_previewQuality = saved;
@@ -630,15 +652,6 @@ void PlaybackEngine::play()
     // without touch input; no-op on desktop.
     drift::android::acquireKeepScreenOn();
 
-    requestAudioFocus();
-    ensureAudioSink();
-    m_sinkPlayedUsOffset = m_audio.processedUSecs();
-    m_clock.start();
-
-    // Opening the device may settle on a rate the project did not ask for, which comes back as
-    // sampleRateChanged and re-anchors the clock — so this has to follow m_playing being set.
-    m_audio.start();
-
     emit playingChanged();
 
     m_stats.reset();
@@ -646,8 +659,103 @@ void PlaybackEngine::play()
     m_playheadTimer.start(kPlayheadUpdateMs);
     syncDisplayCadence();
 
+    // VEDIT: pre-roll — ask for the first playback frame and start the clock once it is on screen
+    // (or after a short cap, so a slow source never holds play back for long).
+    m_prerolling = true;
+    m_prerollFrameSeen = false;
+    // VEDIT: play trace
+    m_traceLastFrameNs = 0;
+    m_traceMaxGapMs = 0.0;
+    m_traceFrames = 0;
+    m_traceDroppedAtStart = m_stats.droppedFrames();
+    if (!m_traceTimer.isActive()) {
+        connect(&m_traceTimer, &QTimer::timeout, this, &PlaybackEngine::writePlayTrace, Qt::UniqueConnection);
+        m_traceTimer.start(1000);
+    }
+    if (!m_prerollTimer.isActive()) {
+        m_prerollTimer.setSingleShot(true);
+        connect(&m_prerollTimer, &QTimer::timeout, this, &PlaybackEngine::finishPreroll,
+                Qt::UniqueConnection);
+    }
+    m_prerollTimer.start(500);
     onPlayheadTick();
+    m_compositor.requestComposite(m_playheadUs, playbackRenderOptions());
+}
+
+// VEDIT: play trace — this process's CPU use since the last call, as a share of the whole machine.
+static double veditProcessCpuPercent()
+{
+#ifdef Q_OS_WIN
+    static ULONGLONG lastProc = 0, lastWall = 0;
+    FILETIME c, e, k, u, now;
+    GetProcessTimes(GetCurrentProcess(), &c, &e, &k, &u);
+    GetSystemTimeAsFileTime(&now);
+    const auto v = [](const FILETIME &f) { return (ULONGLONG(f.dwHighDateTime) << 32) | f.dwLowDateTime; };
+    const ULONGLONG proc = v(k) + v(u), wall = v(now);
+    double pct = 0.0;
+    if (lastWall != 0 && wall > lastWall)
+        pct = 100.0 * double(proc - lastProc) / double(wall - lastWall) / QThread::idealThreadCount();
+    lastProc = proc;
+    lastWall = wall;
+    return pct;
+#else
+    return 0.0;
+#endif
+}
+
+void PlaybackEngine::writePlayTrace()
+{
+    if (!m_playing)
+        return;
+    QFile f(QDir::temp().filePath(QStringLiteral("vedit-play-trace.log")));
+    if (f.open(QIODevice::Append | QIODevice::Text)) {
+        f.write(QStringLiteral("%1 t=%2s frames=%3 maxGap=%4ms compMed=%5 compP95=%6 decodeWait=%7 "
+                               "dropped=%8 scale=%9 rate=%10 proxyBuild=%11 renderCache=%12 workers=%13 cpu=%14pct\n")
+                    .arg(QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss.zzz")))
+                    .arg(double(m_playheadUs) / 1e6, 0, 'f', 2)
+                    .arg(m_traceFrames)
+                    .arg(m_traceMaxGapMs, 0, 'f', 0)
+                    .arg(m_stats.compositeMedianMs(), 0, 'f', 1)
+                    .arg(m_stats.compositeP95Ms(), 0, 'f', 1)
+                    .arg(m_stats.decodeWaitMedianMs(), 0, 'f', 1)
+                    .arg(m_stats.droppedFrames() - m_traceDroppedAtStart)
+                    .arg(m_stats.adaptiveScale(), 0, 'f', 2)
+                    .arg(m_playbackRate, 0, 'f', 2)
+                    .arg(drift::ReverseProxyCache::proxyBuilding.load() ? 1 : 0)
+                    .arg(RenderCache::instance().isBusy() ? 1 : 0)
+                    .arg(ClipReaderPool::instance().videoWorkerCount())
+                    .arg(veditProcessCpuPercent(), 0, 'f', 0)
+                    .toUtf8());
+    }
+    m_traceFrames = 0;
+    m_traceMaxGapMs = 0.0;
+}
+
+void PlaybackEngine::finishPreroll()
+{
+    if (!m_prerolling || !m_playing)
+        return;
+    m_prerolling = false;
+    m_prerollTimer.stop();
+
+    requestAudioFocus();
+    ensureAudioSink();
+    const qint64 playedBefore = m_audio.processedUSecs();
+    // VEDIT: held "nothing played yet" until the resume below says where the new sound starts.
+    m_sinkPlayedUsOffset = std::numeric_limits<qint64>::max() / 4;
+    m_clock.start();
+
+    // Opening the device may settle on a rate the project did not ask for, which comes back as
+    // sampleRateChanged and re-anchors the clock — so this has to follow m_playing being set.
+    m_audio.start();
+    // VEDIT: resumed on an open device — the playhead starts when the queued silence has played,
+    // which is when the first of the new sound is heard.
+    const qint64 queued = m_audio.resumeQueuedUSecs();
+    m_sinkPlayedUsOffset = queued > 0 ? m_audio.processedUSecs() + queued : playedBefore;
+
+    m_lastRequestedFrameUs = -1;
     onCompositeTick();
+    emit pictureStarted(qMax<qint64>(0, queued)); // VEDIT
 }
 
 void PlaybackEngine::syncDisplayCadence()
@@ -747,6 +855,9 @@ void PlaybackEngine::pause()
         return;
 
     m_playing = false;
+    m_traceTimer.stop(); // VEDIT
+    m_prerolling = false; // VEDIT
+    m_prerollTimer.stop();
     m_compositor.setPlaybackActive(false);
     drift::android::releaseKeepScreenOn();
     abandonAudioFocus();
@@ -754,9 +865,11 @@ void PlaybackEngine::pause()
     m_compositeTimer.stop();
     m_clock.pause();
     m_playheadUs = m_clock.pausedAt();
+    // VEDIT (조박사님: tick at play even from silence): the device stays open on silence (pause,
+    // not stop) — reopening it clicks. play() waits out the silence still queued in it.
+    m_audio.pause();
     m_mixer.resetClipAudioState();
     m_audioStreamGeneration.fetch_add(1, std::memory_order_release);
-    m_audio.stop();
     emit playingChanged();
     emit playheadUsChanged(static_cast<quint64>(m_playheadUs));
     refreshFrame();
@@ -856,6 +969,19 @@ void PlaybackEngine::onFrameReady(const GpuFrameTexture &frame)
     }
     m_stats.setUploadPath(GpuCompositor::previewUploadPathId());
     emit currentFrameChanged();
+    if (m_playing) { // VEDIT: play trace
+        const qint64 now = PlaybackClock::nowNs();
+        if (m_traceLastFrameNs != 0)
+            m_traceMaxGapMs = qMax(m_traceMaxGapMs, double(now - m_traceLastFrameNs) / 1e6);
+        m_traceLastFrameNs = now;
+        ++m_traceFrames;
+    }
+    // VEDIT: the first playback frame is ready — give the read-ahead a moment (120 ms) to get a
+    // few frames in hand, then set off (조박사님: a last tiny hitch just after the start).
+    if (m_prerolling && !m_prerollFrameSeen) {
+        m_prerollFrameSeen = true;
+        QTimer::singleShot(120, this, &PlaybackEngine::finishPreroll);
+    }
 }
 
 FrameCompositor::RenderOptions PlaybackEngine::playbackRenderOptions() const
@@ -896,6 +1022,7 @@ FrameCompositor::RenderOptions PlaybackEngine::playbackRenderOptions() const
         options.skipClipId = m_editingClipId;
 
     options.allowProxies = true;
+    options.useRenderCache = m_playing; // VEDIT: 임시 렌더링
     return options;
 }
 

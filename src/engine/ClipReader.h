@@ -343,12 +343,14 @@ private:
     // of 30 fps material but only an eighth of 60 fps, so the buffer shrank exactly where
     // the frame budget was already halved. The cap is what the surface pool can spare, so
     // high frame rates get as much wall time as the pool allows rather than half of it.
-    static constexpr drift::TimeUs kHwPreviewReadAheadUs = 300'000;
+    // VEDIT: 0.3 s left long-GOP 4K (DJI, 70 Mbps) no cushion for its bursty decode — playback
+    // hitched. 0.8 s, up to 24 frames.
+    static constexpr drift::TimeUs kHwPreviewReadAheadUs = 800'000;
     static constexpr int kMinHwCachedFrames = 4;
-    static constexpr int kMaxHwCachedFrames = 12;
+    static constexpr int kMaxHwCachedFrames = 24;
     // Must stay ahead of kMaxHwCachedFrames plus the cover and peek refs and the decoder's
     // own reorder buffer, or the pool runs dry and decode stalls waiting for a free surface.
-    static constexpr int kHwExtraFrames = 20;
+    static constexpr int kHwExtraFrames = 32; // VEDIT: follows kMaxHwCachedFrames
     // Cover and peek hold one ref each on top of the cache; the rest is the decoder's own
     // reorder headroom. Raising the cache without raising the pool is what stalls decode.
     static_assert(kHwExtraFrames >= kMaxHwCachedFrames + 2 + 4,

@@ -21,7 +21,8 @@ struct TransitionAudioGains
     double incoming = 0.0;
 };
 
-// curve: "crossfade" (linear) | "dip" (out then in, silent at the midpoint) | "hold" (no ducking).
+// curve: "crossfade" (equal-power, VEDIT default) | "linear" (straight X) | "dip" (out then in,
+// silent at the midpoint) | "hold" (no ducking).
 TransitionAudioGains transitionAudioGains(const QString &curve, double progress);
 
 struct Transition
@@ -37,6 +38,15 @@ struct Transition
     // in or out instead of running at a constant rate. Linear is the historical behaviour.
     FadeCurve easingCurve = FadeCurve::Linear;
     FadeShape easingShape; // only consulted when easingCurve is Custom
+    // VEDIT: made by overlapping two clips (Vegas-style), not picked by hand. It lives exactly as
+    // long as the overlap does, and is dropped again when the clips are pulled apart.
+    bool autoOverlap = false;
+    // VEDIT: Vegas's fade types — how the outgoing side fades out and the incoming side fades
+    // in, chosen apart. Sound follows each curve as its own gain; the picture mixes in their
+    // proportion. Off (splitCurves false) keeps the easing curve and the package's sound curve.
+    bool splitCurves = false;
+    FadeCurve outCurve = FadeCurve::Smooth;
+    FadeCurve inCurve = FadeCurve::Smooth;
 };
 
 // How a clip's audio behaves at an edge a transition covers when the clips only touch (no

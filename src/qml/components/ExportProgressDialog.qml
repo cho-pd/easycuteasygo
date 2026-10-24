@@ -48,6 +48,15 @@ ThemedDialog {
                   : qsTr("Export finished.")
         }
 
+        // VEDIT: time left and size so far; afterwards the final size and how long it took.
+        ThemedLabel {
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
+            visible: text.length > 0
+            wrapMode: Text.WordWrap
+            text: EditorState.exportStatusText
+        }
+
         // The finished state used to be that sentence and nothing else — the file was on the
         // device and every way to it was outside the app. Both actions publish to the gallery
         // first, which is a second full copy of the video and the reason it is not done as part
@@ -56,6 +65,30 @@ ThemedDialog {
         // Bound to canShareExport rather than to "the export ended": the publish runs on a
         // worker, so it is false again for as long as either button's copy is in flight, and
         // that is exactly when neither should be pressable.
+        // VEDIT: desktop — show where the video went, or play it, right from the finished dialog.
+        Row {
+            width: parent.width
+            spacing: Theme.spacingMd
+            visible: Qt.platform.os !== "android" && !EditorState.exportInProgress
+                     && EditorState.exportProgress >= 1.0 && EditorState.hasLastExport()
+
+            ThemedButton {
+                width: (parent.width - parent.spacing) / 2
+                variant: "primary"
+                glyph: Theme.icons.folder
+                text: "폴더 열기"
+                onClicked: EditorState.revealLastExport()
+            }
+
+            ThemedButton {
+                width: (parent.width - parent.spacing) / 2
+                variant: "secondary"
+                glyph: Theme.icons.play
+                text: "바로 보기"
+                onClicked: EditorState.openLastExport()
+            }
+        }
+
         Row {
             width: parent.width
             spacing: Theme.androidTouchGap

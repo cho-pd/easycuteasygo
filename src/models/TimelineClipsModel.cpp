@@ -42,6 +42,15 @@ QList<int> changedRoles(const TimelineClipsModel::Row &a, const TimelineClipsMod
     diff(a.fadeHandles != b.fadeHandles, TimelineClipsModel::FadeHandlesRole);
     diff(a.effects != b.effects, TimelineClipsModel::EffectsRole);
     diff(a.audioEffects != b.audioEffects, TimelineClipsModel::AudioEffectsRole);
+    diff(a.animIn != b.animIn, TimelineClipsModel::AnimInRole);       // VEDIT
+    diff(a.animOut != b.animOut, TimelineClipsModel::AnimOutRole);    // VEDIT
+    diff(a.animCombo != b.animCombo, TimelineClipsModel::AnimComboRole); // VEDIT
+    diff(a.fadeOutCurve != b.fadeOutCurve, TimelineClipsModel::FadeOutCurveRole); // VEDIT
+    diff(a.level != b.level, TimelineClipsModel::LevelRole); // VEDIT
+    diff(a.speed != b.speed, TimelineClipsModel::SpeedRole); // VEDIT
+    diff(a.speedCurve != b.speedCurve, TimelineClipsModel::SpeedCurveRole); // VEDIT
+    diff(a.channelMode != b.channelMode, TimelineClipsModel::ChannelModeRole); // VEDIT
+    diff(a.outOfSync != b.outOfSync, TimelineClipsModel::OutOfSyncRole); // VEDIT
     return roles;
 }
 
@@ -108,6 +117,15 @@ QVariant TimelineClipsModel::data(const QModelIndex &index, int role) const
     case FadeHandlesRole: return row.fadeHandles;
     case EffectsRole: return row.effects;
     case AudioEffectsRole: return row.audioEffects;
+    case AnimInRole: return row.animIn;       // VEDIT
+    case AnimOutRole: return row.animOut;     // VEDIT
+    case AnimComboRole: return row.animCombo; // VEDIT
+    case FadeOutCurveRole: return row.fadeOutCurve; // VEDIT
+    case LevelRole: return row.level; // VEDIT
+    case ChannelModeRole: return row.channelMode; // VEDIT
+    case OutOfSyncRole: return row.outOfSync; // VEDIT
+    case SpeedRole: return row.speed; // VEDIT
+    case SpeedCurveRole: return row.speedCurve; // VEDIT
     default: return {};
     }
 }
@@ -140,5 +158,14 @@ QHash<int, QByteArray> TimelineClipsModel::roleNames() const
         {FadeHandlesRole, "fadeHandles"},
         {EffectsRole, "effects"},
         {AudioEffectsRole, "audioEffects"},
+        {AnimInRole, "animInLength"},     // VEDIT
+        {AnimOutRole, "animOutLength"},   // VEDIT
+        {AnimComboRole, "animComboId"},   // VEDIT
+        {FadeOutCurveRole, "fadeOutCurve"}, // VEDIT
+        {LevelRole, "level"}, // VEDIT
+        {ChannelModeRole, "channelMode"}, // VEDIT
+        {OutOfSyncRole, "outOfSync"}, // VEDIT
+        {SpeedRole, "speed"}, // VEDIT
+        {SpeedCurveRole, "hasSpeedCurve"}, // VEDIT
     };
 }

@@ -36,6 +36,13 @@ struct Track
     bool muted = false;
     bool hidden = false;
     bool locked = false;
+    // VEDIT: 빈틈 닫기 (CapCut's main-track magnet, per track) — on, the track never keeps a gap:
+    // deleting, trimming or moving closes up, and its clips sit end to end from 0 (a dissolve keeps
+    // its overlap). Off, clips stay wherever they are put.
+    bool magnet = false;
+    // VEDIT: the same choice for every clip on a sound track that has none of its own
+    // (0 as recorded, 1 left on both, 2 right on both, 3 left and right mixed).
+    int channelMode = 0;
     // view-only, video tracks: how clips draw. Video = filmstrip only, Both = filmstrip with a
     // waveform bar along the bottom, Waveform = waveform instead of the filmstrip.
     enum class ClipDisplay { Video = 0, Both = 1, Waveform = 2 };

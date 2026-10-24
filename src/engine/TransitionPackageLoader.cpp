@@ -2,6 +2,7 @@
 
 #include "GpuPackageParse.h"
 
+#include <QCoreApplication> // VEDIT
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
@@ -57,6 +58,9 @@ TransitionPresetEntry TransitionPackageLoader::loadPackage(const QString &packag
     entry.meta.displayName = root.value(QStringLiteral("displayName")).toString();
     if (entry.meta.displayName.isEmpty())
         entry.meta.displayName = entry.meta.id;
+    // VEDIT: package names are English; show them in the UI language (context TransitionNames).
+    entry.meta.displayName = QCoreApplication::translate("TransitionNames",
+                                                         entry.meta.displayName.toUtf8().constData());
     const QString categoryRaw = root.value(QStringLiteral("category")).toString();
     entry.meta.category =
         GpuPackageParse::slugifyCategory(categoryRaw.isEmpty() ? QStringLiteral("basic") : categoryRaw);
@@ -65,8 +69,8 @@ TransitionPresetEntry TransitionPackageLoader::loadPackage(const QString &packag
     entry.audioCurve = root.value(QStringLiteral("audioCurve")).toString();
     if (entry.audioCurve.isEmpty())
         entry.audioCurve = QStringLiteral("crossfade");
-    if (entry.audioCurve != QLatin1String("crossfade") && entry.audioCurve != QLatin1String("dip")
-        && entry.audioCurve != QLatin1String("hold")) {
+    if (entry.audioCurve != QLatin1String("crossfade") && entry.audioCurve != QLatin1String("linear")
+        && entry.audioCurve != QLatin1String("dip") && entry.audioCurve != QLatin1String("hold")) {
         setError(errorOut, &entry,
                  QStringLiteral("unknown audioCurve '%1'").arg(entry.audioCurve));
         return entry;

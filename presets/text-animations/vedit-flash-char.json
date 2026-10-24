@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "id": "vedit-flash-char",
+  "label": "Flash by letter",
+  "category": "light",
+  "sampleText": "Flash",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 334,
+  "defaults": {
+    "unit": "character",
+    "stagger": 0.05,
+    "duration": 0.4,
+    "ease": "easeOut"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "fillColor": "#ffffffff",
+        "scale": 150,
+        "blur": 6,
+        "opacity": 0
+      }
+    }
+  ]
+}

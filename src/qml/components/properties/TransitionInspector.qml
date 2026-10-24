@@ -1,4 +1,5 @@
 import QtQuick
+import QtCore
 import QtQuick.Controls.Basic
 import QtQuick.Window
 import Drift
@@ -157,12 +158,20 @@ Item {
                 font.pixelSize: Theme.fontSizeSm
             }
 
+            // VEDIT (조박사님, Vegas): no transition without an overlap — the button says how instead.
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: qsTr("Drag one clip over the next: where they overlap becomes a crossfade, as long as the overlap.")
+                color: Theme.mutedForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: 16
+            }
+
+            // VEDIT (Vegas): every overlap on the track gets the crossfade, as long as the overlap.
             ThemedButton {
-                text: qsTr("Add crossfade (0.5 s)")
-                variant: "primary"
-                onClicked: EditorState.addTransition(
-                               EditorState.selectedTrack, EditorState.selectedClip,
-                               "crossfade", 0.5)
+                text: qsTr("Crossfade at every overlap")
+                onClicked: EditorState.applyTransitionToAllOverlaps(EditorState.selectedTrack, "crossfade")
             }
         }
 
@@ -196,7 +205,8 @@ Item {
                     text: qsTr("Type")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeSm // VEDIT: one size for every section label
+                    font.weight: Font.Medium
                 }
                 ThemedComboBox {
                     id: transitionKindBox
@@ -225,15 +235,63 @@ Item {
             Column {
                 width: parent.width
                 spacing: 4
-                Text {
-                    text: qsTr("Duration")
-                    color: Theme.mutedForeground
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                Row {
+                    spacing: 10
+                    Text {
+                        text: qsTr("Duration")
+                        color: Theme.mutedForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSm // VEDIT: one size for every section label
+                        font.weight: Font.Medium
+                    }
+                    // VEDIT: the same length the timeline box shows ("1.15" = 1 s 15 frames), spelled
+                    // out, so the seconds typed below and the box on the clip read as one number.
+                    Text {
+                        anchors.baseline: parent.children[0].baseline
+                        visible: root.hasActiveTransition
+                        readonly property int fps: [24, 25, 30, 60].indexOf(durationRulerSettings.rulerFps) >= 0
+                                                   ? durationRulerSettings.rulerFps : 30
+                        readonly property real secs: Number(root.activeTransition.duration) || 0
+                        text: {
+                            let whole = Math.floor(secs + 1e-6)
+                            let f = Math.round((secs - whole) * fps)
+                            if (f >= fps) { whole += 1; f = 0 }
+                            return qsTr("= %1 s %2 frames (timeline %3)").arg(whole).arg(f)
+                                .arg(whole + "." + String(f).padStart(String(fps - 1).length, "0"))
+                        }
+                        color: Theme.panelForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSm
+                    }
+                }
+                Settings {
+                    id: durationRulerSettings
+                    category: "timeline"
+                    property int rulerFps: 30
+                }
+                // VEDIT: CapCut's length slider, up to half the shorter clip.
+                ThemedSlider {
+                    id: transitionDurationSlider
+                    defaultValue: 0.5 // VEDIT: Transition's default
+                    width: parent.width
+                    label: qsTr("Duration")
+                    lockWhilePlaying: true
+                    from: 0.1
+                    to: Math.max(0.2, root.hasActiveTransition ? (Number(root.activeTransition.maxDuration) || 5) : 5)
+                    stepSize: 0.05
+                    valueFormatter: function (v) { return Number(v).toFixed(2) + " s" }
+                    Binding on value {
+                        when: !transitionDurationSlider.pressed
+                        value: root.hasActiveTransition ? (Number(root.activeTransition.duration) || 0.5) : 0.5
+                    }
+                    onPressedChanged: {
+                        if (!pressed && root.hasActiveTransition)
+                            EditorState.setTransitionDuration(root.transitionEditTrack, root.activeTransition.id, value)
+                    }
                 }
                 ThemedNumberField {
                     id: transitionDurationField
-                    to: 60
+                    to: root.hasActiveTransition ? (Number(root.activeTransition.maxDuration) || 60) : 60
                     unit: "s"
                     width: parent.width
                     decimals: 2
@@ -248,6 +306,54 @@ Item {
                 }
             }
 
+            // VEDIT: Vegas's Fade Type grid — rows: how the outgoing clip fades out, columns: how
+            // the incoming one fades in.
+            Column {
+                id: fadeTypeSection
+                width: parent.width
+                spacing: 6
+                // VEDIT (조박사님): folded away until asked for.
+                property bool open: false
+                Item {
+                    width: parent.width
+                    height: 28
+                    Row {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 6
+                        IconGlyph {
+                            anchors.verticalCenter: parent.verticalCenter
+                            glyph: fadeTypeSection.open ? Theme.icons.chevronDown : Theme.icons.chevronRight
+                            iconSize: 14
+                            iconColor: Theme.mutedForeground
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("Fade type")
+                            color: Theme.mutedForeground
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSm
+                            font.weight: Font.Medium
+                        }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: fadeTypeSection.open = !fadeTypeSection.open
+                    }
+                }
+                CrossfadeCurveGrid {
+                    visible: fadeTypeSection.open
+                    cellWidth: Math.max(40, Math.min(56, (parent.width - 12) / 5))
+                    cellHeight: 40
+                    outCurve: root.activeTransition.outCurve || "smooth"
+                    inCurve: root.activeTransition.inCurve || "smooth"
+                    onPicked: function(o, i) {
+                        if (root.hasActiveTransition)
+                            EditorState.setTransitionFadeTypes(root.transitionEditTrack, root.activeTransition.id, o, i)
+                    }
+                }
+            }
+
             // Remaps progress across the transition window. "Custom" hands off to the same
             // curve editor the clip fades use, scoped to this transition.
             Column {
@@ -257,7 +363,8 @@ Item {
                     text: qsTr("Curve")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeSm // VEDIT
+                    font.weight: Font.Medium
                 }
                 ThemedComboBox {
                     id: transitionCurveBox
@@ -303,7 +410,8 @@ Item {
                             text: trParamRow.paramData.label
                             color: Theme.mutedForeground
                             font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeSm // VEDIT: same as the section labels
+                            font.weight: Font.Medium
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
@@ -315,7 +423,7 @@ Item {
                                         Math.abs(trParamRow.paramData.max - trParamRow.paramData.min) >= 10 ? 1 : 2)
                             color: Theme.panelForeground
                             font.family: Theme.monoFontFamily
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeSm // VEDIT
                             anchors.verticalCenter: parent.verticalCenter
                         }
                     }
@@ -330,6 +438,7 @@ Item {
 
                     ThemedSlider {
                         id: trParamSlider
+                        defaultValue: trParamRow.paramData["default"] // VEDIT
                         lockWhilePlaying: true
                         label: trParamRow.paramData.label
                         visible: !trParamRow.paramData.isBoolean
@@ -351,6 +460,13 @@ Item {
                         }
                     }
                 }
+            }
+
+            // VEDIT (조박사님): CapCut's 모두에 적용 — at the bottom, after the settings it copies.
+            ThemedButton {
+                text: qsTr("Apply to every overlap") // VEDIT (Vegas)
+                onClicked: EditorState.applyTransitionToAllOverlaps(root.transitionEditTrack,
+                                                                    root.activeTransition.kind)
             }
 
             ThemedButton {

@@ -1,7 +1,12 @@
 #include <QtTest>
+#include "core/ClipAnimation.h"
 
 #include <QDir>
 #include <QFile>
+#include <QDataStream> // VEDIT
+#include <QElapsedTimer> // VEDIT
+#include <functional> // VEDIT
+#include <random> // VEDIT
 #include <QFileInfo>
 #include <QImage>
 #include <QProcess>
@@ -26,6 +31,17 @@
 #include <zlib.h>
 
 #include "engine/HwAccel.h"
+#include "engine/SpeechSynth.h" // VEDIT
+#include "engine/FontCatalog.h" // VEDIT
+#include "core/VeditTextArt.h" // VEDIT
+#include "engine/Exporter.h" // VEDIT
+#include "engine/AudioSync.h" // VEDIT
+#include "engine/SpeechAudio.h" // VEDIT
+#include "engine/MediaProbe.h" // VEDIT
+#include "engine/ClipReader.h" // VEDIT
+#include <QThread> // VEDIT
+#include "engine/EffectCatalog.h" // VEDIT
+#include "engine/GpuCompositor.h" // VEDIT
 #include "engine/FrameCompositor.h"
 #include "models/AppController.h"
 #include "models/TimelineClipsModel.h"
@@ -42,6 +58,7 @@
 #include "core/OtioReader.h"
 #include "core/Project.h"
 #include "core/TimelineOps.h"
+#include "engine/RenderCache.h" // VEDIT
 #include "core/Track.h"
 
 namespace {
@@ -67,6 +84,168 @@ class EditorStateTest : public QObject
     Q_OBJECT
 
 private slots:
+    // VEDIT: upstream cases assume ripple off; VEDIT's ripple tests switch it on per controller.
+    void initTestCase() { AppController::s_defaultRippleEnabled = false; AppController::s_mainTrackMagnet = false; AppController::s_allTracksMagnet = true; AppController::s_autoRemoveEmptyTracks = false; AssetLibrary::s_autoProxyDefault = false; AppController::s_autoSaveDirOverride = QDir::tempPath() + QStringLiteral("/vedit-autosave-test"); }
+    void vedit_deleteClosesGapOnItsTrack();
+    // VEDIT: CapCut parity cases — spec in VEDIT/docs/capcut-parity-spec.md.
+    void parity_P01_splitShortcutIsS();
+    void parity_P02_splitSelectedOnly();
+    void parity_P03_splitWithoutSelectionSplitsAllUnderPlayhead();
+    void parity_P04_deleteClosesGap();
+    void parity_P05_deleteLeftPullsRemainderBack();
+    void parity_P06_deleteRightPullsFollowing();
+    void parity_P07_trimEndRipplesFollowing();
+    void parity_P09_speedRange();
+    void parity_P10_overlapMakesCurvedDissolve();
+    void parity_P11_duplicateInsertsAfterOriginal();
+    void parity_P12_undoRestoresDelete();
+    void parity_P14_deleteClosesOnlyUncoveredGap();
+    void parity_P19_deleteLeftRightWithoutSelectionUseMainTrack();
+    void parity_P20_adjustSlidersOnSelectedClip();
+    void parity_P21_speedCurvePresetInPlace();
+    void parity_P25_clipCropPersistsAndUndoes();
+    void parity_P30_restoreAudioUndoesSeparation();
+    void parity_P33_dragClipBetweenTracks();
+    void parity_P34_ctrlDragCopies();
+    void parity_P35_emptyTracksRemoveThemselves();
+    void parity_P40_clipFilters();
+    void parity_P42_lockedTracksStayPut();
+    void parity_P42b_lockedPartnerStaysPut();
+    void parity_P43_clipMotionCombos();
+    void parity_P46_transitionAtEveryCut();
+    void parity_P47_allPhotosSameLength();
+    void parity_P48_volumeUpTo400();
+    void parity_P50_overlapAlwaysCrossfades();
+    void parity_P51_photoCentredOnCanvas();
+    void parity_P52_oldPhotosOpenCentred();
+    void parity_P53_moreClipAnimations();
+    void parity_P54_photosOnVideoTrack();
+    void parity_P57_autoProxyQueuesBigVideos();
+    void parity_P58_photosChangeOnTheBeat();
+    void parity_P59_canvasFillChoices();
+    void parity_P65_textStyleToAllText();
+    void parity_P67_pictureInPicture();
+    void parity_P68_photoSlideshow();
+    void parity_P69_fitMusicToVideo();
+    void parity_P70_chromaKeyFromColour();
+    void parity_P71_captionsStartBigAndKorean();
+    void parity_P72_lightAndShadowAdjust();
+    void parity_P73_readTextAloud();
+    void parity_P74_placedSoundKeepsItsLength();
+    void parity_P74_readCaptionsAloud();
+    void parity_P75_saveFrameAsPhoto();
+    void parity_P76_autoAdjustChoosesSensibleFixes();
+    void parity_P77_autoAdjustAndResetOnAClip();
+    void parity_P78_keepOnlyPeopleRefusesNonVideo();
+    void parity_P79_libraryAudioKeepsItsLength();
+    void parity_P80_replaceClipKeepsItsPlaceAndLooks();
+    void parity_P81_cutAtEveryScene();
+    void parity_P82_longCaptionsBecomeShortLines();
+    void parity_P83_soundFadeChips();
+    void parity_P84_bigSlideshowIsQuick();
+    void parity_P85_readyMadeWords();
+    void parity_P86_addSoundFromVideo();
+    void parity_P87_enhanceVoice();
+    void parity_P89_koreanStylesFindTheirFonts();
+    void parity_P90_lengthChipsWithoutDragging();
+    void parity_P91_speedChangeRipples();
+    void parity_P92_replaceWithShorterVideoCloses();
+    void parity_P93_volumeChips();
+    void parity_P95_moveClipInOrder();
+    void parity_P96_moveClipToNeighbourTrack();
+    void parity_P97_duplicateInsertsRightAfter();
+    void parity_P98_tonightsEditsRedoCleanly();
+    void parity_P99_tonightsWorkSurvivesSaveAndOpen();
+    void parity_P101_speedChangeMovesKeyframes();
+    void parity_P102_exportSizeEstimate();
+    void parity_P103_addInMiddleInsertsAfterClip();
+    void parity_P104_effectsNeedingMissingModelsHidden();
+    void parity_P105_insertSeveralKeepsTheirOrder();
+    void parity_P106_insertInsideDissolve();
+    void parity_P107_speedScalesHandlesAndMask();
+    void parity_P108_speedMovesPartnerVolumeKeys();
+    void parity_P109_insertMovesSoundTrackTogether();
+    void parity_P110_deleteClosesSoundTrackTogether();
+    void parity_P111_swapKeepsSoundsWithPictures();
+    void parity_P112_lengthChangeKeepsSoundTrackClear();
+    void parity_P113_duplicateCarriesItsSound();
+    void parity_P114_shortenKeepsSoundTrackTogether();
+    void parity_P115_trimFrontKeepsSoundTrackTogether();
+    void parity_P116_moveUpKeepsSoundsWithPictures();
+    void parity_P117_trimBackKeepsSoundTrackTogether();
+    void parity_P118_splitThenDeleteKeepsSoundsInStep();
+    void parity_P119_captionPlacement();
+    void parity_P120_applyToAllCaptionsCarriesPlacement();
+    void parity_P121_captionPlacementSurvivesRatioChange();
+    void parity_P122_picturesRefitOnRatioChange();
+    void parity_P123_movingPhotoRefitsOnRatioChange();
+    void parity_P124_cornerPhotoStaysInCornerOnRatioChange();
+    void parity_P125_deleteWithSoundRipplesOnce();
+    void parity_P126_pullBackStopsAtThePreviousClip();
+    void parity_P127_laterEditsRedoCleanly();
+    void parity_P128_shapeStaysOnScreenOnRatioChange();
+    void parity_P129_textSizeChips();
+    void parity_P130_textColourDots();
+    void parity_P131_darkBoxBehindWords();
+    void parity_P132_filterOnEveryPicture();
+    void parity_P133_adjustOnEveryPicture();
+    void parity_P134_motionOnEveryPhoto();
+    void parity_P135_applyToAllKeepsTracksTidy();
+    void parity_P136_deletePairKeepsNarrationInStep();
+    void parity_P137_adjustAllCountsRealChanges();
+    void parity_P138_growingTitleScalesOnRatioChange();
+    void parity_P140_defaultTextShowsAtOnce();
+    void parity_P141_growingStyleVisibleWhenAdded();
+    void parity_P142_textEffectsRoundTrip();
+    void parity_P143_looksPlaceAndTyping();
+    void parity_P144_speechBubbles();
+    void parity_P145_wordArt();
+    void parity_P146_snapReachFollowsZoom();
+    void parity_P147_exportedDissolveAndFades();
+    void parity_P148_exportedCaptionsMotionAndLength();
+    void parity_P149_defaultNameIsDateEceg();
+    void parity_P150_trimPastFootageStopsAtItsStart();
+    void parity_P151_trimEndPastFootageStopsAtItsEnd();
+    void parity_P152_extendIntoNeighbourMakesDissolve();
+    void parity_P153_dropOnSeamInsertsTrack();
+    void parity_P154_ungroupCompositeRestoresClips();
+    void parity_P155_ungroupKeepsNeighboursClear();
+    void parity_P156_picturesStayAboveSounds();
+    void parity_P157_lineUpBySound();
+    void parity_P158_lineUpRealCameras();
+    void parity_P159_lineUpDoctorChosConcert();
+    void parity_P160_mainTrackMagnet();
+    void parity_P161_transitionClickAtPlayhead();
+    void parity_P162_clipAnimCombo();
+    void parity_P163_animPreviewTiles();
+    void parity_P164_timelineAnimMarks();
+    void parity_P165_defaultMagnetOnlyWhenGapless();
+    void parity_P166_previewPickedAnimation();
+    void parity_P167_comboCutAndSoundRows();
+    void parity_P168_vegasFadeTypes();
+    void parity_P169_trimPreviewFollowsEveryKind();
+    void parity_P170_clipEventLevel();
+    void parity_P171_channelModes();
+    void parity_P172_resetClearsHslCurvesWheels();
+    void parity_P173_matchClipColor();
+    void parity_P174_pasteNeverOverlaps();
+    void parity_P175_copyPasteAttributes();
+    void parity_P176_splitSoundUnlinkedAndOutOfSyncTint();
+    void parity_P177_fxInBandThenSeparateLane();
+    void parity_P178_groupDropInShotOrder();
+    void parity_P179_insertClipOnSeam();
+    void parity_P180_renderCacheFollowsEditsAndUndo();
+    void parity_P181_binDropNeverOverlaps();
+    void parity_P182_clipKeyframeMarksAndMove();
+    void parity_P183_adjustSliderKeyframes();
+    void parity_P184_scaleKeyframeAndAutoKey();
+    void parity_P185_deleteSelectedTransitionOnly();
+    void parity_P186_transitionOnlyInOverlap();
+    void parity_P187_clearClipAttributes();
+    void parity_P188_volumeEnvelopePoints();
+    void parity_P189_speedSliderOnlyThisClip();
+    void parity_P190_clipKeyLineDiamonds();
+    void parity_P191_overlapEdgeDrag();
     void snapTimeEnabled();
     void compositeFromSelectionUndoRedo();
     void compositeTabEditUndoesFromMain();
@@ -256,8 +435,8 @@ void EditorStateTest::trackFitAnswersForAKindMatchTheAssetForms()
 
     QCOMPARE(state.trackTypeForKind(QStringLiteral("video")), QStringLiteral("video"));
     QCOMPARE(state.trackTypeForKind(QStringLiteral("audio")), QStringLiteral("audio"));
-    // Stills are not video: they live on a shape track, same as vectors and models.
-    QCOMPARE(state.trackTypeForKind(QStringLiteral("image")), QStringLiteral("shape"));
+    // VEDIT: a still goes on the video track with the videos (CapCut), not a shape track.
+    QCOMPARE(state.trackTypeForKind(QStringLiteral("image")), QStringLiteral("video"));
     QCOMPARE(state.trackTypeForKind(QStringLiteral("vector")), QStringLiteral("shape"));
     // An unknown spelling falls back to video rather than to nothing, so a drag of something
     // the probe has not classified yet still gets offered a track.
@@ -276,7 +455,7 @@ void EditorStateTest::trackFitAnswersForAKindMatchTheAssetForms()
         QCOMPARE(state.trackAcceptsKind(i, QStringLiteral("audio")),
                  type == QStringLiteral("audio"));
         QCOMPARE(state.trackAcceptsKind(i, QStringLiteral("image")),
-                 type == QStringLiteral("shape"));
+                 type == QStringLiteral("shape") || type == QStringLiteral("video")); // VEDIT
     }
 }
 
@@ -554,7 +733,9 @@ void EditorStateTest::compositeSeparateAudioAndRemoval()
     }
     QVERIFY(audio);
     QCOMPARE(audio->sequenceId, composite.sequenceId);
-    QVERIFY(!audio->linkId.isEmpty());
+    // VEDIT (조박사님): split off unlinked; only the syncId remembers where it belongs.
+    QVERIFY(audio->linkId.isEmpty());
+    QVERIFY(!audio->syncId.isEmpty());
 
     // Removing the composite from the bin takes its instances, its sequence and its tab with it.
     state.openCompositeClip(0, 0);
@@ -562,6 +743,50 @@ void EditorStateTest::compositeSeparateAudioAndRemoval()
     QVERIFY(state.activeSequenceId().isEmpty());
     QVERIFY(!state.project()->hasSequence(composite.sequenceId));
     QVERIFY(state.sequenceTabs().isEmpty());
+}
+
+// VEDIT P30: CapCut's 오디오 복구 — after 소리 분리 the video gets its own sound back, the split-off
+// clip and the track made for it go away, and it is one undo step.
+void EditorStateTest::parity_P30_restoreAudioUndoesSeparation()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    setUpTwoClipSelection(library, state);
+    state.makeCompositeFromSelection();
+    const int tracksBefore = state.project()->tracks().size();
+
+    state.selectClip(0, 0);
+    QVERIFY(!state.canRestoreAudioSelection());
+    state.separateAudioFromSelection();
+    QCOMPARE(state.project()->tracks().size(), tracksBefore + 1);
+    QVERIFY(state.project()->tracks().at(0).clips.at(0).suppressEmbeddedAudio);
+
+    // Offered from the split-off audio clip too, as CapCut does.
+    int audioTrack = -1;
+    for (int t = 0; t < state.project()->tracks().size(); ++t)
+        if (state.project()->tracks().at(t).type == drift::TrackType::Audio
+            && !state.project()->tracks().at(t).clips.isEmpty())
+            audioTrack = t;
+    QVERIFY(audioTrack >= 0);
+    state.project()->tracks()[audioTrack].clips[0].volume.setKeyframe(0, 0.5);
+    state.selectClip(audioTrack, 0);
+    QVERIFY(state.canRestoreAudioSelection());
+    state.restoreAudioFromSelection();
+
+    const drift::Project &project = *state.project();
+    QCOMPARE(project.tracks().size(), tracksBefore);
+    const drift::Clip &video = project.tracks().at(0).clips.at(0);
+    QVERIFY(!video.suppressEmbeddedAudio);
+    QVERIFY(qAbs(video.volume.evaluateAt(0) - 0.5) < 1e-6); // the level set on the split-off clip comes back
+    for (const drift::Track &track : project.tracks())
+        for (const drift::Clip &clip : track.clips)
+            QVERIFY(clip.type != drift::ClipType::Audio);
+    QVERIFY(!state.canRestoreAudioSelection());
+    QVERIFY(state.canSeparateAudioSelection());
+
+    state.undo();
+    QCOMPARE(state.project()->tracks().size(), tracksBefore + 1);
+    QVERIFY(state.project()->tracks().at(0).clips.at(0).suppressEmbeddedAudio);
 }
 
 void EditorStateTest::undoLibraryClipDropOntoExistingTrack()
@@ -2508,8 +2733,8 @@ void EditorStateTest::uiLanguagePersistsAcrossSessions()
     AssetLibrary library;
     {
         AppController state(&library);
-        // Brand-new install: no session history, so the first-launch chooser should ask.
-        QVERIFY(state.needsUiLanguagePrompt());
+        // VEDIT: no first-launch language chooser; a brand-new install opens straight in Korean.
+        QVERIFY(!state.needsUiLanguagePrompt());
         QCOMPARE(state.uiLanguage(), QString());
 
         QSignalSpy spy(&state, &AppController::uiLanguageChanged);
@@ -3423,7 +3648,10 @@ void EditorStateTest::generateSubtitlesRefusesOverlappingSources()
     appendCombinedVideoClip(*state.project());
     drift::Clip other = state.project()->tracks().at(0).clips.at(0);
     other.id = QStringLiteral("clip-video-2");
-    other.timelineStart = drift::secondsToUs(2.0);
+    // VEDIT: wholly inside the first — a partial overlap is a dissolve and is captioned.
+    other.timelineStart = drift::secondsToUs(1.0);
+    other.timelineDuration = drift::secondsToUs(1.0);
+    other.srcOut = other.srcIn + other.timelineDuration;
     state.project()->tracks().append(drift::Track{.type = drift::TrackType::Video});
     state.project()->tracks()[1].clips.append(other);
 
@@ -3457,10 +3685,14 @@ void EditorStateTest::separateAudioFromCombinedClip()
     // The video must stop playing the audio it just handed over.
     QCOMPARE(state.project()->tracks().at(0).clips.at(0).suppressEmbeddedAudio, true);
 
-    // The two halves come out linked, so there is now something to unlink.
+    // VEDIT (조박사님): the two halves come out unlinked — each edits on its own — and only
+    // share a syncId.
     state.selectClip(0, 0);
-    QVERIFY(state.canUnlinkSelection());
+    QVERIFY(!state.canUnlinkSelection());
     QVERIFY(!state.canSeparateAudioSelection());
+    QCOMPARE(state.project()->tracks().at(1).clips.at(0).syncId,
+             state.project()->tracks().at(0).clips.at(0).syncId);
+    QVERIFY(!state.project()->tracks().at(0).clips.at(0).syncId.isEmpty());
 }
 
 
@@ -3786,9 +4018,10 @@ void EditorStateTest::separatedAudioTracksMirrorVideoHierarchy()
 
         QCOMPARE(audio.assetId, video.assetId);
 
-        QVERIFY(!video.linkId.isEmpty());
+        // VEDIT: split off unlinked; the syncId pairs them.
+        QVERIFY(!video.syncId.isEmpty());
 
-        QCOMPARE(audio.linkId, video.linkId);
+        QCOMPARE(audio.syncId, video.syncId);
 
         QVERIFY(video.suppressEmbeddedAudio);
     }
@@ -3813,8 +4046,8 @@ void EditorStateTest::separatedAudioTracksMirrorVideoHierarchy()
             drift::TrackType::Audio);
 
         QCOMPARE(
-            project->tracks().at(3 + i).clips.at(0).linkId,
-            project->tracks().at(i).clips.at(0).linkId);
+            project->tracks().at(3 + i).clips.at(0).syncId,
+            project->tracks().at(i).clips.at(0).syncId); // VEDIT
     }
 }
 
@@ -4010,11 +4243,15 @@ void EditorStateTest::setTransitionKindAndDurationPersist()
     QVERIFY(!transitionId.isEmpty());
 
     state.setTransitionKind(0, transitionId, QStringLiteral("zoom_in"));
-    state.setTransitionDuration(0, transitionId, 1.25);
+    // VEDIT: 0.75 s, under CapCut's limit of half the shorter clip (these shape clips are 2 s).
+    state.setTransitionDuration(0, transitionId, 0.75);
 
     const QVariantMap transition = state.transitionBetweenClips(0, 0);
     QCOMPARE(transition.value(QStringLiteral("kind")).toString(), QStringLiteral("zoom_in"));
-    QCOMPARE(transition.value(QStringLiteral("duration")).toDouble(), 1.25);
+    QCOMPARE(transition.value(QStringLiteral("duration")).toDouble(), 0.75);
+    // VEDIT: asking for more stops at half the shorter clip.
+    state.setTransitionDuration(0, transitionId, 1.25);
+    QCOMPARE(state.transitionBetweenClips(0, 0).value(QStringLiteral("duration")).toDouble(), 1.0);
 }
 
 void EditorStateTest::replaceTransitionOnDrop()
@@ -4034,21 +4271,38 @@ void EditorStateTest::replaceTransitionOnDrop()
     QCOMPARE(state.project()->tracks().at(0).transitions.size(), 1);
 }
 
+// VEDIT: upstream's overlapDoesNotAutoApplyCrossfade, inverted. With overlap mode on (VEDIT's
+// default) overlapping two clips makes a curved crossfade the length of the overlap, Vegas-style;
+// pulling them apart removes it again, and overlap mode off keeps upstream's plain stacking.
 void EditorStateTest::overlapDoesNotAutoApplyCrossfade()
 {
     AssetLibrary library;
     AppController state(&library);
+    QVERIFY(state.allowClipOverlap()); // VEDIT default
     appendAdjacentShapeClips(*state.project(), -drift::secondsToUs(0.5)); // 0.5s physical overlap
 
-    state.setAllowClipOverlap(true);
-    state.moveClip(0, 1, drift::usToSeconds(state.project()->tracks().at(0).clips.at(1).timelineStart));
+    state.setSnapEnabled(false);
+    state.moveClip(0, 1, 1.4); // A is 0..2s, so 0.6s of overlap
 
-    QVERIFY(state.transitionBetweenClips(0, 0).isEmpty());
+    QCOMPARE(state.project()->tracks().at(0).transitions.size(), 1);
+    const drift::Transition made = state.project()->tracks().at(0).transitions.at(0);
+    QCOMPARE(made.kindId, QStringLiteral("crossfade"));
+    QVERIFY(made.autoOverlap);
+    QCOMPARE(made.easingCurve, drift::FadeCurve::Smooth);
+    QVERIFY(qAbs(state.transitionBetweenClips(0, 0).value(QStringLiteral("duration")).toDouble() - 0.6) < 1e-3);
+
+    // Pull the clips apart: the overlap-made dissolve goes with the overlap.
+    state.moveClip(0, 1, 3.0);
     QCOMPARE(state.project()->tracks().at(0).transitions.size(), 0);
 
-    state.addTransition(0, 0, QStringLiteral("dip"), 0.5);
-    QCOMPARE(state.transitionBetweenClips(0, 0).value(QStringLiteral("kind")).toString(),
+    // Overlap mode off: overlapping is plain stacking again, as upstream.
+    AppController plain(&library);
+    plain.setAllowClipOverlap(false);
+    appendAdjacentShapeClips(*plain.project(), -drift::secondsToUs(0.5));
+    plain.addTransition(0, 0, QStringLiteral("dip"), 0.5);
+    QCOMPARE(plain.transitionBetweenClips(0, 0).value(QStringLiteral("kind")).toString(),
              QStringLiteral("dip"));
+    QVERIFY(!plain.project()->tracks().at(0).transitions.at(0).autoOverlap);
 }
 
 namespace {
@@ -4850,9 +5104,11 @@ void EditorStateTest::waveformPeaksForSourceRangeSlicesToTheTrimmedWindow()
     QVERIFY(loud.size() > 10);
     QCOMPARE(quiet.size(), loud.size());
 
-    // reduceDensePeaks floors silence at 0.05 so it still draws as a hairline.
+    // reduceDensePeaks floors silence so it still draws as a hairline.
+    // VEDIT: the display scale is linear (Vegas-style), and ffmpeg's sine is 1/8 full scale, so
+    // the tone reads ~0.125 rather than the ~0.62 the old 48 dB view gave it.
     for (const QVariant &v : loud)
-        QVERIFY2(v.toDouble() > 0.2, qPrintable(QString::number(v.toDouble())));
+        QVERIFY2(v.toDouble() > 0.1, qPrintable(QString::number(v.toDouble())));
     for (const QVariant &v : quiet)
         QVERIFY2(v.toDouble() <= 0.06, qPrintable(QString::number(v.toDouble())));
 
@@ -4866,7 +5122,7 @@ void EditorStateTest::waveformPeaksForSourceRangeSlicesToTheTrimmedWindow()
         wholeMin = qMin(wholeMin, v.toDouble());
         wholeMax = qMax(wholeMax, v.toDouble());
     }
-    QVERIFY(wholeMax > 0.2);
+    QVERIFY(wholeMax > 0.1); // VEDIT: linear scale (see above)
     QVERIFY(wholeMin <= 0.06);
 }
 
@@ -5866,7 +6122,7 @@ void EditorStateTest::multiTrackAudioSelectionAndExtraction()
     // Video clip should now have suppressEmbeddedAudio = true
     const drift::Clip &videoClip = state.project()->tracks().at(0).clips.at(0);
     QVERIFY(videoClip.suppressEmbeddedAudio);
-    QVERIFY(!videoClip.linkId.isEmpty());
+    QVERIFY(!videoClip.syncId.isEmpty()); // VEDIT: unlinked, remembered by syncId
 
     // Should have created audio tracks with companion clips
     bool hasAudioTrack1 = false;
@@ -5875,7 +6131,7 @@ void EditorStateTest::multiTrackAudioSelectionAndExtraction()
         if (track.type != drift::TrackType::Audio)
             continue;
         for (const drift::Clip &clip : track.clips) {
-            if (clip.linkId == videoClip.linkId) {
+            if (clip.syncId == videoClip.syncId) { // VEDIT
                 if (clip.audioStreamIndex == 0)
                     hasAudioTrack1 = true;
                 else if (clip.audioStreamIndex == 1)
@@ -6350,6 +6606,9 @@ void EditorStateTest::adjustmentLayerCreationAndCompositing()
 // all of it also qualifies — and picking the earliest of them bound the transition to that one.
 void EditorStateTest::transitionPartnerIsTheNearestClipNotTheEarliest()
 {
+    // VEDIT: upstream stacking semantics — overlaps here are not meant to fade.
+    AppController::s_alwaysCrossfadeOverlaps = false;
+    struct Restore { ~Restore() { AppController::s_alwaysCrossfadeOverlaps = true; } } restore;
     AssetLibrary library;
     AppController state(&library);
     state.project()->tracks().clear();
@@ -6370,6 +6629,8 @@ void EditorStateTest::transitionPartnerIsTheNearestClipNotTheEarliest()
     addClip(QStringLiteral("b"), 1.0, 10.0);
     addClip(QStringLiteral("c"), 9.5, 5.0);
     state.project()->ensureTrackIds();
+    // VEDIT: overlap mode would auto-dissolve these overlaps; this test is about hand-picked partners.
+    state.setAllowClipOverlap(false);
 
     state.addTransition(0, 0, QStringLiteral("crossfade"), 1.0);
 
@@ -7142,12 +7403,14 @@ void EditorStateTest::trackRowHeightsForAdjustmentsAndLanes()
     const QList<int> lanes = drift::adjustmentLaneIndexes(*laned.project(), parent);
     QCOMPARE(lanes.size(), 1);
     QCOMPARE(laned.trackRowHeight(lanes.at(0), metrics), 0);
-    QCOMPARE(laned.trackRowHeight(parent, metrics), 65 + 20);
+    // VEDIT (조박사님): a lane holding only a video clip's own effects shows as FX in the clip's
+    // band, so it adds no strip.
+    QCOMPARE(laned.trackRowHeight(parent, metrics), 65);
 
-    // A second lane adds another strip rather than scaling the row.
+    // A second lane (sound effects, still a strip) adds one strip rather than scaling the row.
     laned.addAudioEffect(0, 0, QStringLiteral("space.autopan"));
     QCOMPARE(drift::adjustmentLaneIndexes(*laned.project(), parent).size(), 2);
-    QCOMPARE(laned.trackRowHeight(parent, metrics), 65 + 40);
+    QCOMPARE(laned.trackRowHeight(parent, metrics), 65 + 20);
 
     // Missing keys fall back rather than collapsing the row to nothing.
     QVERIFY(laned.trackRowHeight(parent, QVariantMap{}) > 0);
@@ -7907,6 +8170,42 @@ void EditorStateTest::videoTransitionMirrorsToLinkedAudio()
     QCOMPARE(state.project()->tracks().at(at).transitions.size(), 0);
 }
 
+#include "vedit_parity_cases.inc"
+
 QTEST_MAIN(EditorStateTest)
 #include "tst_editorstate.moc"
 
+
+// VEDIT: CapCut-style delete. With ripple on, deleting a clip pulls the clips after it on the
+// same track left by the gap it leaves; a clip on another track stays where it was.
+void EditorStateTest::vedit_deleteClosesGapOnItsTrack()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    state.setRippleEnabled(true);
+    state.setAllowClipOverlap(false);
+    state.project()->tracks().clear();
+    state.project()->tracks().append(drift::Track{.type = drift::TrackType::Video});
+    state.project()->tracks().append(drift::Track{.type = drift::TrackType::Video});
+    const auto add = [&](int track, const QString &id, double start, double duration) {
+        drift::Clip clip;
+        clip.id = id;
+        clip.type = drift::ClipType::Shape;
+        clip.timelineStart = drift::secondsToUs(start);
+        clip.timelineDuration = drift::secondsToUs(duration);
+        state.project()->tracks()[track].clips.append(clip);
+    };
+    add(0, QStringLiteral("a"), 0.0, 2.0);
+    add(0, QStringLiteral("b"), 2.0, 3.0);
+    add(0, QStringLiteral("c"), 5.0, 2.0);
+    add(1, QStringLiteral("other"), 6.0, 1.0);
+    state.project()->ensureTrackIds();
+
+    state.selectClip(0, 1);
+    state.deleteSelectedClip();
+
+    const drift::Track &main = state.project()->tracks().at(0);
+    QCOMPARE(main.clips.size(), 2);
+    QCOMPARE(drift::clipById(main, QStringLiteral("c"))->timelineStart, drift::secondsToUs(2.0));
+    QCOMPARE(state.project()->tracks().at(1).clips.at(0).timelineStart, drift::secondsToUs(6.0));
+}

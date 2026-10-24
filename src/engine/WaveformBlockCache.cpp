@@ -58,6 +58,29 @@ QStringList WaveformBlockCache::channelNames(const QString &sourcePath, int stre
     return it == m_streams.constEnd() ? QStringList{} : it.value().channelNames;
 }
 
+QString WaveformBlockCache::channelLayout(const QString &sourcePath, int streamOrdinal) const
+{
+    const auto it = m_streams.constFind(streamKeyFor(sourcePath, streamOrdinal));
+    if (it == m_streams.constEnd() || it.value().channelCount == 0)
+        return {};
+    const StreamState &state = it.value();
+    if (state.channelCount == 1)
+        return QStringLiteral("mono");
+    if (state.channelCount > 2)
+        return QStringLiteral("multi");
+    // A channel "has sound" once it peaked above -60 dBFS. Only a channel that is silent while
+    // the other one is not is dropped; two silent channels (nothing decoded yet that has
+    // sound) still read as stereo.
+    constexpr float kAudible = 0.001f;
+    const float left = state.channelMax.value(0, 0.0f);
+    const float right = state.channelMax.value(1, 0.0f);
+    if (left >= kAudible && right < kAudible)
+        return QStringLiteral("left");
+    if (right >= kAudible && left < kAudible)
+        return QStringLiteral("right");
+    return QStringLiteral("stereo");
+}
+
 void WaveformBlockCache::forgetStream(const QString &sourcePath, int streamOrdinal)
 {
     const QString streamKey = streamKeyFor(sourcePath, streamOrdinal);
@@ -301,6 +324,13 @@ void WaveformBlockCache::applyBatch(const QString &sourcePath, int firstBlock, i
     if (channels > 0) {
         state.channelCount = channels;
         state.channelNames = decoded.channelNames;
+        // VEDIT: per-channel loudest peak, for channelLayout().
+        if (state.channelMax.size() < channels)
+            state.channelMax.resize(channels, 0.0f);
+        for (int c = 0; c < channels; ++c) {
+            for (const float v : decoded.channels.at(c))
+                state.channelMax[c] = qMax(state.channelMax.at(c), v);
+        }
     }
 
     bool storedAny = false;

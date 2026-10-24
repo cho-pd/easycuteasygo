@@ -91,7 +91,16 @@ struct TextStyle
     bool boxEnabled = false; // filled background behind the whole block
     QColor boxColor = QColor(0, 0, 0, 128);
     double boxPadding = 8.0;
+    // VEDIT (조박사님, CapCut): the box's top and bottom margin on its own; below 0 it
+    // follows boxPadding (which is then the sides only). verticalBoxPadding() reads it.
+    double boxPaddingY = -1.0;
+    double verticalBoxPadding() const { return boxPaddingY >= 0.0 ? boxPaddingY : boxPadding; }
     double boxRadius = 0.0;
+    // VEDIT: CapCut 말풍선 — the box drawn as a bubble ("speech", "thought", "cloud", "shout",
+    // "oval", "round", "ribbon", "tag"; empty = the plain box) with an optional outline.
+    QString bubbleShape;
+    QColor bubbleBorderColor = Qt::black;
+    double bubbleBorderWidth = 0.0;
 
     TextHighlight wordHighlight; // pill behind every word
 

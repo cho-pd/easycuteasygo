@@ -22,6 +22,7 @@ class TestAddonPackage : public QObject
     Q_OBJECT
 
 private slots:
+    void vedit_bundledAddonsRegisterAsInstalled();
     void initTestCase();
     void readsManifestWithoutVerifying();
     void installsAndVerifies();
@@ -207,6 +208,49 @@ void TestAddonPackage::installedAddonOutranksBundledContent()
     QVERIFY2(forgetInstalledAddon(QStringLiteral("test.fixture"), &error), qPrintable(error));
     QDir(installDir).removeRecursively();
     reloadAddonRegistry();
+}
+
+// VEDIT: content shipped beside the executable (bundled-addons/<id>/addon.json) counts as
+// installed for every feature gate, is never written to installed.json, and a user-installed copy
+// of the same id still wins.
+void TestAddonPackage::vedit_bundledAddonsRegisterAsInstalled()
+{
+    QStandardPaths::setTestModeEnabled(true);
+    QTemporaryDir bundled;
+    QVERIFY(bundled.isValid());
+    QDir(bundled.path()).mkpath(QStringLiteral("whisper.small/models/whisper-small"));
+    QFile manifest(bundled.filePath(QStringLiteral("whisper.small/addon.json")));
+    QVERIFY(manifest.open(QIODevice::WriteOnly));
+    manifest.write(R"({"schema":1,"id":"whisper.small","version":"1.0.0","name":"t",
+        "provides":[{"kind":"whisper-model","root":"models/whisper-small","items":1}]})");
+    manifest.close();
+
+    qputenv("VEDIT_BUNDLED_ADDONS_DIR", bundled.path().toUtf8());
+    const auto restore = qScopeGuard([] {
+        qunsetenv("VEDIT_BUNDLED_ADDONS_DIR");
+        drift::addon::reloadAddonRegistry();
+    });
+    drift::addon::reloadAddonRegistry();
+
+    const drift::addon::InstalledAddon *addon = drift::addon::installedAddon(QStringLiteral("whisper.small"));
+    QVERIFY(addon);
+    QVERIFY(addon->bundled);
+    const QStringList roots = drift::addon::addonRootsForKind(QStringLiteral("whisper-model"));
+    QCOMPARE(roots.size(), 1);
+    QVERIFY(roots.first().endsWith(QStringLiteral("whisper.small/models/whisper-small")));
+    QCOMPARE(drift::addon::addonForPath(roots.first()), addon);
+
+    // Recording an unrelated install must not persist the bundled entry.
+    drift::addon::PackageInfo other;
+    other.id = QStringLiteral("other.pack");
+    other.version = QStringLiteral("1.0.0");
+    QDir().mkpath(drift::addon::addonInstallDir(other.id));
+    QString error;
+    QVERIFY2(drift::addon::recordInstalledAddon(other, &error), qPrintable(error));
+    QFile registry(QDir(drift::addon::addonsDir()).filePath(QStringLiteral("installed.json")));
+    QVERIFY(registry.open(QIODevice::ReadOnly));
+    QVERIFY(!registry.readAll().contains("whisper.small"));
+    drift::addon::forgetInstalledAddon(other.id, &error);
 }
 
 QTEST_MAIN(TestAddonPackage)

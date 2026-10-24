@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "vedit-blur-char",
+  "label": "Blur by letter",
+  "category": "character",
+  "sampleText": "Soft letters",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 314,
+  "defaults": {
+    "unit": "character",
+    "stagger": 0.05,
+    "duration": 0.5,
+    "ease": "easeOut"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "blur": 16,
+        "opacity": 0
+      }
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import QtQuick
+import QtCore // VEDIT: Settings
 import QtQuick.Controls.Basic
 import QtQuick.Window
 import Drift
@@ -97,28 +98,78 @@ PanelFrame {
     // Toolbar / slider zoom: hold the playhead steady in the viewport.
     function setZoom(newZoom) {
         const anchorSeconds = Math.max(0, EditorState.playheadSeconds)
-        const viewportX = anchorSeconds * pxPerSecond - flick.contentX
+        // VEDIT (조박사님): and keep it on screen.
+        const viewportX = Math.max(0, Math.min(Math.max(1, flick.width), anchorSeconds * pxPerSecond - flick.contentX))
         setZoomAround(newZoom, anchorSeconds, viewportX)
     }
 
     // Ruler tick interval (seconds): the smallest "nice" step whose labels still
     // have room to breathe at the current zoom, so timestamps never squash.
+    // VEDIT: what the ruler shows under a second — frames (30 by default, or 24 / 25 / 60) or
+    // hundredths. Picked from the ruler's right-click menu and remembered.
+    Settings {
+        id: rulerSettings
+        category: "timeline"
+        property int rulerFps: 30
+    }
+    // VEDIT: an overlap's length as Vegas writes it — "12.17" is 12 s 17 frames (at the ruler's
+    // frame rate; hundredths when the ruler shows them), "1:05.03" past a minute.
+    function overlapLengthLabel(seconds) {
+        const fps = root.rulerFps > 0 ? root.rulerFps : 100
+        let whole = Math.floor(seconds + 1e-6)
+        let part = Math.round((seconds - whole) * fps)
+        if (part >= fps) {
+            whole += 1
+            part = 0
+        }
+        const pp = String(part).padStart(fps >= 100 ? 2 : String(fps - 1).length, "0")
+        if (whole >= 60)
+            return Math.floor(whole / 60) + ":" + String(whole % 60).padStart(2, "0") + "." + pp
+        return whole + "." + pp
+    }
+    readonly property int rulerFps: [0, 24, 25, 30, 60].indexOf(rulerSettings.rulerFps) >= 0
+                                    ? rulerSettings.rulerFps : 30
+    function setRulerFps(fps) {
+        rulerSettings.rulerFps = fps
+    }
+    // Frame steps that divide the second evenly (2, 5, 10, 15 frames … at 30 fps).
+    readonly property var subSecondSteps: {
+        if (rulerFps <= 0)
+            return [0.01, 0.02, 0.05, 0.1, 0.2, 0.5]
+        const out = []
+        for (const k of [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30])
+            if (k < rulerFps && rulerFps % k === 0)
+                out.push(k / rulerFps)
+        return out
+    }
+    onPxPerSecondChanged: EditorState.setSnapPixelsPerSecond(pxPerSecond) // VEDIT: snap reach follows the zoom
+    Component.onCompleted: EditorState.setSnapPixelsPerSecond(pxPerSecond)
+
     readonly property real tickStepSeconds: {
-        const minLabelPx = 66
+        const minLabelPx = 74
         const needed = minLabelPx / pxPerSecond
-        const steps = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30,
+        const steps = subSecondSteps.concat([1, 2, 5, 10, 15, 30,
                        60, 120, 300, 600, 900, 1800, 3600,
-                       7200, 10800, 14400, 21600, 43200]
+                       7200, 10800, 14400, 21600, 43200])
         for (var i = 0; i < steps.length; i++)
             if (steps[i] >= needed)
                 return steps[i]
         return steps[steps.length - 1]
     }
 
-    // HH:MM:SS, plus .CC hundredths once zoomed into sub-second ticks.
+    // HH:MM:SS, plus :FF frames (or .CC hundredths) once zoomed into sub-second ticks.
     function formatTick(seconds) {
-        const cc = Math.round(Math.max(0, seconds) * 100)
         const pad = (n) => (n < 10 ? "0" : "") + n
+        if (rulerFps > 0) { // VEDIT: 00:00:05:15 = 5 seconds and 15 frames
+            const ff = Math.round(Math.max(0, seconds) * rulerFps)
+            const whole = Math.floor(ff / rulerFps)
+            let out = pad(Math.floor(whole / 3600)) + ":" + pad(Math.floor((whole % 3600) / 60)) + ":"
+                    + pad(whole % 60)
+            if (tickStepSeconds < 1)
+                out += ":" + pad(ff % rulerFps)
+            return out
+        }
+        const cc = Math.round(Math.max(0, seconds) * 100)
         let out = pad(Math.floor(cc / 360000)) + ":"
                 + pad(Math.floor((cc % 360000) / 6000)) + ":"
                 + pad(Math.floor((cc % 6000) / 100))
@@ -223,8 +274,11 @@ PanelFrame {
             return
         if (apply && (marqueeWidth > 2 || marqueeHeight > 2))
             applyMarqueeSelection()
-        else if (apply && !marqueeAdditive)
+        else if (apply && !marqueeAdditive) {
             EditorState.clearSelection()
+            // VEDIT: CapCut — a plain click on empty timeline space moves the playhead there.
+            EditorState.playheadSeconds = Math.max(0, marqueeOriginX) / root.pxPerSecond
+        }
         marqueeActive = false
     }
 
@@ -258,6 +312,54 @@ PanelFrame {
         trimFollowClipId = ""
     }
 
+    // VEDIT (조박사님): 끼워 넣기 preview. While a clip's head is on a seam of a track with 빈틈 메움
+    // on, the clips from the seam on stand aside by its length and the opening shows red.
+    property int insertTrack: -1
+    property real insertSeamSec: 0
+    property real insertDurSec: 0
+    property string insertBeforeId: ""
+    property string insertExcludeId: ""
+    readonly property real insertSnapPx: 18
+
+    function clearInsertPreview() {
+        insertTrack = -1
+        insertBeforeId = ""
+        insertExcludeId = ""
+    }
+
+    // headSec: where the dragged clip's head is now. Picks the seam (the start of a clip, or the end
+    // of the last) closest to it within insertSnapPx; none in reach clears the preview.
+    function updateInsertPreview(trackIdx, headSec, durSec, excludeId) {
+        if (trackIdx < 0 || trackIdx >= tracks.length || !EditorState.trackInsertsOnDrop(trackIdx)) {
+            clearInsertPreview()
+            return
+        }
+        const clips = (tracks[trackIdx].clips || []).filter(c => c.id !== excludeId)
+            .sort((a, b) => a.start - b.start)
+        let best = -1, bestDist = 1e9, bestBefore = "", bestSeam = 0
+        for (let i = 0; i <= clips.length; ++i) {
+            const seam = i < clips.length ? clips[i].start
+                                          : (clips.length ? clips[clips.length - 1].start + clips[clips.length - 1].duration : 0)
+            const dist = Math.abs(headSec - seam) * pxPerSecond
+            if (dist < bestDist) {
+                bestDist = dist
+                best = i
+                bestSeam = seam
+                bestBefore = i < clips.length ? clips[i].id : ""
+            }
+        }
+        // The end of the track is an ordinary drop, not an insert.
+        if (best < 0 || bestDist > insertSnapPx || best === clips.length) {
+            clearInsertPreview()
+            return
+        }
+        insertTrack = trackIdx
+        insertSeamSec = bestSeam
+        insertDurSec = durSec
+        insertBeforeId = bestBefore
+        insertExcludeId = excludeId
+    }
+
     property bool moveFollowActive: false
     property int moveLeaderTrack: -1
     property int moveLeaderClip: -1
@@ -289,8 +391,79 @@ PanelFrame {
 
     // Shared by library drops and in-timeline clip moves so both snap and show
     // the same outline the same way.
+    // VEDIT (조박사님, Vegas volume envelope): which audio clips show their volume line (VL).
+    property var envelopeClips: ({})
+    // VEDIT (조박사님, CapCut keyframes): a clip's KEY line, when the user turned it on or off
+    // (absent: on exactly when the clip has keyframes) — and the lane above the tracks, shown only
+    // from a clip's right-click menu.
+    property var keyLineState: ({})
+    function setKeyLine(clipId, on) {
+        const next = Object.assign({}, keyLineState)
+        next[clipId] = on
+        keyLineState = next
+    }
+    property bool keyframeLaneShown: false
+    function toggleEnvelope(clipId) {
+        const next = Object.assign({}, envelopeClips)
+        next[clipId] = !next[clipId]
+        envelopeClips = next
+    }
+
+    // VEDIT (조박사님, Vegas): the clip being dragged, so its live overlaps can be drawn as it goes.
+    property string dropExcludeId: ""
+
+    // VEDIT: where the dragged clip, at its live spot, overlaps the clips of `trackIndex` —
+    // [{start, end}] in seconds — drawn as crossfades from the moment the overlap begins.
+    // VEDIT: the clip whose end is being dragged out, at its live length (see TimelineClipItem).
+    property int liveTrimTrack: -1
+    property string liveTrimId: ""
+    property real liveTrimStart: 0
+    property real liveTrimDuration: 0
+    function setLiveTrim(trackIndex, clipId, start, duration) {
+        liveTrimTrack = trackIndex
+        liveTrimId = clipId
+        liveTrimStart = start
+        liveTrimDuration = duration
+    }
+    function clearLiveTrim(clipId) {
+        if (clipId === liveTrimId) {
+            liveTrimTrack = -1
+            liveTrimId = ""
+        }
+    }
+
+    function liveOverlaps(trackIndex) {
+        if (trackIndex < 0 || trackIndex >= tracks.length)
+            return []
+        let a0 = 0, a1 = 0, skip = ""
+        if (moveFollowActive && dropTrackIndex === trackIndex) {
+            a0 = dropStartSeconds
+            a1 = dropStartSeconds + dropDurationSeconds
+            skip = dropExcludeId
+        } else if (liveTrimTrack === trackIndex && liveTrimId !== "") {
+            a0 = liveTrimStart
+            a1 = liveTrimStart + liveTrimDuration
+            skip = liveTrimId
+        } else {
+            return []
+        }
+        const out = []
+        const clips = tracks[trackIndex].clips || []
+        for (let i = 0; i < clips.length; ++i) {
+            const c = clips[i]
+            if (c.id === skip)
+                continue
+            const s = Math.max(a0, c.start)
+            const e = Math.min(a1, c.start + c.duration)
+            if (e - s >= 1 / 60)
+                out.push({ "start": s, "end": e })
+        }
+        return out
+    }
+
     function showLandingPreview(trackIndex, desiredStart, duration, excludeClipId) {
         const snapped = snapClipStart(desiredStart, duration, excludeClipId)
+        dropExcludeId = excludeClipId || ""
         dropTrackIndex = trackIndex
         dropStartSeconds = snapped.start
         dropDurationSeconds = duration
@@ -381,7 +554,8 @@ PanelFrame {
         const leftClip = transitionLeftClipAtPosition(trackIndex, xPixels)
         if (leftClip < 0 || !kind || kind.length === 0)
             return
-        EditorState.addTransition(trackIndex, leftClip, transitionKindForTrack(trackIndex, kind), 0.5)
+        // VEDIT (조박사님, Vegas): a transition goes only where two clips overlap, for that long.
+        EditorState.addTransitionOnOverlap(trackIndex, leftClip, transitionKindForTrack(trackIndex, kind))
     }
 
     // The bin row's media kind ("video", "audio", "image", ...), which is what the track-fit
@@ -448,14 +622,9 @@ PanelFrame {
         var out = []
         if (trackIndex < 0 || trackIndex >= tracks.length)
             return out
-        const parentId = tracks[trackIndex].id
-        if (!parentId)
-            return out
-        for (var i = 0; i < tracks.length; i++) {
-            if (tracks[i].isAdjustmentLane && tracks[i].parentTrackId === parentId)
-                out.push(i)
-        }
-        return out
+        // VEDIT: only the lanes drawn as strips — a lane of effects pinned to video clips shows
+        // as "FX" in those clips' bands instead. `tracks` read above keeps this re-evaluating.
+        return EditorState.adjustmentLanes(trackIndex)
     }
 
     // Nested lanes take no row of their own, so they must not contribute a gap either.
@@ -561,6 +730,57 @@ PanelFrame {
             cursor += th + Theme.trackGap;
         }
         return -1;
+    }
+
+    // VEDIT: a clip dropped clear of every row gets a new track — above the top row, at the top;
+    // below the last row, right after the last track of its own kind (a video clip dropped low
+    // stays among the video tracks rather than landing under the audio).
+    // VEDIT (조박사님): a clip dragged onto the seam between two tracks makes a new track there.
+    // While its middle is within a few pixels of a seam, the seam lights up red; letting go
+    // inserts a fresh track at that seam with the clip on it. -1: not on a seam.
+    property int moveInsertIndex: -1
+    function seamInsertIndexAtY(y) {
+        var cursor = 0
+        var first = -1
+        for (var i = 0; i < tracks.length; i++) {
+            if (!trackOccupiesARow(i))
+                continue
+            const h = trackHeight(i)
+            const slop = Math.min(12, h / 4)
+            // the seam above this row (between it and the previous one)
+            const seam = first < 0 ? cursor : cursor - Theme.trackGap / 2
+            if (first >= 0 && Math.abs(y - seam) <= slop)
+                return i
+            first = i
+            cursor += h + Theme.trackGap
+        }
+        return -1
+    }
+    // VEDIT: whether a new track of `type` may open at `index` — pictures above every sound
+    // track, sounds below every picture track (the same rule the app applies when it inserts).
+    function seamAllowsType(index, type) {
+        let firstSound = tracks.length, lastPicture = -1
+        for (let i = 0; i < tracks.length; i++) {
+            if (tracks[i].type === "audio")
+                firstSound = Math.min(firstSound, i)
+            else
+                lastPicture = i
+        }
+        return type === "audio" ? index > lastPicture : index <= firstSound
+    }
+    function seamY(insertIndex) {
+        return newTrackBoundaryY(insertIndex)
+    }
+
+    function newTrackIndexForMove(y, originTrack) {
+        if (y < 0)
+            return 0
+        const type = tracks[originTrack] ? tracks[originTrack].type : ""
+        var after = -1
+        for (var i = 0; i < tracks.length; i++)
+            if (tracks[i].type === type)
+                after = i
+        return after >= 0 ? after + 1 : tracks.length
     }
 
     // Where a dragged clip should land, from a y in track-column coordinates.
@@ -712,6 +932,14 @@ PanelFrame {
     function performAssetDrop(assetIndex, dropX, dropY) {
         if (assetIndex < 0)
             return
+        // VEDIT (조박사님): several picked items dropped together go in one after another from the
+        // drop point, in the order they were shot.
+        const group = EditorState.draggingAssetGroup()
+        if (group.length > 1) {
+            EditorState.setDraggingAssetGroup([])
+            EditorState.addClipsFromAssetsAt(group, Math.max(0, dropX / pxPerSecond))
+            return
+        }
         placeAssetAtTarget(assetIndex, Math.max(0, dropX / pxPerSecond),
                            resolveDropTarget(assetKind(assetIndex), dropY))
     }
@@ -860,10 +1088,12 @@ PanelFrame {
 
     function handleTimelineWheel(wheel) {
         if (wheel.modifiers & Qt.ControlModifier) {
-            // Wheel MouseAreas live in content space, so wheel.x is already a
-            // content X — keep that time fixed under the cursor.
-            const anchorSeconds = Math.max(0, wheel.x / pxPerSecond)
-            const viewportX = wheel.x - flick.contentX
+            // VEDIT (조박사님): zoom about the playhead, not the mouse — it stays where it is on
+            // screen while the wheel turns, and never leaves the view (one already off screen is
+            // brought back in at the edge).
+            const anchorSeconds = Math.max(0, EditorState.playheadSeconds)
+            const viewW = Math.max(1, flick.width)
+            const viewportX = Math.max(0, Math.min(viewW, anchorSeconds * pxPerSecond - flick.contentX))
             const factor = wheel.angleDelta.y > 0 ? 1.15 : 1.0 / 1.15
             setZoomAround(zoom * factor, anchorSeconds, viewportX)
             return
@@ -959,10 +1189,50 @@ PanelFrame {
     }
 
     function endPlayheadSeek() {
+        endEdgeDrag() // VEDIT
         if (!resumePlaybackAfterSeek)
             return
         resumePlaybackAfterSeek = false
         EditorState.playing = true
+    }
+
+    // VEDIT (조박사님): dragging the playhead or a clip past the left edge (over the track
+    // headers) or the right edge scrolls the timeline that way, faster the further out the
+    // pointer is, and the dragged thing rides along under the pointer.
+    property var edgeDragItem: null
+    readonly property Item timelineFlick: flick
+    property real edgePointerX: 0
+    function noteEdgeDrag(item, viewportX) {
+        edgeDragItem = item
+        edgePointerX = viewportX
+    }
+    function endEdgeDrag() {
+        edgeDragItem = null
+    }
+    Timer {
+        interval: 16
+        repeat: true
+        running: root.edgeDragItem !== null
+        onTriggered: {
+            const vx = root.edgePointerX
+            let step = 0
+            if (vx < 0)
+                step = -Math.min(48, 4 + (-vx) * 0.3)
+            else if (vx > flick.width)
+                step = Math.min(48, 4 + (vx - flick.width) * 0.3)
+            if (step === 0)
+                return
+            const maxX = Math.max(0, flick.contentWidth - flick.width)
+            const nx = Math.max(0, Math.min(maxX, flick.contentX + step))
+            const d = nx - flick.contentX
+            if (d === 0)
+                return
+            contentXAnimation.stop()
+            flick.contentX = nx
+            const it = root.edgeDragItem
+            if (it)
+                it.x = Math.max(0, it.x + d)
+        }
     }
 
     function ensurePlayheadVisible() {
@@ -1059,6 +1329,7 @@ PanelFrame {
             KeyframeGraph {
                 id: keyframesBar
                 width: parent.width
+                userShown: root.keyframeLaneShown // VEDIT
                 pxPerSecond: root.pxPerSecond
                 labelsWidth: EditorState.trackLabelsWidth
                 propertiesTab: root.propertiesTab
@@ -1094,7 +1365,10 @@ PanelFrame {
 
                     IconButton {
                         id: addTrackButton
-                        anchors.centerIn: parent
+                        // VEDIT: moved left to make room for the 대·중·소 clip-size switch.
+                        anchors.left: parent.left
+                        anchors.leftMargin: 4
+                        anchors.verticalCenter: parent.verticalCenter
                         glyph: Theme.icons.plus
                         variant: "text"
                         tooltip: qsTr("Add new track")
@@ -1104,6 +1378,53 @@ PanelFrame {
                             id: addTrackMenu
                             x: Math.max(0, (addTrackButton.width - width) / 2)
                             y: addTrackButton.height + 4
+                        }
+                    }
+
+                    // VEDIT: 클립 크기 — 소·중·대 for every row at once.
+                    Row {
+                        id: clipSizeSwitch
+                        anchors.right: parent.right
+                        anchors.rightMargin: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 2
+                        Repeater {
+                            model: [{ "label": qsTr("S", "clip size small"), "size": 0 },
+                                    { "label": qsTr("M", "clip size medium"), "size": 1 },
+                                    { "label": qsTr("L", "clip size large"), "size": 2 }]
+                            delegate: Rectangle {
+                                required property var modelData
+                                readonly property bool active: EditorState.timelineClipSize === modelData.size
+                                // VEDIT: no box (조박사님) — just the bar, 20% smaller; the chosen size
+                                // is the yellow one. The transparent cell keeps a usable hit area.
+                                width: 21
+                                height: 24
+                                color: "transparent"
+                                // A low / middle / tall bar stands for the row height (조박사님).
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 11
+                                    height: [5, 9, 14][modelData.size]
+                                    radius: 2
+                                    color: parent.active ? Theme.primary
+                                                         : (sizeMouse.containsMouse ? Theme.foreground
+                                                                                    : Theme.mutedForeground)
+                                }
+                                MouseArea {
+                                    id: sizeMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    // VEDIT (조박사님): every row alike — rows sized one by one go back.
+                                    onClicked: {
+                                        EditorState.resetTrackHeightScales()
+                                        EditorState.timelineClipSize = modelData.size
+                                    }
+                                }
+                                ToolTip.visible: sizeMouse.containsMouse
+                                ToolTip.delay: 500
+                                ToolTip.text: qsTr("Clip size") + " — " + modelData.label
+                            }
                         }
                     }
 
@@ -1142,6 +1463,24 @@ PanelFrame {
                 id: flick
                 width: parent.width - EditorState.trackLabelsWidth
                 height: parent.height
+
+                // VEDIT: Ctrl + mouse wheel zooms anywhere on the timeline. The content-space
+                // MouseAreas only see the wheel over empty space — over a clip or a track row the
+                // event bubbles to this Flickable, which scrolled instead. A handler on the
+                // Flickable gets it before the Flickable's own wheel scrolling does.
+                WheelHandler {
+                    acceptedModifiers: Qt.ControlModifier
+                    target: null
+                    onWheel: (event) => {
+                        const contentX = flick.contentX + point.position.x
+                        root.handleTimelineWheel({
+                            modifiers: Qt.ControlModifier,
+                            angleDelta: event.angleDelta,
+                            x: contentX
+                        })
+                        event.accepted = true
+                    }
+                }
 
                 // Height of the pinned ruler + bookmark strip at the top.
                 readonly property real headerHeight: Theme.timelineRulerHeight
@@ -1233,6 +1572,7 @@ PanelFrame {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             preventStealing: true
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton // VEDIT: right = time format menu
                             // Leave room for the playhead head so its drag can start first.
                             z: 1
 
@@ -1244,16 +1584,40 @@ PanelFrame {
                             // Seeking is not a selection change: scrubbing to look at a
                             // different point used to drop the clip you were editing.
                             onPressed: (mouse) => {
+                                if (mouse.button === Qt.RightButton) { // VEDIT
+                                    rulerFormatMenu.popup()
+                                    return
+                                }
                                 root.forceActiveFocus()
                                 root.beginPlayheadSeek()
                                 scrubTo(mouse.x)
                             }
                             onPositionChanged: (mouse) => {
-                                if (pressed)
+                                if (pressed && (pressedButtons & Qt.LeftButton))
                                     scrubTo(mouse.x)
                             }
-                            onReleased: root.endPlayheadSeek()
+                            onReleased: (mouse) => {
+                                if (mouse.button === Qt.LeftButton)
+                                    root.endPlayheadSeek()
+                            }
                             onCanceled: root.endPlayheadSeek()
+
+                            // VEDIT: how the ruler counts under a second.
+                            ThemedContextMenu {
+                                id: rulerFormatMenu
+                                Repeater {
+                                    model: [{ fps: 30, label: qsTr("Frames (30 per second)") },
+                                            { fps: 24, label: qsTr("Frames (24 per second, film)") },
+                                            { fps: 25, label: qsTr("Frames (25 per second)") },
+                                            { fps: 60, label: qsTr("Frames (60 per second)") },
+                                            { fps: 0, label: qsTr("Hundredths of a second") }]
+                                    delegate: ThemedMenuItem {
+                                        required property var modelData
+                                        text: (root.rulerFps === modelData.fps ? "✓  " : "     ") + modelData.label
+                                        onTriggered: root.setRulerFps(modelData.fps)
+                                    }
+                                }
+                            }
                             // MouseArea would otherwise swallow wheel and block Ctrl-zoom.
                             onWheel: (wheel) => root.handleTimelineWheel(wheel)
 
@@ -1281,6 +1645,22 @@ PanelFrame {
                             readonly property int visibleTickCount: Math.min(
                                 tickIndexMax - firstVisibleTick + 1,
                                 Math.ceil(flick.width / Math.max(1, tickStepPx)) + 3)
+
+                            // VEDIT (조박사님): 임시 렌더링 band along the ruler's foot — green where a
+                            // stretch is rendered and plays from the file, orange where it is still
+                            // waiting or rendering.
+                            Repeater {
+                                model: EditorState.renderCacheSegments
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    x: modelData.start * root.pxPerSecond
+                                    width: Math.max(1, (modelData.end - modelData.start) * root.pxPerSecond)
+                                    y: ruler.height - height
+                                    height: 3
+                                    color: modelData.ready ? "#43a047" : "#fb8c00"
+                                    z: 1
+                                }
+                            }
 
                             Repeater {
                                 model: Math.max(0, ruler.visibleTickCount)
@@ -1310,6 +1690,77 @@ PanelFrame {
                                         font.family: Theme.fontFamily
                                     }
                                 }
+                            }
+                        }
+
+                        // VEDIT: beat marks under the ruler (after 박자에 맞추기), only the ones
+                        // in view — a long song has thousands.
+                        Item {
+                            id: beatMarks
+                            // The beat list is read once per analysis, not once per scroll pixel.
+                            property var beats: []
+                            property real windowFrom: -1
+                            property real windowTo: -1
+                            property var visibleBeats: []
+                            Connections {
+                                target: EditorState
+                                function onBeatAnalysisChanged() { beatMarks.reload() }
+                            }
+                            Component.onCompleted: reload()
+                            function reload() {
+                                const a = EditorState.beatAnalysis
+                                beats = (a && a.beats) ? a.beats : []
+                                windowFrom = windowTo = -1
+                                refresh()
+                            }
+                            function lowerBound(t) {
+                                let lo = 0, hi = beats.length
+                                while (lo < hi) {
+                                    const mid = (lo + hi) >> 1
+                                    if (beats[mid] < t) lo = mid + 1
+                                    else hi = mid
+                                }
+                                return lo
+                            }
+                            // Rebuild only when the view leaves the padded window it was built for.
+                            function refresh() {
+                                if (!EditorState.beatGridVisible || beats.length === 0) {
+                                    visibleBeats = []
+                                    return
+                                }
+                                const from = flick.contentX / root.pxPerSecond
+                                const to = (flick.contentX + flick.width) / root.pxPerSecond
+                                if (from >= windowFrom && to <= windowTo)
+                                    return
+                                const pad = (to - from) * 0.5
+                                windowFrom = from - pad
+                                windowTo = to + pad
+                                const out = []
+                                for (let i = lowerBound(windowFrom); i < beats.length && beats[i] <= windowTo && out.length < 800; ++i)
+                                    out.push(beats[i])
+                                visibleBeats = out
+                            }
+                            Connections {
+                                target: flick
+                                function onContentXChanged() { beatMarks.refresh() }
+                                function onWidthChanged() { beatMarks.windowFrom = -1; beatMarks.refresh() }
+                            }
+                            Connections {
+                                target: root
+                                function onPxPerSecondChanged() { beatMarks.windowFrom = -1; beatMarks.refresh() }
+                            }
+                        }
+                        Repeater {
+                            model: beatMarks.visibleBeats
+                            delegate: Rectangle {
+                                required property var modelData
+                                x: modelData * root.pxPerSecond - 2
+                                y: Theme.timelineRulerHeight - 6
+                                width: 4
+                                height: 4
+                                radius: 2
+                                color: Theme.primary
+                                z: 1
                             }
                         }
 
@@ -1549,12 +2000,18 @@ PanelFrame {
                                          flick.height - flick.headerHeight)
                         z: 0
                         enabled: root.timelineTool === ""
-                        acceptedButtons: Qt.LeftButton
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton // VEDIT: right = track menu
                         // CapCut: empty-space drag is marquee, not flick-scroll.
                         preventStealing: true
                         cursorShape: pressed ? Qt.CrossCursor : Qt.ArrowCursor
 
                         onPressed: (mouse) => {
+                            // VEDIT (조박사님): right-click on a track's empty space → new track menu.
+                            if (mouse.button === Qt.RightButton) {
+                                emptyTrackMenu.trackIndex = root.trackIndexAtY(mouse.y)
+                                emptyTrackMenu.popup()
+                                return
+                            }
                             root.forceActiveFocus()
                             root.marqueeAdditive = (mouse.modifiers & (Qt.ShiftModifier | Qt.ControlModifier)) !== 0
                             root.marqueeOriginX = mouse.x
@@ -1562,8 +2019,40 @@ PanelFrame {
                             root.marqueeCurrentX = mouse.x
                             root.marqueeCurrentY = mouse.y
                             root.marqueeActive = true
+                            // VEDIT: a paste lands on the track last clicked.
+                            EditorState.noteTrackClicked(root.trackIndexAtY(mouse.y))
                             if (!root.marqueeAdditive)
                                 EditorState.clearSelection()
+                        }
+                        // VEDIT: the menu a right-click on empty track space opens.
+                        ThemedContextMenu {
+                            id: emptyTrackMenu
+                            property int trackIndex: -1
+                            ThemedMenuItem {
+                                visible: emptyTrackMenu.trackIndex >= 0
+                                text: qsTr("New track here")
+                                icon.name: Theme.icons.layers
+                                onTriggered: EditorState.addTrackNear(emptyTrackMenu.trackIndex)
+                            }
+                            ThemedMenuItem { // VEDIT (조박사님)
+                                visible: emptyTrackMenu.trackIndex >= 0
+                                text: qsTr("Delete this track")
+                                icon.name: Theme.icons.trash
+                                onTriggered: EditorState.removeTrack(emptyTrackMenu.trackIndex)
+                            }
+                            ThemedMenuSeparator { visible: emptyTrackMenu.trackIndex >= 0 }
+                            ThemedMenuItem {
+                                text: qsTr("New video track")
+                                onTriggered: EditorState.addTrack("video")
+                            }
+                            ThemedMenuItem {
+                                text: qsTr("New text track")
+                                onTriggered: EditorState.addTrack("text")
+                            }
+                            ThemedMenuItem {
+                                text: qsTr("New audio track")
+                                onTriggered: EditorState.addTrack("audio")
+                            }
                         }
                         onPositionChanged: (mouse) => {
                             if (!root.marqueeActive)
@@ -1595,6 +2084,8 @@ PanelFrame {
                                 visible: !root.tracks[trackIndex].isAdjustmentLane
                                 width: flick.contentWidth
                                 height: root.trackHeight(trackIndex)
+                                // VEDIT (조박사님): a hidden track shows at half strength
+                                opacity: root.tracks[trackIndex].hidden === true ? 0.5 : 1.0
                                 // Faint row tint on hover, and an empty track now
                                 // reads as a track rather than as blank space.
                                 color: trackHover.hovered
@@ -1784,6 +2275,18 @@ PanelFrame {
                                     }
                                 }
 
+                                // VEDIT: the opening a clip will be inserted into (끼워 넣기).
+                                Rectangle {
+                                    visible: root.insertTrack === trackRow.trackIndex
+                                    x: root.insertSeamSec * root.pxPerSecond
+                                    width: root.insertDurSec * root.pxPerSecond
+                                    height: parent.height
+                                    color: Qt.rgba(0.9, 0.15, 0.15, 0.30)
+                                    border.width: 2
+                                    border.color: "#e53935"
+                                    z: 6
+                                }
+
                                 // Landing preview outline (library drop or clip move).
                                 // Hidden while creating a new track — that state uses the
                                 // reserved lane above, not a ghost on an existing row.
@@ -1934,6 +2437,76 @@ PanelFrame {
                                                     onTriggered: EditorState.closeGap(trackRow.trackIndex,
                                                                                       gapItem.modelData.start)
                                                 }
+                                                ThemedMenuItem { // VEDIT
+                                                    text: qsTr("New track here")
+                                                    icon.name: Theme.icons.layers
+                                                    onTriggered: EditorState.addTrackNear(trackRow.trackIndex)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // VEDIT (조박사님, Vegas): the crossfade appears the moment a dragged clip
+                                // starts to overlap another, not only after it is let go.
+                                Repeater {
+                                    model: root.liveOverlaps(trackRow.trackIndex)
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        z: 11
+                                        x: modelData.start * root.pxPerSecond
+                                        width: Math.max(2, (modelData.end - modelData.start) * root.pxPerSecond)
+                                        y: Theme.clipSelectionRingWidth
+                                        height: parent.height - Theme.clipSelectionRingWidth * 2
+                                        radius: Theme.radiusSm
+                                        color: Qt.rgba(Theme.transitionOverlap.r, Theme.transitionOverlap.g,
+                                                       Theme.transitionOverlap.b, 0.55)
+                                        border.width: 1
+                                        border.color: Theme.transitionOverlap
+                                        Canvas {
+                                            anchors.fill: parent
+                                            anchors.margins: 1
+                                            onPaint: {
+                                                const ctx = getContext("2d")
+                                                ctx.reset()
+                                                if (width < 0.5 || height < 0.5)
+                                                    return
+                                                const smooth = (t) => t * t * (3 - 2 * t)
+                                                const steps = Math.max(8, Math.min(64, Math.ceil(width / 2)))
+                                                ctx.strokeStyle = "rgba(255,255,255,0.75)"
+                                                ctx.lineWidth = 1.4
+                                                for (const gainAt of [(t) => 1.0 - smooth(t), (t) => smooth(t)]) {
+                                                    ctx.beginPath()
+                                                    for (let i = 0; i <= steps; ++i) {
+                                                        const t = i / steps
+                                                        const y = height * (1.0 - gainAt(t))
+                                                        if (i === 0) ctx.moveTo(t * width, y)
+                                                        else ctx.lineTo(t * width, y)
+                                                    }
+                                                    ctx.stroke()
+                                                }
+                                            }
+                                            onWidthChanged: requestPaint()
+                                            onHeightChanged: requestPaint()
+                                        }
+                                        // VEDIT (조박사님): the overlap's length while dragging too — the
+                                        // same box as after the drop, shown even when the overlap is
+                                        // still narrower than the box.
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: liveOverlapText.implicitWidth + 8
+                                            height: liveOverlapText.implicitHeight + 2
+                                            radius: 3
+                                            color: Qt.rgba(0.12, 0.12, 0.12, 0.85)
+                                            border.width: 1
+                                            border.color: Qt.rgba(1, 1, 1, 0.75)
+                                            Text {
+                                                id: liveOverlapText
+                                                anchors.centerIn: parent
+                                                text: root.overlapLengthLabel(modelData.end - modelData.start)
+                                                color: "#ffffff"
+                                                font.family: Theme.monoFontFamily
+                                                font.pixelSize: 11
                                             }
                                         }
                                     }
@@ -2010,11 +2583,23 @@ PanelFrame {
                                                                    || trackType === "text"
                                                                    || trackType === "audio")
                                                                   && leftClip && rightClip
+                                                                  // VEDIT (조박사님): only a real hand-off — at least one
+                                                                  // frame of overlap or of transition. A sliver left by
+                                                                  // rounding drew an 8 px hatched box between clips that
+                                                                  // merely touch, and meant nothing.
                                                                   && (physicallyOverlapping || hasTransition)
-                                                                  && regionEnd > regionStart
+                                                                  && regionEnd - regionStart >= 1 / 30
 
                                         z: 10
-                                        visible: showRegion
+                                        // VEDIT: while its clip is being dragged the overlap is drawn live
+                                        // (below), so the one from before the drag steps aside.
+                                        readonly property bool draggedAway: (root.moveFollowActive && root.dropExcludeId !== ""
+                                            && ((leftClip && leftClip.id === root.dropExcludeId)
+                                                || (rightClip && rightClip.id === root.dropExcludeId)))
+                                            || (root.liveTrimId !== ""
+                                                && ((leftClip && leftClip.id === root.liveTrimId)
+                                                    || (rightClip && rightClip.id === root.liveTrimId)))
+                                        visible: showRegion && !draggedAway
                                         x: regionStart * root.pxPerSecond
                                         width: Math.max(8, (regionEnd - regionStart) * root.pxPerSecond)
                                         height: parent.height - Theme.clipSelectionRingWidth * 2
@@ -2034,10 +2619,136 @@ PanelFrame {
                                             border.width: transitionRegion.transitionSelected ? 2 : 1
                                             border.color: Theme.transitionOverlap
 
+                                            // VEDIT: a crossfade draws its two gain curves the way Vegas
+                                            // does — outgoing falls slow, incoming rises fast, and they
+                                            // cross above the middle (equal-power), so the blend is
+                                            // visible at a glance instead of a flat hatch.
+                                            readonly property bool drawsCurves: transitionRegion.hasTransition
+                                                && transitionRegion.transitionData.kind === "crossfade"
+                                            Canvas {
+                                                id: crossfadeCurves
+                                                anchors.fill: parent
+                                                anchors.margins: 1
+                                                visible: parent.drawsCurves
+                                                // VEDIT (조박사님): drawn exactly like a single clip's fade —
+                                                // the same smooth (smoothstep) curve, 1.5 px white line and
+                                                // the faded part shaded — the outgoing clip fading out and the
+                                                // incoming one fading in.
+                                                onPaint: {
+                                                    const ctx = getContext("2d")
+                                                    ctx.reset()
+                                                    if (width < 0.5 || height < 0.5)
+                                                        return
+                                                    const smooth = (t) => {
+                                                        const u = Math.max(0, Math.min(1, t))
+                                                        return u * u * (3 - 2 * u)
+                                                    }
+                                                    const steps = Math.max(8, Math.min(64, Math.ceil(width / 2)))
+                                                    const shadeAndLine = (gainAt) => {
+                                                        ctx.fillStyle = "rgba(0,0,0,0.38)"
+                                                        ctx.beginPath()
+                                                        ctx.moveTo(0, 0)
+                                                        ctx.lineTo(width, 0)
+                                                        for (let i = steps; i >= 0; --i) {
+                                                            const t = i / steps
+                                                            ctx.lineTo(t * width, height * (1.0 - gainAt(t)))
+                                                        }
+                                                        ctx.closePath()
+                                                        ctx.fill()
+                                                        ctx.strokeStyle = "rgba(255,255,255,0.9)"
+                                                        ctx.lineWidth = 1.5
+                                                        ctx.beginPath()
+                                                        for (let i = 0; i <= steps; ++i) {
+                                                            const t = i / steps
+                                                            const y = height * (1.0 - gainAt(t))
+                                                            if (i === 0)
+                                                                ctx.moveTo(t * width, y)
+                                                            else
+                                                                ctx.lineTo(t * width, y)
+                                                        }
+                                                        ctx.stroke()
+                                                    }
+                                                    // VEDIT: the transition's own fade types (Vegas)
+                                                    const g = (c, t) => {
+                                                        t = Math.max(0, Math.min(1, t))
+                                                        if (c === "linear") return t
+                                                        if (c === "equalPower") return Math.sin(t * Math.PI / 2)
+                                                        if (c === "slow") return 1 - Math.cos(t * Math.PI / 2)
+                                                        if (c === "sharp") return 0.5 - Math.sin(Math.asin(1 - 2 * t) / 3)
+                                                        return smooth(t)
+                                                    }
+                                                    const oc = transitionRegion.transitionData.outCurve || "smooth"
+                                                    const ic = transitionRegion.transitionData.inCurve || "smooth"
+                                                    const outG = (t) => g(oc, 1.0 - t)
+                                                    const inG = (t) => g(ic, t)
+                                                    ctx.save()
+                                                    ctx.globalAlpha = 0.55 // two shades over each other: lighter each
+                                                    shadeAndLine(outG) // outgoing: fade out
+                                                    shadeAndLine(inG)  // incoming: fade in
+                                                    ctx.restore()
+                                                    // the two lines on top at full strength
+                                                    ctx.strokeStyle = "rgba(255,255,255,0.9)"
+                                                    ctx.lineWidth = 1.5
+                                                    for (const gainAt of [outG, inG]) {
+                                                        ctx.beginPath()
+                                                        for (let i = 0; i <= steps; ++i) {
+                                                            const t = i / steps
+                                                            const y = height * (1.0 - gainAt(t))
+                                                            if (i === 0)
+                                                                ctx.moveTo(t * width, y)
+                                                            else
+                                                                ctx.lineTo(t * width, y)
+                                                        }
+                                                        ctx.stroke()
+                                                    }
+                                                }
+                                                onWidthChanged: requestPaint()
+                                                onHeightChanged: requestPaint()
+                                                onVisibleChanged: if (visible) requestPaint()
+                                                property string curvesKey: (transitionRegion.transitionData.outCurve || "")
+                                                                           + (transitionRegion.transitionData.inCurve || "")
+                                                onCurvesKeyChanged: requestPaint()
+                                            }
+
+                                            // VEDIT (조박사님): any other overlap or transition shows the same
+                                            // crossing S-curves faintly behind it, so a hand-off reads as one
+                                            // at a glance whatever its kind.
+                                            Canvas {
+                                                anchors.fill: parent
+                                                anchors.margins: 1
+                                                visible: !parent.drawsCurves
+                                                onPaint: {
+                                                    const ctx = getContext("2d")
+                                                    ctx.reset()
+                                                    if (width < 0.5 || height < 0.5)
+                                                        return
+                                                    const smooth = (t) => t * t * (3 - 2 * t)
+                                                    const steps = Math.max(8, Math.min(64, Math.ceil(width / 2)))
+                                                    ctx.strokeStyle = "rgba(255,255,255,0.35)"
+                                                    ctx.lineWidth = 1.2
+                                                    for (const gainAt of [(t) => 1.0 - smooth(t), (t) => smooth(t)]) {
+                                                        ctx.beginPath()
+                                                        for (let i = 0; i <= steps; ++i) {
+                                                            const t = i / steps
+                                                            const y = height * (1.0 - gainAt(t))
+                                                            if (i === 0)
+                                                                ctx.moveTo(t * width, y)
+                                                            else
+                                                                ctx.lineTo(t * width, y)
+                                                        }
+                                                        ctx.stroke()
+                                                    }
+                                                }
+                                                onWidthChanged: requestPaint()
+                                                onHeightChanged: requestPaint()
+                                                onVisibleChanged: if (visible) requestPaint()
+                                            }
+
                                             // Diagonal hatch so overlaps read as a blend zone.
                                             Canvas {
                                                 anchors.fill: parent
                                                 anchors.margins: 1
+                                                visible: false // VEDIT: no hatch — it read as a mark with no meaning
                                                 opacity: 0.35
                                                 onPaint: {
                                                     const ctx = getContext("2d")
@@ -2056,18 +2767,51 @@ PanelFrame {
                                                 onHeightChanged: requestPaint()
                                             }
 
-                                            Text {
+                                            // VEDIT (조박사님, as in Vegas): the overlap's length in a small
+                                            // box in the middle — seconds.frames at the ruler's frame rate.
+                                            // Under it, the name of a transition put there by hand (an
+                                            // overlap's automatic dissolve needs no name).
+                                            Column {
                                                 anchors.centerIn: parent
-                                                visible: parent.width >= 28
-                                                text: transitionRegion.hasTransition
-                                                      ? (transitionRegion.transitionData.label
-                                                         ? transitionRegion.transitionData.label.charAt(0)
-                                                         : "≫")
-                                                      : "≫"
-                                                color: Theme.onMedia
-                                                font.family: Theme.fontFamily
-                                                font.pixelSize: Theme.fontSizeTiny
-                                                font.weight: Font.Bold
+                                                spacing: 1
+                                                readonly property string transitionName:
+                                                    transitionRegion.hasTransition && !transitionRegion.transitionData.autoOverlap
+                                                    ? (transitionRegion.transitionData.label || "") : ""
+                                                Rectangle {
+                                                    id: overlapBadge
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                    visible: transitionRegion.width >= width + 4
+                                                             && transitionRegion.height >= height + 2
+                                                    width: overlapText.implicitWidth + 8
+                                                    height: overlapText.implicitHeight + 2
+                                                    radius: 3
+                                                    color: Qt.rgba(0.12, 0.12, 0.12, 0.85)
+                                                    border.width: 1
+                                                    border.color: Qt.rgba(1, 1, 1, 0.75)
+                                                    Text {
+                                                        id: overlapText
+                                                        anchors.centerIn: parent
+                                                        text: root.overlapLengthLabel(transitionRegion.regionEnd
+                                                                                      - transitionRegion.regionStart)
+                                                        color: "#ffffff"
+                                                        font.family: Theme.monoFontFamily
+                                                        font.pixelSize: 11 // 조박사님: 16 px was too big
+                                                    }
+                                                }
+                                                Text {
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                    visible: parent.transitionName.length > 0 && overlapBadge.visible
+                                                             && transitionRegion.height >= overlapBadge.height + height + 3
+                                                    width: Math.min(implicitWidth, transitionRegion.width - 4)
+                                                    elide: Text.ElideRight
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    text: parent.transitionName
+                                                    color: "#ffffff"
+                                                    style: Text.Outline
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: 11
+                                                }
                                             }
 
                                             ThemedToolTip {
@@ -2094,12 +2838,72 @@ PanelFrame {
                                             }
                                         }
 
+                                        FadeCurvePopup { // VEDIT: Vegas's Fade Type grid on a right-click
+                                            id: transitionFadePopup
+                                            mode: "transition"
+                                            y: -height - 6
+                                        }
+
+                                        // VEDIT (조박사님, Vegas): grab either end of the transition and drag
+                                        // it — longer or shorter. The left end brings in earlier footage of
+                                        // the next clip, the right end later footage of the one before; the
+                                        // clips' far ends stay put, and it stops where the footage runs out.
+                                        Repeater {
+                                            model: transitionRegion.rightClip ? [-1, 1] : []
+                                            delegate: MouseArea {
+                                                id: overlapEdge
+                                                required property var modelData
+                                                readonly property int side: modelData
+                                                width: 10
+                                                height: parent.height
+                                                x: side < 0 ? -width / 2 : parent.width - width / 2
+                                                z: 5
+                                                hoverEnabled: true
+                                                preventStealing: true
+                                                cursorShape: Qt.SizeHorCursor
+                                                Rectangle {
+                                                    visible: overlapEdge.containsMouse || overlapEdge.pressed
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                    width: 3
+                                                    height: parent.height
+                                                    color: Theme.primary
+                                                }
+                                                onPressed: EditorState.beginPreviewDrag(qsTr("Transition length"))
+                                                onPositionChanged: (mouse) => {
+                                                    if (!pressed)
+                                                        return
+                                                    const x = mapToItem(trackRow, mouse.x, 0).x
+                                                    EditorState.previewOverlapEdge(trackRow.trackIndex,
+                                                                                   transitionRegion.leftClipIndex,
+                                                                                   transitionRegion.partnerIndex,
+                                                                                   side, x / root.pxPerSecond)
+                                                }
+                                                onReleased: EditorState.commitPreviewDrag()
+                                                onCanceled: EditorState.cancelPreviewDrag()
+                                            }
+                                        }
+
                                         MouseArea {
                                             id: transitionMouse
                                             anchors.fill: parent
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            onClicked: (mouse) => {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    if (!transitionRegion.hasTransition)
+                                                        EditorState.addTransition(trackRow.trackIndex,
+                                                                                  transitionRegion.leftClipIndex,
+                                                                                  "crossfade", 0.5)
+                                                    EditorState.selectTransition(trackRow.trackIndex,
+                                                                                 transitionRegion.leftClipIndex)
+                                                    transitionFadePopup.trackIndex = trackRow.trackIndex
+                                                    transitionFadePopup.transition =
+                                                        EditorState.transitionBetweenClips(trackRow.trackIndex,
+                                                                                           transitionRegion.leftClipIndex)
+                                                    transitionFadePopup.open()
+                                                    return
+                                                }
                                                 if (transitionRegion.hasTransition) {
                                                     EditorState.selectTransition(trackRow.trackIndex,
                                                                                  transitionRegion.leftClipIndex)
@@ -2194,6 +2998,20 @@ PanelFrame {
                     // would land in it. An overlay rather than a reserved row, so
                     // no DropArea geometry moves while a drag is live — and drawn
                     // at real track height so it reads as a track, not a hairline.
+                    // VEDIT: the seam a dragged clip would open a new track at — a red line.
+                    Rectangle {
+                        id: moveSeamLine
+                        visible: root.moveInsertIndex >= 0
+                        x: 0
+                        width: parent.width
+                        height: 3
+                        radius: 1.5
+                        y: Theme.timelineRulerHeight + Theme.timelineBookmarkRowHeight
+                           + root.seamY(root.moveInsertIndex) - height / 2
+                        color: "#ff3b30"
+                        z: 245
+                    }
+
                     Item {
                         id: newTrackIndicator
                         // Not also gated on the drag being active: dropCreatesNewTrack
@@ -2332,19 +3150,25 @@ PanelFrame {
                         // covers the handle and swallows the press before drag starts.
                         z: 3
                         width: Theme.playheadLineWidth
-                        height: Theme.timelineRulerHeight + Theme.timelineBookmarkRowHeight
-                                + root.totalTracksHeightCached
+                        // VEDIT: CapCut — the line runs to the bottom of the timeline even below
+                        // the last track, so it can be caught anywhere down the panel.
+                        height: Math.max(Theme.timelineRulerHeight + Theme.timelineBookmarkRowHeight
+                                         + root.totalTracksHeightCached, flick.contentHeight)
+                        readonly property real tracksBottom: Theme.timelineRulerHeight + Theme.timelineBookmarkRowHeight
+                                                             + root.totalTracksHeightCached
 
                         Binding {
                             target: playhead
                             property: "x"
                             value: EditorState.playheadSeconds * root.pxPerSecond
                             when: !playheadDragArea.drag.active && !playheadLineDrag.drag.active
+                                  && !playheadLowerGrab.drag.active // VEDIT
                         }
 
                         // Follow either drag live so the preview scrubs with it.
                         onXChanged: {
-                            if (playheadDragArea.drag.active || playheadLineDrag.drag.active)
+                            if (playheadDragArea.drag.active || playheadLineDrag.drag.active
+                                    || playheadLowerGrab.drag.active) // VEDIT
                                 EditorState.playheadSeconds = playhead.x / root.pxPerSecond
                         }
 
@@ -2353,12 +3177,31 @@ PanelFrame {
                                 EditorState.snapTime(playhead.x / root.pxPerSecond)
                         }
 
-                        Rectangle {
-                            anchors.left: parent.left
+                        // VEDIT: the line thickens and glows while the pointer is on it or dragging
+                        // it, so it reads as caught before the press.
+                        readonly property bool caught: playheadLineDrag.containsMouse || playheadLineDrag.pressed
+                                                       || playheadLowerGrab.containsMouse || playheadLowerGrab.pressed
+                                                       || playheadDragArea.containsMouse || playheadDragArea.pressed
+                        // 조박사님: thinner, not thicker — a 1 px bright core with light bleeding out.
+                        Rectangle { // the bleed: fades to nothing either side
+                            visible: playhead.caught
+                            x: Theme.playheadLineWidth / 2 - width / 2
                             y: Theme.timelineRulerHeight * 0.55
-                            width: Theme.playheadLineWidth
+                            width: 11 // 조박사님: 11 px of bleed
                             height: parent.height - y
-                            color: Theme.primary
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0.0; color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.0) }
+                                GradientStop { position: 0.5; color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.45) }
+                                GradientStop { position: 1.0; color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.0) }
+                            }
+                        }
+                        Rectangle {
+                            x: playhead.caught ? Theme.playheadLineWidth / 2 - 0.5 : 0
+                            y: Theme.timelineRulerHeight * 0.55
+                            width: playhead.caught ? 1 : Theme.playheadLineWidth
+                            height: parent.height - y
+                            color: playhead.caught ? Qt.lighter(Theme.primary, 1.35) : Theme.primary
                         }
 
                         // CapCut/Premiere-style scrubber head in the seek strip.
@@ -2409,7 +3252,7 @@ PanelFrame {
                             height: Theme.timelineRulerHeight + Theme.timelineBookmarkRowHeight
                             x: -(width - Theme.playheadLineWidth) / 2
                             y: 0
-                            cursorShape: Qt.SizeHorCursor
+                            cursorShape: Qt.SplitHCursor // VEDIT: a caught line, not a resize
                             preventStealing: true
                             hoverEnabled: true
                             drag.target: playhead
@@ -2417,8 +3260,24 @@ PanelFrame {
                             drag.threshold: 0
                             drag.minimumX: 0
                             drag.maximumX: flick.contentWidth - Theme.playheadLineWidth
-                            onPressed: root.beginPlayheadSeek()
-                            onReleased: {
+                            onPressed: (mouse) => {
+                                pressSceneX = mapToItem(null, mouse.x, 0).x
+                                movedSincePress = false
+                                root.beginPlayheadSeek()
+                            }
+                            onPositionChanged: (mouse) => { // VEDIT: edge scroll
+                                if (Math.abs(mapToItem(null, mouse.x, 0).x - pressSceneX) > 2)
+                                    movedSincePress = true
+                                if (drag.active)
+                                    root.noteEdgeDrag(playhead, mapToItem(flick, mouse.x, 0).x)
+                            }
+                            // VEDIT (조박사님: "재생선 바로 옆 몇 프레임을 찍으면 안 찍힌다"): a press that
+                            // never moved is a click — the playhead goes exactly where it landed.
+                            property real pressSceneX: 0
+                            property bool movedSincePress: false
+                            onReleased: (mouse) => {
+                                if (!movedSincePress)
+                                    playhead.x = Math.max(0, mapToItem(playhead.parent, mouse.x, 0).x)
                                 playhead.finishSeek()
                                 root.endPlayheadSeek()
                             }
@@ -2432,19 +3291,101 @@ PanelFrame {
                         // clicks aren't stolen.
                         MouseArea {
                             id: playheadLineDrag
-                            width: 7
-                            height: parent.height - playheadDragArea.height
+                            width: 9 // VEDIT: a little easier to catch
+                            hoverEnabled: true
+                            height: playhead.tracksBottom - playheadDragArea.height // VEDIT
                             x: -(width - Theme.playheadLineWidth) / 2
                             y: playheadDragArea.height
-                            cursorShape: Qt.SizeHorCursor
+                            cursorShape: Qt.SplitHCursor // VEDIT: a caught line, not a resize
                             preventStealing: true
                             drag.target: playhead
                             drag.axis: Drag.XAxis
                             drag.threshold: 0
                             drag.minimumX: 0
                             drag.maximumX: flick.contentWidth - Theme.playheadLineWidth
-                            onPressed: root.beginPlayheadSeek()
-                            onReleased: {
+                            onPressed: (mouse) => {
+                                pressSceneX = mapToItem(null, mouse.x, 0).x
+                                movedSincePress = false
+                                // VEDIT (조박사님): a volume point just made or picked sits right under
+                                // the playhead (picking moves it there) — the press is the point's.
+                                // The ruler handle still moves the playhead.
+                                const key = EditorState.selectedVolumeKey
+                                // Same for a picked ◆ on a picture clip's KEY line.
+                                if (key && key.clipId
+                                        && (root.envelopeClips[key.clipId] || root.keyLineState[key.clipId] !== false)
+                                        && Math.abs(Number(key.seconds) - EditorState.playheadSeconds) < 0.05) {
+                                    mouse.accepted = false
+                                    return
+                                }
+                                // A ◆ just made from the panel sits under the playhead on the selected clip.
+                                if (EditorState.selectedTrack >= 0 && EditorState.selectedClip >= 0) {
+                                    const marks = EditorState.clipKeyframeMarks(EditorState.selectedTrack,
+                                                                                EditorState.selectedClip)
+                                    for (let i = 0; i < marks.length; ++i)
+                                        if (Math.abs(Number(marks[i]) - EditorState.playheadSeconds) < 0.05) {
+                                            mouse.accepted = false
+                                            return
+                                        }
+                                }
+                                root.beginPlayheadSeek()
+                            }
+                            onPositionChanged: (mouse) => { // VEDIT: edge scroll
+                                if (Math.abs(mapToItem(null, mouse.x, 0).x - pressSceneX) > 2)
+                                    movedSincePress = true
+                                if (drag.active)
+                                    root.noteEdgeDrag(playhead, mapToItem(flick, mouse.x, 0).x)
+                            }
+                            // VEDIT (조박사님: "재생선 바로 옆 몇 프레임을 찍으면 안 찍힌다"): a press that
+                            // never moved is a click — the playhead goes exactly where it landed.
+                            property real pressSceneX: 0
+                            property bool movedSincePress: false
+                            onReleased: (mouse) => {
+                                if (!movedSincePress)
+                                    playhead.x = Math.max(0, mapToItem(playhead.parent, mouse.x, 0).x)
+                                playhead.finishSeek()
+                                root.endPlayheadSeek()
+                            }
+                            onCanceled: {
+                                playhead.finishSeek()
+                                root.endPlayheadSeek()
+                            }
+                        }
+
+                        // VEDIT: below the last track nothing else wants the press, so the line
+                        // there is a wide (40 px) handle — easy to catch with a mouse or touchpad.
+                        MouseArea {
+                            id: playheadLowerGrab
+                            width: 14 // VEDIT: was 40 — wide enough to catch, narrow enough to click beside
+                            hoverEnabled: true
+                            height: Math.max(0, parent.height - playhead.tracksBottom)
+                            x: -(width - Theme.playheadLineWidth) / 2
+                            y: playhead.tracksBottom
+                            visible: height > 0
+                            cursorShape: Qt.SplitHCursor // VEDIT: a caught line, not a resize
+                            preventStealing: true
+                            drag.target: playhead
+                            drag.axis: Drag.XAxis
+                            drag.threshold: 0
+                            drag.minimumX: 0
+                            drag.maximumX: flick.contentWidth - Theme.playheadLineWidth
+                            onPressed: (mouse) => {
+                                pressSceneX = mapToItem(null, mouse.x, 0).x
+                                movedSincePress = false
+                                root.beginPlayheadSeek()
+                            }
+                            onPositionChanged: (mouse) => { // VEDIT: edge scroll
+                                if (Math.abs(mapToItem(null, mouse.x, 0).x - pressSceneX) > 2)
+                                    movedSincePress = true
+                                if (drag.active)
+                                    root.noteEdgeDrag(playhead, mapToItem(flick, mouse.x, 0).x)
+                            }
+                            // VEDIT (조박사님: "재생선 바로 옆 몇 프레임을 찍으면 안 찍힌다"): a press that
+                            // never moved is a click — the playhead goes exactly where it landed.
+                            property real pressSceneX: 0
+                            property bool movedSincePress: false
+                            onReleased: (mouse) => {
+                                if (!movedSincePress)
+                                    playhead.x = Math.max(0, mapToItem(playhead.parent, mouse.x, 0).x)
                                 playhead.finishSeek()
                                 root.endPlayheadSeek()
                             }

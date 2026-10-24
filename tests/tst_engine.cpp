@@ -1,4 +1,7 @@
 #include <QtTest>
+#include "core/VeditTextArt.h" // VEDIT
+#include "engine/WaveformBlockCache.h" // VEDIT
+#include "engine/RenderCache.h" // VEDIT
 #include "engine/SileroVad.h"
 #include "engine/CtcAligner.h"
 #include "engine/KaldiFbank.h"
@@ -20,6 +23,7 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QElapsedTimer> // VEDIT
 #include <QVariantList>
 #include <QVariantMap>
 #include <QVector3D>
@@ -97,6 +101,7 @@
 #include "engine/MediaEditor.h"
 #include "engine/ClipReaderPool.h"
 #include "engine/MediaProbe.h"
+#include "engine/AudioSync.h" // VEDIT
 #include "engine/TransitionCatalog.h"
 #include "core/Transition.h"
 
@@ -134,6 +139,10 @@ private slots:
     void effectPackageLoaderParsesDepthRequirement();
     void depthPipelineBindsMapInFrameOrientation();
     void depthEffectsRenderWithDepthAndPassThroughWithout();
+    void vedit_adjustToneNewSlidersRender();
+    void vedit_adjustHslRenders();
+    void vedit_adjustCurvesRender();
+    void vedit_adjustWheelsRender();
     void depthOfFieldKeepsFocusSharpAndBlursTheRest();
     void depthOcclusionHidesLayerBehindNearerPixels();
     void faceTrackV2CarriesContoursAndPose();
@@ -225,6 +234,9 @@ private slots:
     void compositorAppliesFaceWarpFromBakedTrack();
     void compositorAppliesMultiplyBlendMode();
     void compositorAnimatesKeyedEffectParam();
+    void vedit_channelModesPlay();
+    void vedit_eventLevelPlaysAndShows();
+    void vedit_renderCacheRendersAndServes();
     void compositorRendersShapeClip();
     void compositorRendersCompositeClip();
     void audioMixerPlaysCompositeClip();
@@ -276,6 +288,8 @@ private slots:
     void compositorWipeRightRevealsIncomingClip();
     void transitionCatalogLoadsAllPackages();
     void gpuTransitionBindsBothSources();
+    void vedit_basicTransitionsRunOnGpu();
+    void vedit_moreTransitionsRunOnGpu();
     void brokenTransitionShaderFallsBackToCrossfade();
     void transitionRenderingIsDeterministic();
     void textClipRendersInsideTransition();
@@ -291,6 +305,13 @@ private slots:
     void textClipCarriesGpuEffects();
     void textAnimationFadesAndSlides();
     void clipBodyAnimationFadeRampsOpacity();
+    void vedit_flipAnimationNarrowsOnly();
+    void vedit_comboAnimationRenders();
+    void vedit_motionBlurSmearsMovingClip();
+    void vedit_turn3dDrawsInPerspective();
+    void vedit_specialEntrancesRender();
+    void vedit_penWritingRevealsLeftToRight();
+    void vedit_playbackHitchProbe();
     void maskApplierEllipseMasksCorners();
     void maskApplierFoldsAStackByItsOps();
     void maskShapesUseBothSizeAxes();
@@ -332,6 +353,14 @@ private slots:
     void retimedClipAudioIsNotSilent();
     void retimedAudioPreservesPitch();
     void perChannelPeaksFoldToTheMergedEnvelope();
+    void vedit_waveformChannelLayoutDetection();
+    void vedit_defaultExportUsesWindowsEncoders();
+    void vedit_exportSizesUseShortSideAndOffer4K();
+    void vedit_exportVerticalTextLooksAndSound();
+    void vedit_exportPurposesSizeAndHeight();
+    void vedit_exportDoubleSpeedKeepsSoundAndLength();
+    void vedit_exportPortrait4K60WorkArea();
+    void vedit_audioSyncFindsTheLag();
     void panLawIsUnityAtCentreAndSilencesOneSide();
     void retimedAudioLengthTracksTimeline();
     void retimedAudioSurvivesBlockSizeChanges();
@@ -345,6 +374,7 @@ private slots:
     void audioEffectChainBypassesUnknownEffect();
     void audioEffectStreamIsContinuousAcrossBlocks();
     void audioEffectFlangerProcessesSignal();
+    void vedit_reverbLeavesATail();
     void audioEffectRackPrimingAlignsLatentStages();
     void pitchShiftMovesPitchInTheRightDirection();
     void audioEffectRackParameterChangeIsContinuous();
@@ -412,7 +442,11 @@ void EngineTest::initTestCase()
 
     // The font bundle is fetched rather than committed, so an offline checkout legitimately has
     // none. The font tests skip in that case rather than fail.
-    reloadFontCatalog({QString::fromUtf8(DRIFT_TEST_FONTS_DIR)});
+    // VEDIT: the fonts the app ships (bundled-addons) — the text tests used to skip for want of a
+    // font bundle while the app had one all along.
+    reloadFontCatalog({QString::fromUtf8(DRIFT_TEST_FONTS_DIR),
+                       QStringLiteral(VEDIT_TEST_BUNDLED_DIR "/fonts.korean/fonts"),
+                       QStringLiteral(VEDIT_TEST_BUNDLED_DIR "/fonts.essentials/fonts")});
 
     const QString audioEffectsDir = QString::fromUtf8(DRIFT_TEST_AUDIO_EFFECTS_DIR);
     QVERIFY2(QDir(audioEffectsDir).exists(), qPrintable(audioEffectsDir));
@@ -760,6 +794,116 @@ double meanAbsDiff(const QImage &a, const QImage &b, const QRect &area)
 }
 
 } // namespace
+
+// VEDIT: CapCut's remaining 조정 sliders in adjust.tone — each one, off neutral, changes a frame
+// with texture and mid greys; all at 0 leave it alone.
+void EngineTest::vedit_adjustToneNewSlidersRender()
+{
+    if (!GpuEffectExecutor::instance().isAvailable())
+        QSKIP("OpenGL offscreen context unavailable");
+    QImage frame(160, 90, QImage::Format_RGBA8888);
+    for (int y = 0; y < 90; ++y)
+        for (int x = 0; x < 160; ++x) {
+            const int v = 40 + (x * 180) / 160 + ((x / 8 + y / 8) % 2) * 20; // a ramp with a checker
+            frame.setPixelColor(x, y, QColor(v, qMin(255, v + 10), qMax(0, v - 10)));
+        }
+    const EffectPresetEntry *def = effectDefForId(QStringLiteral("adjust.tone"));
+    QVERIFY(def && def->isGpu && def->gpu.valid);
+    drift::Effect neutral;
+    neutral.catalogId = def->meta.id;
+    const QImage same = EffectProcessor::applyEffects(frame, {neutral}, 0, {}, nullptr);
+    QVERIFY2(meanAbsDiff(same, frame, frame.rect()) < 1.0, "neutral adjust.tone changed the frame");
+    for (const char *key : {"whites", "blacks", "brilliance", "tint", "clarity", "grain", "fade"}) {
+        drift::Effect e;
+        e.catalogId = def->meta.id;
+        e.parameters.insert(QString::fromLatin1(key), 0.8);
+        const QImage out = EffectProcessor::applyEffects(frame, {e}, 0, {}, nullptr);
+        QVERIFY2(!out.isNull(), key);
+        QVERIFY2(meanAbsDiff(out, frame, frame.rect()) > 1.5,
+                 qPrintable(QStringLiteral("%1 did nothing (%2)").arg(QLatin1String(key))
+                            .arg(meanAbsDiff(out, frame, frame.rect()))));
+    }
+}
+
+// VEDIT: HSL — turning the reds toward orange and draining the greens changes a red/green frame
+// where those colours are, and leaves a grey frame alone.
+void EngineTest::vedit_adjustHslRenders()
+{
+    if (!GpuEffectExecutor::instance().isAvailable())
+        QSKIP("OpenGL offscreen context unavailable");
+    const EffectPresetEntry *def = effectDefForId(QStringLiteral("adjust.hsl"));
+    QVERIFY(def && def->isGpu && def->gpu.valid);
+    QImage frame(80, 40, QImage::Format_RGBA8888);
+    for (int y = 0; y < 40; ++y)
+        for (int x = 0; x < 80; ++x)
+            frame.setPixelColor(x, y, x < 40 ? QColor(220, 40, 40) : QColor(40, 200, 60));
+    drift::Effect e;
+    e.catalogId = def->meta.id;
+    e.parameters.insert(QStringLiteral("h_red"), 1.0);
+    e.parameters.insert(QStringLiteral("s_green"), -1.0);
+    const QImage out = EffectProcessor::applyEffects(frame, {e}, 0, {}, nullptr);
+    QVERIFY(!out.isNull());
+    QVERIFY2(out.pixelColor(20, 20).green() > 70, "red did not turn toward orange");
+    const QColor g = out.pixelColor(60, 20);
+    QVERIFY2(std::abs(g.red() - g.green()) < 40, "green was not drained");
+    QImage grey(40, 40, QImage::Format_RGBA8888);
+    grey.fill(QColor(128, 128, 128));
+    QVERIFY(meanAbsDiff(EffectProcessor::applyEffects(grey, {e}, 0, {}, nullptr), grey, grey.rect()) < 1.0);
+}
+
+// VEDIT: 곡선 — the straight line leaves a frame alone; lifting the RGB midpoint brightens mid grey
+// and leaves black and white where they were; pulling the red 100 % point down tames pure red.
+void EngineTest::vedit_adjustCurvesRender()
+{
+    if (!GpuEffectExecutor::instance().isAvailable())
+        QSKIP("OpenGL offscreen context unavailable");
+    const EffectPresetEntry *def = effectDefForId(QStringLiteral("adjust.curves"));
+    QVERIFY(def && def->isGpu && def->gpu.valid);
+    QImage frame(90, 30, QImage::Format_RGBA8888);
+    for (int y = 0; y < 30; ++y)
+        for (int x = 0; x < 90; ++x)
+            frame.setPixelColor(x, y, x < 30 ? QColor(0, 0, 0) : x < 60 ? QColor(128, 128, 128) : QColor(255, 255, 255));
+    drift::Effect line;
+    line.catalogId = def->meta.id;
+    QVERIFY(meanAbsDiff(EffectProcessor::applyEffects(frame, {line}, 0, {}, nullptr), frame, frame.rect()) < 1.5);
+    drift::Effect lift = line;
+    lift.parameters.insert(QStringLiteral("m2"), 0.75);
+    const QImage up = EffectProcessor::applyEffects(frame, {lift}, 0, {}, nullptr);
+    QVERIFY2(up.pixelColor(45, 15).red() > 160, qPrintable(QString::number(up.pixelColor(45, 15).red())));
+    QVERIFY(up.pixelColor(15, 15).red() < 8 && up.pixelColor(75, 15).red() > 247);
+    drift::Effect red = line;
+    red.parameters.insert(QStringLiteral("r4"), 0.5);
+    QImage reds(10, 10, QImage::Format_RGBA8888);
+    reds.fill(QColor(255, 0, 0));
+    QVERIFY(EffectProcessor::applyEffects(reds, {red}, 0, {}, nullptr).pixelColor(5, 5).red() < 140);
+}
+
+// VEDIT: 컬러 휠 — centred wheels leave a frame alone; pushing the shadows toward blue makes the
+// dark part bluer and leaves white nearly as it was; the midtone bar brightens mid grey.
+void EngineTest::vedit_adjustWheelsRender()
+{
+    if (!GpuEffectExecutor::instance().isAvailable())
+        QSKIP("OpenGL offscreen context unavailable");
+    const EffectPresetEntry *def = effectDefForId(QStringLiteral("adjust.wheels"));
+    QVERIFY(def && def->isGpu && def->gpu.valid);
+    QImage frame(60, 20, QImage::Format_RGBA8888);
+    for (int y = 0; y < 20; ++y)
+        for (int x = 0; x < 60; ++x)
+            frame.setPixelColor(x, y, x < 20 ? QColor(20, 20, 20) : x < 40 ? QColor(128, 128, 128) : QColor(250, 250, 250));
+    drift::Effect none;
+    none.catalogId = def->meta.id;
+    QVERIFY(meanAbsDiff(EffectProcessor::applyEffects(frame, {none}, 0, {}, nullptr), frame, frame.rect()) < 1.5);
+    drift::Effect blue = none;
+    // blue sits at 240° on the wheel: x = cos, y = sin
+    blue.parameters.insert(QStringLiteral("lift_x"), -0.5);
+    blue.parameters.insert(QStringLiteral("lift_y"), -0.866);
+    const QImage b = EffectProcessor::applyEffects(frame, {blue}, 0, {}, nullptr);
+    QVERIFY2(b.pixelColor(10, 10).blue() > b.pixelColor(10, 10).red() + 15, "shadows not bluer");
+    QVERIFY(std::abs(b.pixelColor(50, 10).red() - 250) < 12);
+    drift::Effect mid = none;
+    mid.parameters.insert(QStringLiteral("gamma_l"), 0.8);
+    QVERIFY(EffectProcessor::applyEffects(frame, {mid}, 0, {}, nullptr).pixelColor(30, 10).red() > 150);
+}
 
 void EngineTest::depthEffectsRenderWithDepthAndPassThroughWithout()
 {
@@ -4966,7 +5110,7 @@ void EngineTest::debugReportListsCommonCodecs()
 
     const QString text = DebugReport::formatPlainText(info);
     QVERIFY(text.contains(QStringLiteral("H264")));
-    QVERIFY(text.contains(QStringLiteral("CutWire Drift debug report")));
+    QVERIFY(text.contains(QStringLiteral("Easy Cut, Easy Go! debug report")));
     QVERIFY(text.contains(QStringLiteral("Video encoders")));
     QVERIFY(text.contains(QStringLiteral("Supported")));
 }
@@ -5812,6 +5956,155 @@ void EngineTest::audioMixerPlaysCompositeClip()
              kFrames);
     QVERIFY2(interleavedRmsError(expected, got, 0, kFrames) < 0.02,
              "composite did not play its inner clip at the instance's source time");
+}
+
+// VEDIT: 소리 채널, heard — a stereo file with a loud 440 Hz left and a quiet 700 Hz right, mixed
+// as recorded, left on both, right on both and L/R mixed, by the clip's own choice and by the
+// track's.
+void EngineTest::vedit_channelModesPlay()
+{
+    constexpr int kRate = 48000;
+    constexpr int kFrames = kRate; // one second
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("lr.wav"));
+    {
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        QDataStream out(&f);
+        out.setByteOrder(QDataStream::LittleEndian);
+        const quint32 dataBytes = kFrames * 2 * 2;
+        f.write("RIFF");
+        out << quint32(36 + dataBytes);
+        f.write("WAVEfmt ");
+        out << quint32(16) << quint16(1) << quint16(2) << quint32(kRate) << quint32(kRate * 4) << quint16(4) << quint16(16);
+        f.write("data");
+        out << dataBytes;
+        for (int i = 0; i < kFrames; ++i) {
+            const double t = double(i) / kRate;
+            out << qint16(std::lround(0.5 * std::sin(2 * M_PI * 440 * t) * 32767))
+                << qint16(std::lround(0.2 * std::sin(2 * M_PI * 700 * t) * 32767));
+        }
+    }
+    const auto rms = [](const QVector<float> &buf, int channel) {
+        double sum = 0;
+        int n = 0;
+        for (int i = 4800; i < buf.size() / 2 - 4800; ++i, ++n)
+            sum += double(buf[i * 2 + channel]) * buf[i * 2 + channel];
+        return std::sqrt(sum / std::max(1, n));
+    };
+    const auto play = [&](int clipMode, int trackMode) {
+        drift::Project project;
+        project.tracks().clear();
+        drift::Track track{.type = drift::TrackType::Audio};
+        track.channelMode = trackMode;
+        drift::Clip c;
+        c.id = QStringLiteral("lr");
+        c.type = drift::ClipType::Audio;
+        c.path = path;
+        c.timelineDuration = drift::secondsToUs(1.0);
+        c.srcOut = c.timelineDuration;
+        c.channelMode = clipMode;
+        track.clips.append(c);
+        project.tracks().append(track);
+        AudioMixer mixer;
+        mixer.setProject(&project);
+        mixer.setMasterClipEnabled(false);
+        QVector<float> got(kFrames * 2, 0.0f);
+        mixer.mix(0, kFrames, kRate, got.data());
+        return std::make_pair(rms(got, 0), rms(got, 1));
+    };
+    const double loud = 0.5 / std::sqrt(2.0), quiet = 0.2 / std::sqrt(2.0);
+    const double mixed = std::sqrt((0.25 * 0.25 + 0.1 * 0.1) / 2.0);
+    const auto near = [](double a, double b) { return std::abs(a - b) < 0.02; };
+    auto r = play(0, 0);
+    QVERIFY2(near(r.first, loud) && near(r.second, quiet), qPrintable(QStringLiteral("as recorded %1 %2").arg(r.first).arg(r.second)));
+    r = play(1, 0);
+    QVERIFY2(near(r.first, loud) && near(r.second, loud), qPrintable(QStringLiteral("L on both %1 %2").arg(r.first).arg(r.second)));
+    r = play(2, 0);
+    QVERIFY2(near(r.first, quiet) && near(r.second, quiet), qPrintable(QStringLiteral("R on both %1 %2").arg(r.first).arg(r.second)));
+    r = play(3, 0);
+    QVERIFY2(near(r.first, mixed) && near(r.second, mixed), qPrintable(QStringLiteral("mixed %1 %2").arg(r.first).arg(r.second)));
+    r = play(0, 1); // the track's choice, the clip following it
+    QVERIFY2(near(r.first, loud) && near(r.second, loud), qPrintable(QStringLiteral("track L on both %1 %2").arg(r.first).arg(r.second)));
+    r = play(4, 0); // swapped: the quiet side on the left
+    QVERIFY2(near(r.first, quiet) && near(r.second, loud), qPrintable(QStringLiteral("swapped %1 %2").arg(r.first).arg(r.second)));
+    r = play(2, 1); // the clip's own choice wins
+    QVERIFY2(near(r.first, quiet) && near(r.second, quiet), qPrintable(QStringLiteral("clip over track %1 %2").arg(r.first).arg(r.second)));
+}
+
+// VEDIT: the event level, heard and seen — a sound clip at level 0.25 plays a quarter as loud
+// (-12 dB); a white picture at level 0.5 over black comes out mid grey.
+void EngineTest::vedit_eventLevelPlaysAndShows()
+{
+    constexpr int kRate = 48000;
+    constexpr int kFrames = kRate / 2;
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("tone.wav"));
+    {
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        QDataStream out(&f);
+        out.setByteOrder(QDataStream::LittleEndian);
+        const quint32 dataBytes = kFrames * 4;
+        f.write("RIFF");
+        out << quint32(36 + dataBytes);
+        f.write("WAVEfmt ");
+        out << quint32(16) << quint16(1) << quint16(2) << quint32(kRate) << quint32(kRate * 4) << quint16(4) << quint16(16);
+        f.write("data");
+        out << dataBytes;
+        for (int i = 0; i < kFrames; ++i) {
+            const qint16 v = qint16(std::lround(0.5 * std::sin(2 * M_PI * 440 * double(i) / kRate) * 32767));
+            out << v << v;
+        }
+    }
+    const auto loudness = [&](double level) {
+        drift::Project project;
+        project.tracks().clear();
+        drift::Track track{.type = drift::TrackType::Audio};
+        drift::Clip c;
+        c.id = QStringLiteral("tone");
+        c.type = drift::ClipType::Audio;
+        c.path = path;
+        c.timelineDuration = drift::secondsToUs(0.5);
+        c.srcOut = c.timelineDuration;
+        c.level = level;
+        track.clips.append(c);
+        project.tracks().append(track);
+        AudioMixer mixer;
+        mixer.setProject(&project);
+        mixer.setMasterClipEnabled(false);
+        QVector<float> got(kFrames * 2, 0.0f);
+        mixer.mix(0, kFrames, kRate, got.data());
+        double sum = 0;
+        for (int i = 2400; i < kFrames - 2400; ++i)
+            sum += double(got[i * 2]) * got[i * 2];
+        return std::sqrt(sum / (kFrames - 4800));
+    };
+    const double full = loudness(1.0), quarter = loudness(0.25);
+    QVERIFY2(full > 0.3 && std::abs(quarter / full - 0.25) < 0.02,
+             qPrintable(QStringLiteral("%1 vs %2").arg(full).arg(quarter)));
+
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    drift::Project project;
+    project.setResolution(64, 64);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Shape});
+    drift::Clip shape;
+    shape.id = QStringLiteral("white");
+    shape.type = drift::ClipType::Shape;
+    shape.timelineDuration = drift::secondsToUs(1.0);
+    shape.shapeStyle.kind = drift::ShapeKind::Rectangle;
+    shape.shapeStyle.setSolidFill(Qt::white);
+    shape.level = 0.5;
+    project.tracks()[0].clips.append(shape);
+    FrameCompositor compositor;
+    compositor.setProject(&project);
+    const int grey = compositor.compositeAt(drift::secondsToUs(0.5)).convertToFormat(QImage::Format_RGB32)
+                         .pixelColor(32, 32).red();
+    QVERIFY2(grey > 100 && grey < 160, qPrintable(QString::number(grey)));
 }
 
 void EngineTest::compositorRendersShapeClip()
@@ -7258,7 +7551,7 @@ void EngineTest::compositorWipeRightRevealsIncomingClip()
 void EngineTest::transitionCatalogLoadsAllPackages()
 {
     const QStringList ids = transitionPresetIds();
-    QCOMPARE(ids.size(), 28);
+    QCOMPARE(ids.size(), 52); // VEDIT: +10 basic transitions (push right/up/down, zoom out, ...), +14 camera/light/shape
 
     // The nine ids the pre-shader enum serialized must all still resolve.
     for (const char *legacy : {"crossfade", "dip", "dip_white", "wipe_left", "wipe_right",
@@ -7317,6 +7610,70 @@ void EngineTest::gpuTransitionBindsBothSources()
     const QRgb mid = atMid.pixel(32, 32);
     QVERIFY(qRed(mid) > 100 && qRed(mid) < 155);
     QVERIFY(qBlue(mid) > 100 && qBlue(mid) < 155);
+}
+
+// VEDIT: the ten basic transitions added for CapCut parity compile and start on clip A and end
+// on clip B.
+void EngineTest::vedit_basicTransitionsRunOnGpu()
+{
+    if (!GpuEffectExecutor::instance().isAvailable())
+        QSKIP("no OpenGL context available");
+    QImage red(64, 64, QImage::Format_RGBA8888);
+    red.fill(Qt::red);
+    QImage blue(64, 64, QImage::Format_RGBA8888);
+    blue.fill(Qt::blue);
+    for (const char *id : {"push_right", "push_up", "push_down", "zoom_out", "spin",
+                           "blur_dissolve", "circle_open", "clock_wipe", "shake", "doors_open"}) {
+        const TransitionPresetEntry *def = transitionDefForId(QString::fromUtf8(id));
+        QVERIFY2(def && def->gpu.valid, id);
+        const auto run = [&](double p) {
+            bool ok = false;
+            const QImage out = GpuEffectExecutor::instance().apply(
+                QLatin1String(kTransitionCacheKeyPrefix) + def->meta.id, def->gpu, {red, blue}, {}, 0,
+                p, &ok);
+            return ok ? out : QImage();
+        };
+        const QImage start = run(0.0);
+        const QImage end = run(1.0);
+        QVERIFY2(!start.isNull() && !end.isNull(), id);
+        const QRgb s0 = start.pixel(12, 12);
+        const QRgb e1 = end.pixel(32, 32);
+        QVERIFY2(qRed(s0) > 200 && qBlue(s0) < 60, id);
+        QVERIFY2(qBlue(e1) > 200 && qRed(e1) < 60, id);
+    }
+}
+
+// VEDIT: the second set (CapCut's camera, light and shape transitions) compile, start on clip A,
+// end on clip B, and halfway show something other than either flat colour or nothing.
+void EngineTest::vedit_moreTransitionsRunOnGpu()
+{
+    if (!GpuEffectExecutor::instance().isAvailable())
+        QSKIP("no OpenGL context available");
+    QImage red(64, 64, QImage::Format_RGBA8888);
+    red.fill(Qt::red);
+    QImage blue(64, 64, QImage::Format_RGBA8888);
+    blue.fill(Qt::blue);
+    for (const char *id : {"pull_in", "pull_out", "axis_rotate", "cube_turn", "white_flash", "glare",
+                           "light_leak", "film_burn", "split_open", "heart_open", "squeeze", "vortex",
+                           "paint_swirl", "tv_off"}) {
+        const TransitionPresetEntry *def = transitionDefForId(QString::fromUtf8(id));
+        QVERIFY2(def && def->gpu.valid, id);
+        const auto run = [&](double p) {
+            bool ok = false;
+            const QImage out = GpuEffectExecutor::instance().apply(
+                QLatin1String(kTransitionCacheKeyPrefix) + def->meta.id, def->gpu, {red, blue}, {}, 0,
+                p, &ok);
+            return ok ? out : QImage();
+        };
+        const QImage start = run(0.0);
+        const QImage end = run(1.0);
+        const QImage mid = run(0.5);
+        QVERIFY2(!start.isNull() && !end.isNull() && !mid.isNull(), id);
+        const QRgb s0 = start.pixel(12, 12);
+        const QRgb e1 = end.pixel(32, 32);
+        QVERIFY2(qRed(s0) > 200 && qBlue(s0) < 60, id);
+        QVERIFY2(qBlue(e1) > 200 && qRed(e1) < 60, id);
+    }
 }
 
 // A broken shader must fall back to a CPU crossfade, never to a black frame or to clip A alone.
@@ -7981,6 +8338,193 @@ void EngineTest::clipBodyAnimationFadeRampsOpacity()
     const double mid = meanLuminance(compositor.compositeAt(drift::secondsToUs(0.5)));
     const double settled = meanLuminance(compositor.compositeAt(drift::secondsToUs(1.5)));
     QVERIFY2(early < mid && mid < settled, "clip body fade-in did not ramp up");
+}
+
+// VEDIT: a sideways flip narrows the picture without shortening it — width and height scale
+// separately in the renderer.
+void EngineTest::vedit_flipAnimationNarrowsOnly()
+{
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    drift::Project project;
+    project.setResolution(128, 128);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Shape});
+    drift::Clip clip;
+    clip.id = QStringLiteral("flip");
+    clip.type = drift::ClipType::Shape;
+    clip.timelineDuration = drift::secondsToUs(2.0);
+    clip.shapeStyle.kind = drift::ShapeKind::Rectangle;
+    clip.shapeStyle.setSolidFill(Qt::white);
+    clip.animIn = {drift::ClipAnimKind::FlipH, drift::secondsToUs(1.0), drift::ClipAnimEase::Linear,
+                   drift::FadeCurve::Linear};
+    project.tracks()[0].clips.append(clip);
+    FrameCompositor compositor;
+    compositor.setProject(&project);
+    const QImage mid = compositor.compositeAt(drift::secondsToUs(0.5)).convertToFormat(QImage::Format_RGB32);
+    const auto bright = [&](int x, int y) { return qRed(mid.pixel(x, y)) > 200; };
+    QVERIFY2(bright(64, 4) && bright(64, 124), "the middle column keeps its full height");
+    QVERIFY2(!bright(4, 64) && !bright(124, 64), "the sides are narrowed in");
+}
+
+// VEDIT: a 콤보 renders — "flip through" on a full-frame white shape: 0.1 s in it is a narrow
+// column (sides dark), halfway it fills the frame, 0.1 s before the end it is a flat band (top and
+// bottom dark, sides bright).
+void EngineTest::vedit_comboAnimationRenders()
+{
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    drift::Project project;
+    project.setResolution(128, 128);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Shape});
+    drift::Clip clip;
+    clip.id = QStringLiteral("combo");
+    clip.type = drift::ClipType::Shape;
+    clip.timelineDuration = drift::secondsToUs(4.0);
+    clip.shapeStyle.kind = drift::ShapeKind::Rectangle;
+    clip.shapeStyle.setSolidFill(Qt::white);
+    clip.animCombo = QStringLiteral("flipThrough");
+    project.tracks()[0].clips.append(clip);
+    FrameCompositor compositor;
+    compositor.setProject(&project);
+    const auto at = [&](double s) {
+        return compositor.compositeAt(drift::secondsToUs(s)).convertToFormat(QImage::Format_RGB32);
+    };
+    const auto bright = [](const QImage &img, int x, int y) { return qRed(img.pixel(x, y)) > 200; };
+    const QImage start = at(0.1), mid = at(2.0), end = at(3.9);
+    QVERIFY2(bright(start, 64, 4) && !bright(start, 4, 64), "comes in as a narrow column");
+    QVERIFY2(bright(mid, 4, 64) && bright(mid, 64, 4) && bright(mid, 124, 124), "fills the frame halfway");
+    QVERIFY2(bright(end, 4, 64) && !bright(end, 64, 4), "goes out as a flat band");
+}
+
+// VEDIT (조박사님: movements too plain): a clip sliding in is smeared along its path — mid-move,
+// a column just inside its leading edge is neither the white of the shape nor the black around it.
+void EngineTest::vedit_motionBlurSmearsMovingClip()
+{
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    drift::Project project;
+    project.setResolution(256, 128);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Shape});
+    drift::Clip clip;
+    clip.id = QStringLiteral("slide");
+    clip.type = drift::ClipType::Shape;
+    clip.timelineDuration = drift::secondsToUs(3.0);
+    clip.shapeStyle.kind = drift::ShapeKind::Rectangle;
+    clip.shapeStyle.setSolidFill(Qt::white);
+    clip.animIn.kind = drift::ClipAnimKind::WhooshLeft;
+    clip.animIn.durationUs = drift::secondsToUs(1.0);
+    project.tracks()[0].clips.append(clip);
+    FrameCompositor compositor;
+    compositor.setProject(&project);
+    const QImage frame = compositor.compositeAt(drift::secondsToUs(0.3)).convertToFormat(QImage::Format_RGB32);
+    if (const QByteArray dump = qgetenv("VEDIT_DUMP_DIR"); !dump.isEmpty())
+        frame.save(QString::fromLocal8Bit(dump) + QStringLiteral("/motion_blur.png"));
+    int partial = 0;
+    for (int x = 0; x < frame.width(); ++x) {
+        const int r = qRed(frame.pixel(x, 64));
+        if (r > 25 && r < 230)
+            ++partial;
+    }
+    QVERIFY2(partial >= 6, qPrintable(QStringLiteral("only %1 soft columns").arg(partial)));
+}
+
+// VEDIT: a 3D turn is drawn in perspective — partway through, one side of the picture is taller
+// than the other (a trapezoid), not merely narrower.
+void EngineTest::vedit_turn3dDrawsInPerspective()
+{
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    drift::Project project;
+    project.setResolution(256, 128);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Shape});
+    drift::Clip clip;
+    clip.id = QStringLiteral("turn");
+    clip.type = drift::ClipType::Shape;
+    clip.timelineDuration = drift::secondsToUs(3.0);
+    clip.shapeStyle.kind = drift::ShapeKind::Rectangle;
+    clip.shapeStyle.setSolidFill(Qt::white);
+    clip.transformW.setKeyframe(0, 128.0); // a picture in the middle, room around it
+    clip.transformH.setKeyframe(0, 64.0);
+    clip.transformX.setKeyframe(0, 64.0);
+    clip.transformY.setKeyframe(0, 32.0);
+    clip.animIn.kind = drift::ClipAnimKind::FlipH;
+    clip.animIn.durationUs = drift::secondsToUs(1.0);
+    clip.animIn.curve = drift::FadeCurve::Linear;
+    project.tracks()[0].clips.append(clip);
+    FrameCompositor compositor;
+    compositor.setProject(&project);
+    const QImage frame = compositor.compositeAt(drift::secondsToUs(0.5)).convertToFormat(QImage::Format_RGB32);
+    if (const QByteArray dump = qgetenv("VEDIT_DUMP_DIR"); !dump.isEmpty())
+        frame.save(QString::fromLocal8Bit(dump) + QStringLiteral("/turn3d.png"));
+    // Height of the bright run in a column.
+    const auto heightAt = [&](int x) {
+        int n = 0;
+        for (int y = 0; y < frame.height(); ++y)
+            n += qRed(frame.pixel(x, y)) > 128 ? 1 : 0;
+        return n;
+    };
+    int left = -1, right = -1;
+    for (int x = 0; x < frame.width(); ++x)
+        if (heightAt(x) > 0) {
+            if (left < 0)
+                left = x;
+            right = x;
+        }
+    QVERIFY2(left >= 0, "the picture shows halfway through");
+    const int hl = heightAt(left + 2), hr = heightAt(right - 2);
+    QVERIFY2(qAbs(hl - hr) >= 4, qPrintable(QStringLiteral("edges %1 and %2 px tall").arg(hl).arg(hr)));
+}
+
+// VEDIT: the special entrances draw — a wipe shows the left of the picture and not yet the right,
+// a glow brightens a mid-grey picture, a blur softens a hard edge.
+void EngineTest::vedit_specialEntrancesRender()
+{
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    const auto render = [](drift::ClipAnimKind kind, QColor fill, double at) {
+        drift::Project project;
+        project.setResolution(256, 128);
+        project.tracks().clear();
+        project.tracks().append(drift::Track{.type = drift::TrackType::Shape});
+        drift::Clip clip;
+        clip.id = QStringLiteral("s");
+        clip.type = drift::ClipType::Shape;
+        clip.timelineDuration = drift::secondsToUs(3.0);
+        clip.shapeStyle.kind = drift::ShapeKind::Rectangle;
+        clip.shapeStyle.setSolidFill(fill);
+        clip.transformW.setKeyframe(0, 128.0);
+        clip.transformH.setKeyframe(0, 64.0);
+        clip.transformX.setKeyframe(0, 64.0);
+        clip.transformY.setKeyframe(0, 32.0);
+        clip.animIn.kind = kind;
+        clip.animIn.durationUs = drift::secondsToUs(1.0);
+        clip.animIn.curve = drift::FadeCurve::Linear;
+        project.tracks()[0].clips.append(clip);
+        FrameCompositor compositor;
+        compositor.setProject(&project);
+        return compositor.compositeAt(drift::secondsToUs(at)).convertToFormat(QImage::Format_RGB32);
+    };
+    const QByteArray dump = qgetenv("VEDIT_DUMP_DIR");
+    const QImage wipe = render(drift::ClipAnimKind::WipeIn, Qt::white, 0.5);
+    const QImage glow = render(drift::ClipAnimKind::GlowIn, QColor(100, 100, 100), 0.15);
+    const QImage blur = render(drift::ClipAnimKind::BlurIn, Qt::white, 0.2);
+    const QImage glitch = render(drift::ClipAnimKind::GlitchIn, Qt::white, 0.3);
+    if (!dump.isEmpty()) {
+        wipe.save(QString::fromLocal8Bit(dump) + QStringLiteral("/fx_wipe.png"));
+        glow.save(QString::fromLocal8Bit(dump) + QStringLiteral("/fx_glow.png"));
+        blur.save(QString::fromLocal8Bit(dump) + QStringLiteral("/fx_blur.png"));
+        glitch.save(QString::fromLocal8Bit(dump) + QStringLiteral("/fx_glitch.png"));
+    }
+    QVERIFY2(qRed(wipe.pixel(80, 64)) > 200 && qRed(wipe.pixel(180, 64)) < 40, "half wiped on");
+    QVERIFY2(qRed(glow.pixel(128, 64)) > 130, "the flash lifts the grey");
+    int soft = 0;
+    for (int x = 40; x < 90; ++x)
+        soft += (qRed(blur.pixel(x, 64)) > 20 && qRed(blur.pixel(x, 64)) < 235) ? 1 : 0;
+    QVERIFY2(soft >= 4, "the edge is soft");
 }
 
 void EngineTest::maskApplierEllipseMasksCorners()
@@ -10223,6 +10767,33 @@ void EngineTest::audioEffectStreamIsContinuousAcrossBlocks()
              qPrintable(QStringLiteral("block boundary discontinuity maxDiff=%1").arg(maxDiff)));
 }
 
+// VEDIT: the hall reverb turns a single click into a tail that rings on after it.
+void EngineTest::vedit_reverbLeavesATail()
+{
+    constexpr int kRate = 48000;
+    constexpr int kFrames = 8192;
+    QVector<float> click(kFrames * 2, 0.0f);
+    click[0] = click[1] = 0.9f;
+    for (const char *id : {"space.room", "space.hall", "space.church"}) {
+        const AudioEffectEntry *def = audioEffectDefForId(QString::fromLatin1(id));
+        QVERIFY2(def, id);
+        QCOMPARE(def->processorId, QStringLiteral("reverb"));
+        drift::Effect effect;
+        effect.catalogId = def->id;
+        const QVector<float> out = runRack({effect}, click.constData(), kFrames, kRate);
+        QCOMPARE(out.size(), kFrames * 2);
+        const double tail = rms(out.constData() + 2000 * 2, (kFrames - 2000) * 2);
+        QVERIFY2(tail > 1e-4, qPrintable(QStringLiteral("%1 tail %2").arg(QString::fromLatin1(id)).arg(tail)));
+    }
+    // And it does not make the voice itself louder (JUCE scales dry x2 / wet x3 inside).
+    const QVector<float> tone = stereoTone(kFrames, 440.0, kRate);
+    drift::Effect hall;
+    hall.catalogId = QStringLiteral("space.hall");
+    const QVector<float> out = runRack({hall}, tone.constData(), kFrames, kRate);
+    const double ratio = rms(out.constData(), kFrames * 2) / rms(tone.constData(), kFrames * 2);
+    QVERIFY2(ratio < 1.3, qPrintable(QStringLiteral("hall level ratio %1").arg(ratio)));
+}
+
 void EngineTest::audioEffectFlangerProcessesSignal()
 {
     constexpr int kRate = 48000;
@@ -11995,5 +12566,739 @@ void EngineTest::waveformSheetDrawsWordLane()
     QVERIFY(withWords.pixel(100, laneY) != withWords.pixel(390, laneY));
 }
 
+// VEDIT: the timeline draws stereo as L/R lanes, mono as one lane, and a stereo file with one
+// silent side as just that side. This pins the decision those lanes are drawn from.
+void EngineTest::vedit_waveformChannelLayoutDetection()
+{
+    const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    if (ffmpeg.isEmpty())
+        QSKIP("ffmpeg not available to generate test audio");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const auto make = [&](const QString &name, const QString &filter, int channels) {
+        const QString out = dir.filePath(name);
+        QProcess p;
+        p.start(ffmpeg, {QStringLiteral("-y"), QStringLiteral("-loglevel"), QStringLiteral("error"),
+                         QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                         QStringLiteral("sine=frequency=440:duration=2"), QStringLiteral("-af"), filter,
+                         QStringLiteral("-ac"), QString::number(channels), out});
+        p.waitForFinished(30000);
+        return QFileInfo::exists(out) ? out : QString();
+    };
+    const QString mono = make(QStringLiteral("mono.wav"), QStringLiteral("anull"), 1);
+    const QString stereo = make(QStringLiteral("stereo.wav"), QStringLiteral("pan=stereo|c0=c0|c1=0.7*c0"), 2);
+    const QString left = make(QStringLiteral("left.wav"), QStringLiteral("pan=stereo|c0=c0|c1=0*c0"), 2);
+    const QString right = make(QStringLiteral("right.wav"), QStringLiteral("pan=stereo|c0=0*c0|c1=c0"), 2);
+    QVERIFY(!mono.isEmpty() && !stereo.isEmpty() && !left.isEmpty() && !right.isEmpty());
+
+    WaveformBlockCache cache;
+    QCOMPARE(cache.channelLayout(mono), QString()); // nothing decoded yet
+    for (const QString &path : {mono, stereo, left, right}) {
+        QSignalSpy ready(&cache, &WaveformBlockCache::rangeReady);
+        cache.range(path, 0.0, 2.0, 100);
+        QTRY_VERIFY_WITH_TIMEOUT(cache.channelCount(path) > 0, 20000);
+    }
+    QCOMPARE(cache.channelLayout(mono), QStringLiteral("mono"));
+    QCOMPARE(cache.channelLayout(stereo), QStringLiteral("stereo"));
+    QCOMPARE(cache.channelLayout(left), QStringLiteral("left"));
+    QCOMPARE(cache.channelLayout(right), QStringLiteral("right"));
+}
+
+// VEDIT: the default export uses Windows' own H.264/AAC (Media Foundation) rather than x264, and
+// produces a file that decodes back to the right picture.
+void EngineTest::vedit_defaultExportUsesWindowsEncoders()
+{
+#ifndef Q_OS_WIN
+    QSKIP("Media Foundation is Windows-only");
+#else
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    const ExportSettings settings = Exporter::defaultSettings();
+    if (!Exporter::videoCodecById(QStringLiteral("h264_mf")).value(QStringLiteral("available")).toBool())
+        QSKIP("This FFmpeg build has no h264_mf");
+    QCOMPARE(settings.videoCodecId, QStringLiteral("h264_mf"));
+    QCOMPARE(settings.audioCodecId, QStringLiteral("aac_mf"));
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    drift::Project project;
+    project.setResolution(320, 180);
+    project.setFps(25);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Shape});
+    drift::Clip clip;
+    clip.id = QStringLiteral("shape");
+    clip.type = drift::ClipType::Shape;
+    clip.timelineStart = 0;
+    clip.timelineDuration = drift::secondsToUs(1.0);
+    clip.shapeStyle.kind = drift::ShapeKind::Rectangle;
+    clip.shapeStyle.setSolidFill(Qt::red);
+    clip.shapeStyle.setStroke(0.0);
+    clip.transformX.setKeyframe(0, 140.0);
+    clip.transformY.setKeyframe(0, 70.0);
+    clip.transformW.setKeyframe(0, 40.0);
+    clip.transformH.setKeyframe(0, 40.0);
+    project.tracks()[0].clips.append(clip);
+    drift::Background background;
+    background.kind = drift::BackgroundKind::Color;
+    background.color = QColor(Qt::blue);
+    project.setBackground(background);
+
+    const QString out = dir.filePath(QStringLiteral("out.mp4"));
+    QString error;
+    // On a worker thread, as the app does (AppController::exportWithSettings): the GUI thread is a
+    // COM single-threaded apartment, where Media Foundation encoders refuse to open.
+    bool ok = false;
+    QScopedPointer<QThread> worker(QThread::create([&] { ok = Exporter::run(project, settings, out, &error); }));
+    worker->start();
+    QVERIFY(worker->wait(120000));
+    QVERIFY2(ok, qPrintable(error));
+    QVERIFY(QFileInfo(out).size() > 0);
+    ClipReader reader;
+    QVERIFY(reader.open(out));
+    QVERIFY(reader.hasVideo());
+    QImage frame;
+    QVERIFY(reader.readVideoFrameAt(drift::secondsToUs(0.5), frame, 320, 180));
+    const QRgb corner = frame.pixel(8, 8);
+    QVERIFY2(qBlue(corner) > 150 && qBlue(corner) > qRed(corner),
+             qPrintable(QStringLiteral("corner %1").arg(QColor(corner).name())));
+    const QRgb centre = frame.pixel(160, 90);
+    QVERIFY2(qRed(centre) > 150 && qRed(centre) > qBlue(centre),
+             qPrintable(QStringLiteral("centre %1").arg(QColor(centre).name())));
+#endif
+}
+
+// VEDIT: CapCut-style export sizes — "1080p" is the short side, so a vertical phone project
+// exports at 1080x1920; 2K and 4K are offered even when they upscale.
+void EngineTest::vedit_exportSizesUseShortSideAndOffer4K()
+{
+    const auto find = [](const QVariantList &options, const QString &id) {
+        for (const QVariant &v : options) {
+            if (v.toMap().value(QStringLiteral("id")).toString() == id)
+                return v.toMap();
+        }
+        return QVariantMap{};
+    };
+    const QVariantList portrait = Exporter::scaleOptions(1080, 1920);
+    const QVariantMap p4k = find(portrait, QStringLiteral("2160p"));
+    QCOMPARE(p4k.value(QStringLiteral("width")).toInt(), 2160);
+    QCOMPARE(p4k.value(QStringLiteral("height")).toInt(), 3840);
+    const QVariantMap p720 = find(portrait, QStringLiteral("720p"));
+    QCOMPARE(p720.value(QStringLiteral("width")).toInt(), 720);
+    QCOMPARE(p720.value(QStringLiteral("height")).toInt(), 1280);
+
+    const QVariantList landscape = Exporter::scaleOptions(1920, 1080);
+    const QVariantMap l2k = find(landscape, QStringLiteral("1440p"));
+    QCOMPARE(l2k.value(QStringLiteral("width")).toInt(), 2560);
+    QCOMPARE(l2k.value(QStringLiteral("height")).toInt(), 1440);
+    QVERIFY(find(landscape, QStringLiteral("1080p")).isEmpty()); // same as the source: "원본 크기" covers it
+    QVERIFY(!find(landscape, QStringLiteral("source")).isEmpty());
+}
+
+
+// VEDIT (조박사님): 임시 렌더링. A clip at half speed is rendered in the background to a cache file,
+// and playback (useRenderCache) composites that file in its place; export does not.
+void EngineTest::vedit_renderCacheRendersAndServes()
+{
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    QTemporaryDir dir;
+    const QString video = makeHighRateVideo(dir);
+    if (video.isEmpty())
+        QSKIP("ffmpeg not available");
+    drift::Project project;
+    project.setResolution(64, 64);
+    project.setFps(30);
+    project.tracks().clear();
+    drift::Track track;
+    track.type = drift::TrackType::Video;
+    drift::Clip clip;
+    clip.id = QStringLiteral("slow");
+    clip.type = drift::ClipType::Video;
+    clip.path = video;
+    clip.speed = 0.5;
+    clip.timelineStart = 0;
+    clip.timelineDuration = drift::secondsToUs(2.0);
+    clip.srcIn = 0;
+    clip.srcOut = drift::secondsToUs(1.0);
+    track.clips.append(clip);
+    project.tracks().append(track);
+    QVERIFY(RenderCache::clipNeedsRender(project, 0, 0));
+
+    RenderCache &cache = RenderCache::instance();
+    cache.setEnabled(true);
+    cache.setPlaying(false);
+    auto off = qScopeGuard([&cache] { cache.setEnabled(false); cache.setEnabled(true); });
+    cache.update(project);
+    RenderCache::Hit hit;
+    QTRY_VERIFY_WITH_TIMEOUT(cache.lookup(drift::secondsToUs(1.0), &hit), 60000);
+    QVERIFY(QFileInfo(hit.path).size() > 0);
+    QCOMPARE(hit.startUs, drift::TimeUs(0));
+    QCOMPARE(hit.endUs, drift::secondsToUs(2.0));
+
+    FrameCompositor compositor;
+    compositor.setProject(&project);
+    FrameCompositor::RenderOptions options;
+    options.useRenderCache = true;
+    const QImage cached = compositor.compositeAt(drift::secondsToUs(1.0), options);
+    QVERIFY(!cached.isNull());
+    const QImage live = compositor.compositeAt(drift::secondsToUs(1.0));
+    QVERIFY(!live.isNull());
+    // The same picture either way (the cache is a lossy copy at the same size).
+    QVERIFY2(meanAbsDiff(cached.convertToFormat(QImage::Format_RGBA8888),
+                         live.convertToFormat(QImage::Format_RGBA8888), cached.rect()) < 24.0,
+             qPrintable(QString::number(meanAbsDiff(cached.convertToFormat(QImage::Format_RGBA8888),
+                                                   live.convertToFormat(QImage::Format_RGBA8888), cached.rect()))));
+
+    // An edit there makes a new key: the old file no longer counts.
+    project.tracks()[0].clips[0].speed = 0.25;
+    cache.invalidate();
+    QVERIFY(!cache.lookup(drift::secondsToUs(1.0), nullptr));
+}
+
+// VEDIT (조박사님: text animations too plain): 펜으로 쓰기 wipes each letter on from the left —
+// partway through, the left of the line is drawn and the right is not yet.
+void EngineTest::vedit_penWritingRevealsLeftToRight()
+{
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    if (fontCatalog().isEmpty())
+        QSKIP("font bundle not present");
+    drift::Project project;
+    project.setResolution(320, 120);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Text});
+    drift::Clip clip = makeTextClip(QStringLiteral("HELLO WORLD"), QRectF(0, 0, 320, 120));
+    clip.textStyle.pixelSize = 40;
+    clip.textStyle.animation.in.presetId = QStringLiteral("vedit-pen-write");
+    project.tracks()[0].clips.append(clip);
+    FrameCompositor compositor;
+    compositor.setProject(&project);
+    const QImage frame = compositor.compositeAt(drift::secondsToUs(0.45)).convertToFormat(QImage::Format_ARGB32);
+    if (const QByteArray dump = qgetenv("VEDIT_DUMP_DIR"); !dump.isEmpty())
+        frame.save(QString::fromLocal8Bit(dump) + QStringLiteral("/pen_write.png"));
+    int left = 0, right = 0;
+    for (int y = 0; y < frame.height(); ++y)
+        for (int x = 0; x < frame.width(); ++x)
+            if (qRed(frame.pixel(x, y)) > 128)
+                (x < frame.width() / 2 ? left : right) += 1;
+    QVERIFY2(left > 50 && right < left / 3, qPrintable(QStringLiteral("left %1 right %2").arg(left).arg(right)));
+}
+
+// VEDIT (diagnosis, 조박사님: "재생하면 가다 끊긴다"): plays VEDIT_PROBE_FILE through the playback
+// path (read-ahead on, real-time pacing) and prints every frame that took more than 30 ms.
+void EngineTest::vedit_playbackHitchProbe()
+{
+    const QString path = qEnvironmentVariable("VEDIT_PROBE_FILE");
+    if (path.isEmpty())
+        QSKIP("set VEDIT_PROBE_FILE");
+    // The playback decode path itself: one preview frame per 1/30 s through ClipReaderPool with
+    // read-ahead on, as the compositor asks for them while playing.
+    ClipReaderPool &pool = ClipReaderPool::instance();
+    pool.setReadAheadUs(2 * drift::kUsPerSecond);
+    drift::ReverseProxyCache::playbackActive.store(true); // logs seeks to the play trace
+    const QString mode = qEnvironmentVariable("VEDIT_PROBE_DECODE"); // "sw", "hw", or empty = auto
+    if (mode == QLatin1String("sw"))
+        pool.setHardwareDecodeMode(ClipReader::HardwareDecodeMode::Software);
+    else if (mode == QLatin1String("hw"))
+        pool.setHardwareDecodeMode(ClipReader::HardwareDecodeMode::Hardware);
+    const quint64 stream = 0x5eed;
+    // VEDIT_PROBE_SPLIT: the clip is cut at 2 s — a second stream (the other piece) on the same file
+    // takes over there, warmed 1.5 s before, the way the compositor does it.
+    const bool split = qEnvironmentVariableIsSet("VEDIT_PROBE_SPLIT");
+    const quint64 streamB = 0xb0b;
+    const drift::TimeUs cutUs = drift::secondsToUs(2.5);
+    bool warmed = false;
+    const drift::TimeUs base = drift::secondsToUs(0.5);
+    QElapsedTimer wall;
+    wall.start();
+    int slow = 0;
+    double worst = 0, sum = 0;
+    const int frames = 120;
+    for (int i = 0; i < frames; ++i) {
+        const drift::TimeUs t = base + drift::TimeUs(i) * 1001000 / 30;
+        QElapsedTimer one;
+        one.start();
+        if (split && !warmed && t >= cutUs - drift::secondsToUs(1.5)) {
+            warmed = true;
+            ClipReaderPool::VideoRequest request;
+            request.path = path;
+            request.streamId = streamB;
+            request.sourceUs = cutUs;
+            request.maxWidth = 941;
+            request.maxHeight = 529;
+            pool.warmVideoFrames({request}, 300'000);
+        }
+        const quint64 which = split && t >= cutUs ? streamB : stream;
+        const PreviewVideoFrame f = pool.readPreviewVideoFrame(path, which, t, 941, 529, QString(), 0, false, 0);
+        const double ms = one.nsecsElapsed() / 1e6;
+        sum += ms;
+        worst = qMax(worst, ms);
+        if (ms > 30.0) {
+            ++slow;
+            qInfo("slow frame %d t=%.3fs %.0f ms valid=%d", i, (t - base) / 1e6, ms, f.isValid() ? 1 : 0);
+        }
+        const qint64 due = qint64(i + 1) * 1001 / 30;
+        const qint64 now = wall.elapsed();
+        if (now < due)
+            QThread::msleep(due - now);
+    }
+    qInfo("probe: %d of %d frames over 30 ms, worst %.0f ms, mean %.1f ms", slow, frames, worst, sum / frames);
+}
+
 QTEST_MAIN(EngineTest)
 #include "tst_engine.moc"
+
+
+// VEDIT 내보내기 점검 1회차: a vertical (9:16) film with a shout bubble, then gold word art, over
+// a 2 s tone, exported with the default (Windows) encoders on a worker thread as the app does.
+// The file must be 9:16, 2 s long, carry audible sound, and show the yellow bubble and the gold
+// letters where they were.
+void EngineTest::vedit_exportVerticalTextLooksAndSound()
+{
+#ifndef Q_OS_WIN
+    QSKIP("Windows encoders");
+#else
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    if (fontCatalog().isEmpty())
+        QSKIP("no fonts");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString tone = makeToneAudio(dir);
+    if (tone.isEmpty())
+        QSKIP("ffmpeg not available to generate a test tone");
+
+    drift::Project project;
+    project.setResolution(360, 640);
+    project.setFps(30);
+    project.setSampleRate(48000);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Text});
+    project.tracks().append(drift::Track{.type = drift::TrackType::Audio});
+    const auto words = [&](const QString &id, double from, auto look) {
+        drift::Clip c;
+        c.id = id;
+        c.type = drift::ClipType::Text;
+        c.textContent = QStringLiteral("ABC");
+        c.timelineStart = drift::secondsToUs(from);
+        c.timelineDuration = drift::secondsToUs(1.0);
+        c.textStyle.fontFamily = QStringLiteral("Pretendard");
+        c.textStyle.fontWeight = 700;
+        c.textStyle.pixelSize = 64;
+        look(c.textStyle);
+        c.transformX.setKeyframe(0, 0.0);
+        c.transformY.setKeyframe(0, 200.0);
+        c.transformW.setKeyframe(0, 360.0);
+        c.transformH.setKeyframe(0, 240.0);
+        project.tracks()[0].clips.append(c);
+    };
+    words(QStringLiteral("bubble"), 0.0, [](drift::TextStyle &s) {
+        QVERIFY(drift::applyVeditBubble(s, QStringLiteral("bubble-shout-yellow")));
+    });
+    words(QStringLiteral("art"), 1.0, [](drift::TextStyle &s) {
+        QVERIFY(drift::applyVeditWordArt(s, QStringLiteral("art-gold")));
+    });
+    drift::Clip sound;
+    sound.id = QStringLiteral("tone");
+    sound.type = drift::ClipType::Audio;
+    sound.path = tone;
+    sound.timelineStart = 0;
+    sound.srcIn = 0;
+    sound.srcOut = drift::secondsToUs(2.0);
+    sound.timelineDuration = drift::secondsToUs(2.0);
+    project.tracks()[1].clips.append(sound);
+
+    ExportSettings settings = Exporter::defaultSettings();
+    const QString out = dir.filePath(QStringLiteral("vertical.mp4"));
+    QString error;
+    bool ok = false;
+    QScopedPointer<QThread> worker(QThread::create([&] { ok = Exporter::run(project, settings, out, &error); }));
+    worker->start();
+    QVERIFY(worker->wait(180000));
+    QVERIFY2(ok, qPrintable(error));
+
+    const MediaInfo info = MediaProbe::probe(out);
+    QVERIFY2(info.ok, qPrintable(info.errorString));
+    bool video = false, audio = false;
+    for (const StreamInfo &st : info.streams) {
+        if (st.type == StreamInfo::Type::Video && !st.attachedPicture) {
+            video = true;
+            QCOMPARE(st.width, 360);
+            QCOMPARE(st.height, 640);
+        }
+        if (st.type == StreamInfo::Type::Audio)
+            audio = true;
+    }
+    QVERIFY(video);
+    QVERIFY2(audio, "the sound did not make it into the file");
+    QVERIFY2(std::abs(drift::usToSeconds(info.durationUs) - 2.0) < 0.15,
+             qPrintable(QStringLiteral("length %1 s").arg(drift::usToSeconds(info.durationUs))));
+
+    // Loud enough to hear (the tone is about -3 dBFS peak; anything near silence fails).
+    const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    QProcess vol;
+    vol.start(ffmpeg, {QStringLiteral("-hide_banner"), QStringLiteral("-i"), out, QStringLiteral("-af"),
+                       QStringLiteral("volumedetect"), QStringLiteral("-f"), QStringLiteral("null"), QStringLiteral("-")});
+    QVERIFY(vol.waitForFinished(60000));
+    const QString log = QString::fromUtf8(vol.readAllStandardError());
+    const QRegularExpressionMatch mean = QRegularExpression(QStringLiteral("mean_volume: (-?[0-9.]+) dB")).match(log);
+    QVERIFY2(mean.hasMatch(), qPrintable(log.right(400)));
+    QVERIFY2(mean.captured(1).toDouble() > -35.0, qPrintable(QStringLiteral("mean volume %1 dB").arg(mean.captured(1))));
+
+    ClipReader reader;
+    QVERIFY(reader.open(out));
+    const auto count = [&](double at, auto match) {
+        QImage frame;
+        if (!reader.readVideoFrameAt(drift::secondsToUs(at), frame, 360, 640))
+            return -1;
+        frame = frame.convertToFormat(QImage::Format_RGB32);
+        int n = 0;
+        for (int y = 0; y < frame.height(); ++y)
+            for (int x = 0; x < frame.width(); ++x)
+                if (match(frame.pixel(x, y)))
+                    ++n;
+        return n;
+    };
+    const int yellow = count(0.5, [](QRgb p) { return qRed(p) > 200 && qGreen(p) > 170 && qBlue(p) < 120; });
+    QVERIFY2(yellow > 2000, qPrintable(QStringLiteral("bubble pixels %1").arg(yellow)));
+    const int gold = count(1.5, [](QRgb p) { return qRed(p) > 170 && qGreen(p) > 110 && qBlue(p) < 110; });
+    QVERIFY2(gold > 150, qPrintable(QStringLiteral("gold pixels %1").arg(gold)));
+    const int blackTop = count(1.5, [](QRgb p) { return qGray(p) < 30; });
+    QVERIFY2(blackTop > 360 * 640 / 2, "background should stay black around the words");
+#endif
+}
+
+
+// VEDIT 내보내기 점검 2회차: the four purposes of the export window (ExportDialog.qml applyPurpose)
+// — 카톡 720p 5 Mbps, 유튜브 1080p 12 Mbps, 보관 원본 20 Mbps, TV 1080p 16 Mbps — on busy footage
+// (moving pattern with light grain, like camera footage — heavy noise is beyond what any encoder
+// holds to a bitrate, libx264 included). Each file has the promised height, and its size
+// is within half to one-and-a-half times the window's estimate (bitrate × length).
+void EngineTest::vedit_exportPurposesSizeAndHeight()
+{
+#ifndef Q_OS_WIN
+    QSKIP("Windows encoders");
+#else
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    if (ffmpeg.isEmpty())
+        QSKIP("ffmpeg not available to make busy footage");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString busy = dir.filePath(QStringLiteral("busy.mp4"));
+    QProcess make;
+    make.start(ffmpeg, {QStringLiteral("-y"), QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                        QStringLiteral("testsrc2=size=1280x720:rate=30:duration=3,noise=alls=8:allf=t+u"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                        QStringLiteral("sine=frequency=440:sample_rate=48000:duration=3"),
+                        QStringLiteral("-c:v"), QStringLiteral("mpeg4"), QStringLiteral("-q:v"), QStringLiteral("2"),
+                        QStringLiteral("-c:a"), QStringLiteral("aac"), QStringLiteral("-shortest"), busy});
+    QVERIFY(make.waitForFinished(120000));
+    QVERIFY2(make.exitCode() == 0 && QFileInfo::exists(busy), qPrintable(QString::fromUtf8(make.readAllStandardError().right(400))));
+
+    drift::Project project;
+    project.setResolution(1920, 1080);
+    project.setFps(30);
+    project.setSampleRate(48000);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Video});
+    drift::Clip clip;
+    clip.id = QStringLiteral("busy");
+    clip.type = drift::ClipType::Video;
+    clip.path = busy;
+    clip.timelineStart = 0;
+    clip.srcIn = 0;
+    clip.srcOut = drift::secondsToUs(3.0);
+    clip.timelineDuration = drift::secondsToUs(3.0);
+    project.tracks()[0].clips.append(clip);
+
+    struct Purpose { const char *name; int height; int kbps; int expectHeight; };
+    const QList<Purpose> purposes{{"kakao", 720, 5000, 720}, {"youtube", 1080, 12000, 1080},
+                                  {"keep", 0, 20000, 1080}, {"tv", 1080, 16000, 1080}};
+    for (const Purpose &p : purposes) {
+        ExportSettings settings = Exporter::defaultSettings();
+        settings.targetHeight = p.height;
+        settings.rateControl = QStringLiteral("bitrate");
+        settings.videoBitrateKbps = p.kbps;
+        settings.audioBitrateKbps = 192;
+        const QString out = dir.filePath(QStringLiteral("%1.mp4").arg(QLatin1String(p.name)));
+        QString error;
+        bool ok = false;
+        QScopedPointer<QThread> worker(QThread::create([&] { ok = Exporter::run(project, settings, out, &error); }));
+        worker->start();
+        QVERIFY(worker->wait(300000));
+        QVERIFY2(ok, qPrintable(QStringLiteral("%1: %2").arg(QLatin1String(p.name), error)));
+        const MediaInfo info = MediaProbe::probe(out);
+        QVERIFY(info.ok);
+        int height = 0;
+        bool audio = false;
+        for (const StreamInfo &st : info.streams) {
+            if (st.type == StreamInfo::Type::Video && !st.attachedPicture)
+                height = st.height;
+            audio = audio || st.type == StreamInfo::Type::Audio;
+        }
+        QCOMPARE(height, p.expectHeight);
+        QVERIFY(audio);
+        const double seconds = drift::usToSeconds(info.durationUs);
+        const double expectedMb = (p.kbps + 192) * 3.0 / 8.0 / 1000.0;
+        const double actualMb = QFileInfo(out).size() / 1e6;
+        qInfo("VEDIT export %s: %dp, %.2f s, %.2f MB (estimate %.2f MB, x%.2f)", p.name, height, seconds, actualMb,
+              expectedMb, actualMb / expectedMb);
+        QVERIFY2(actualMb > expectedMb * 0.5 && actualMb < expectedMb * 1.5,
+                 qPrintable(QStringLiteral("%1: %2 MB vs estimate %3 MB").arg(QLatin1String(p.name)).arg(actualMb).arg(expectedMb)));
+    }
+#endif
+}
+
+
+// VEDIT 내보내기 점검 3회차: a 4 s clip with sound at 2x — the file is 2 s and the sound is still
+// there and audible (sped up, not dropped).
+void EngineTest::vedit_exportDoubleSpeedKeepsSoundAndLength()
+{
+#ifndef Q_OS_WIN
+    QSKIP("Windows encoders");
+#else
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    if (ffmpeg.isEmpty())
+        QSKIP("ffmpeg not available");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString src = dir.filePath(QStringLiteral("four.mp4"));
+    QProcess make;
+    make.start(ffmpeg, {QStringLiteral("-y"), QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                        QStringLiteral("testsrc2=size=640x360:rate=30:duration=4"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"), QStringLiteral("-i"),
+                        QStringLiteral("sine=frequency=440:sample_rate=48000:duration=4"),
+                        QStringLiteral("-c:v"), QStringLiteral("mpeg4"), QStringLiteral("-q:v"), QStringLiteral("3"),
+                        QStringLiteral("-c:a"), QStringLiteral("aac"), QStringLiteral("-shortest"), src});
+    QVERIFY(make.waitForFinished(120000));
+    QVERIFY(make.exitCode() == 0);
+
+    drift::Project project;
+    project.setResolution(640, 360);
+    project.setFps(30);
+    project.setSampleRate(48000);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Video});
+    drift::Clip clip;
+    clip.id = QStringLiteral("fast");
+    clip.type = drift::ClipType::Video;
+    clip.path = src;
+    clip.timelineStart = 0;
+    clip.srcIn = 0;
+    clip.srcOut = drift::secondsToUs(4.0);
+    clip.speed = 2.0;
+    clip.timelineDuration = drift::secondsToUs(2.0);
+    project.tracks()[0].clips.append(clip);
+
+    ExportSettings settings = Exporter::defaultSettings();
+    const QString out = dir.filePath(QStringLiteral("fast.mp4"));
+    QString error;
+    bool ok = false;
+    QScopedPointer<QThread> worker(QThread::create([&] { ok = Exporter::run(project, settings, out, &error); }));
+    worker->start();
+    QVERIFY(worker->wait(180000));
+    QVERIFY2(ok, qPrintable(error));
+    const MediaInfo info = MediaProbe::probe(out);
+    QVERIFY(info.ok);
+    bool audio = false;
+    for (const StreamInfo &st : info.streams)
+        audio = audio || st.type == StreamInfo::Type::Audio;
+    QVERIFY2(audio, "the sped-up clip lost its sound");
+    QVERIFY2(std::abs(drift::usToSeconds(info.durationUs) - 2.0) < 0.15,
+             qPrintable(QStringLiteral("length %1").arg(drift::usToSeconds(info.durationUs))));
+    QProcess vol;
+    vol.start(ffmpeg, {QStringLiteral("-hide_banner"), QStringLiteral("-i"), out, QStringLiteral("-af"),
+                       QStringLiteral("volumedetect"), QStringLiteral("-f"), QStringLiteral("null"), QStringLiteral("-")});
+    QVERIFY(vol.waitForFinished(60000));
+    const QString log = QString::fromUtf8(vol.readAllStandardError());
+    const QRegularExpressionMatch mean = QRegularExpression(QStringLiteral("mean_volume: (-?[0-9.]+) dB")).match(log);
+    QVERIFY2(mean.hasMatch(), qPrintable(log.right(300)));
+    QVERIFY2(mean.captured(1).toDouble() > -35.0, qPrintable(QStringLiteral("mean volume %1 dB").arg(mean.captured(1))));
+#endif
+}
+
+
+// VEDIT 내보내기 점검 4회차: a vertical film (1080x1920, 30 fps) exported as 4K (2160x3840 — the
+// short side is the "2160p") at 60 fps, only the work area 0.5–1.5 s, with the Windows encoder.
+// The file is 2160x3840, 60 fps, 1 s, and the red box and white words are where they were.
+void EngineTest::vedit_exportPortrait4K60WorkArea()
+{
+#ifndef Q_OS_WIN
+    QSKIP("Windows encoders");
+#else
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    if (fontCatalog().isEmpty())
+        QSKIP("no fonts");
+    drift::Project project;
+    project.setResolution(1080, 1920);
+    project.setFps(30);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Shape});
+    project.tracks().append(drift::Track{.type = drift::TrackType::Text});
+    drift::Clip box;
+    box.id = QStringLiteral("box");
+    box.type = drift::ClipType::Shape;
+    box.timelineStart = 0;
+    box.timelineDuration = drift::secondsToUs(3.0);
+    box.shapeStyle.kind = drift::ShapeKind::Rectangle;
+    box.shapeStyle.setSolidFill(QColor(230, 20, 20));
+    box.shapeStyle.setStroke(0.0);
+    box.transformX.setKeyframe(0, 340.0);
+    box.transformY.setKeyframe(0, 1300.0);
+    box.transformW.setKeyframe(0, 400.0);
+    box.transformH.setKeyframe(0, 400.0);
+    project.tracks()[0].clips.append(box);
+    drift::Clip words;
+    words.id = QStringLiteral("words");
+    words.type = drift::ClipType::Text;
+    words.textContent = QStringLiteral("ABC");
+    words.timelineStart = 0;
+    words.timelineDuration = drift::secondsToUs(3.0);
+    words.textStyle.fontFamily = QStringLiteral("Pretendard");
+    words.textStyle.fontWeight = 700;
+    words.textStyle.pixelSize = 160;
+    words.transformX.setKeyframe(0, 0.0);
+    words.transformY.setKeyframe(0, 300.0);
+    words.transformW.setKeyframe(0, 1080.0);
+    words.transformH.setKeyframe(0, 400.0);
+    project.tracks()[1].clips.append(words);
+
+    ExportSettings settings = Exporter::defaultSettings();
+    int target = 0;
+    for (const QVariant &v : Exporter::scaleOptions(1080, 1920))
+        if (v.toMap().value(QStringLiteral("id")).toString() == QLatin1String("2160p"))
+            target = v.toMap().value(QStringLiteral("targetHeight")).toInt();
+    QVERIFY(target > 0);
+    settings.targetHeight = target;
+    settings.fpsNum = 60;
+    settings.fpsDen = 1;
+    settings.startUs = drift::secondsToUs(0.5);
+    settings.endUs = drift::secondsToUs(1.5);
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString out = dir.filePath(QStringLiteral("tall4k.mp4"));
+    QString error;
+    bool ok = false;
+    QScopedPointer<QThread> worker(QThread::create([&] { ok = Exporter::run(project, settings, out, &error); }));
+    worker->start();
+    QVERIFY(worker->wait(300000));
+    QVERIFY2(ok, qPrintable(error));
+    const MediaInfo info = MediaProbe::probe(out);
+    QVERIFY(info.ok);
+    int w = 0, h = 0;
+    double fps = 0;
+    for (const StreamInfo &st : info.streams)
+        if (st.type == StreamInfo::Type::Video && !st.attachedPicture) {
+            w = st.width;
+            h = st.height;
+            fps = st.fps;
+        }
+    qInfo("VEDIT 4K export: %dx%d %.2f fps %.2f s %.1f MB", w, h, fps, drift::usToSeconds(info.durationUs),
+          QFileInfo(out).size() / 1e6);
+    QCOMPARE(w, 2160);
+    QCOMPARE(h, 3840);
+    // The average rate is frames ÷ container length, and the container leaves the last frame's
+    // own 1/60 s out of its length — so count the frames and read the stream's declared rate.
+    const QString ffprobe = QStandardPaths::findExecutable(QStringLiteral("ffprobe"));
+    if (!ffprobe.isEmpty()) {
+        QProcess probe;
+        probe.start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-select_streams"),
+                              QStringLiteral("v:0"), QStringLiteral("-count_frames"), QStringLiteral("-show_entries"),
+                              QStringLiteral("stream=nb_read_frames,r_frame_rate"), QStringLiteral("-of"),
+                              QStringLiteral("default=nw=1"), out});
+        QVERIFY(probe.waitForFinished(120000));
+        const QString text = QString::fromUtf8(probe.readAllStandardOutput());
+        qInfo("VEDIT 4K frames: %s", qPrintable(text.simplified()));
+        QVERIFY2(text.contains(QStringLiteral("r_frame_rate=60/1")), qPrintable(text));
+        const QRegularExpressionMatch n = QRegularExpression(QStringLiteral("nb_read_frames=([0-9]+)")).match(text);
+        QVERIFY2(n.hasMatch() && std::abs(n.captured(1).toInt() - 60) <= 1, qPrintable(text));
+    } else {
+        QVERIFY2(std::abs(fps - 60.0) < 1.5, qPrintable(QString::number(fps)));
+    }
+    QVERIFY2(std::abs(drift::usToSeconds(info.durationUs) - 1.0) < 0.1,
+             qPrintable(QString::number(drift::usToSeconds(info.durationUs))));
+
+    ClipReader reader;
+    QVERIFY(reader.open(out));
+    QImage frame;
+    QVERIFY(reader.readVideoFrameAt(drift::secondsToUs(0.5), frame, 2160, 3840));
+    frame = frame.convertToFormat(QImage::Format_RGB32);
+    const double sx = frame.width() / 1080.0, sy = frame.height() / 1920.0;
+    const QColor red(frame.pixel(int(540 * sx), int(1500 * sy)));
+    QVERIFY2(red.red() > 180 && red.blue() < 70, qPrintable(red.name()));
+    int white = 0;
+    for (int y = int(300 * sy); y < int(700 * sy); y += 2)
+        for (int x = 0; x < frame.width(); x += 2)
+            if (qGray(frame.pixel(x, y)) > 200)
+                ++white;
+    QVERIFY2(white > 2000, qPrintable(QStringLiteral("white text pixels %1").arg(white)));
+#endif
+}
+
+
+// VEDIT 소리로 맞추기 1회차: the same "room" (speech-like bursts over a hum) heard by two cameras —
+// the second starts 3.217 s later, records 60% as loud, with its own hiss and a different length.
+// The lag comes back within 2 ms and with confidence; two unrelated recordings are refused; a
+// camera that started first (negative lag) works the same way round.
+void EngineTest::vedit_audioSyncFindsTheLag()
+{
+    constexpr int sr = 16000;
+    std::mt19937 rng(7);
+    std::normal_distribution<float> noise(0.0f, 1.0f);
+    std::uniform_real_distribution<double> uni(0.0, 1.0);
+    const auto room = [&](double seconds, unsigned seed) {
+        std::mt19937 r(seed);
+        std::uniform_real_distribution<double> u(0.0, 1.0);
+        std::normal_distribution<float> n(0.0f, 1.0f);
+        std::vector<float> v(size_t(seconds * sr));
+        size_t t = 0;
+        while (t < v.size()) { // bursts of 80–400 ms with 50–600 ms of quiet between
+            const size_t len = size_t((0.08 + 0.32 * u(r)) * sr);
+            const double amp = 0.2 + 0.6 * u(r);
+            for (size_t i = 0; i < len && t + i < v.size(); ++i) {
+                const double env = std::sin(M_PI * double(i) / len);
+                v[t + i] += float(amp * env * n(r));
+            }
+            t += len + size_t((0.05 + 0.55 * u(r)) * sr);
+        }
+        for (size_t i = 0; i < v.size(); ++i)
+            v[i] += float(0.02 * std::sin(2 * M_PI * 60.0 * double(i) / sr)); // mains hum
+        return v;
+    };
+    const std::vector<float> scene = room(40.0, 11);
+    const auto cut = [&](double from, double seconds, double gain, double hiss) {
+        std::vector<float> v(size_t(seconds * sr));
+        for (size_t i = 0; i < v.size(); ++i) {
+            const size_t j = size_t(from * sr) + i;
+            v[i] = float(gain * (j < scene.size() ? scene[j] : 0.0f) + hiss * noise(rng));
+        }
+        return v;
+    };
+    const std::vector<float> camA = cut(0.0, 30.0, 1.0, 0.01);
+    const std::vector<float> camB = cut(3.217, 25.0, 0.6, 0.04);
+    QElapsedTimer timer;
+    timer.start();
+    const drift::AudioSyncResult r = drift::findAudioLag(camA, camB, sr);
+    qInfo("VEDIT audio sync: lag %.4f s (expect 3.2170), confidence %.2f, %lld ms", r.lagSeconds, r.confidence,
+          timer.elapsed());
+    QVERIFY(r.ok);
+    QVERIFY2(std::abs(r.lagSeconds - 3.217) < 0.002, qPrintable(QString::number(r.lagSeconds, 'f', 4)));
+
+    // the other way round: camera B started first
+    const drift::AudioSyncResult back = drift::findAudioLag(camB, camA, sr);
+    QVERIFY(back.ok);
+    QVERIFY2(std::abs(back.lagSeconds + 3.217) < 0.002, qPrintable(QString::number(back.lagSeconds, 'f', 4)));
+
+    // two different rooms: no answer
+    const std::vector<float> elsewhere = room(25.0, 99);
+    const drift::AudioSyncResult none = drift::findAudioLag(camA, elsewhere, sr);
+    qInfo("VEDIT audio sync unrelated: confidence %.2f", none.confidence);
+    QVERIFY2(!none.ok, qPrintable(QString::number(none.confidence)));
+}

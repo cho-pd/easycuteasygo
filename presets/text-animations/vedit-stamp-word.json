@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "vedit-stamp-word",
+  "label": "Stamp by word",
+  "category": "word",
+  "sampleText": "Stamp it",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 316,
+  "defaults": {
+    "unit": "word",
+    "stagger": 0.15,
+    "duration": 0.3,
+    "ease": "easeIn"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "scale": 260,
+        "opacity": 0
+      }
+    }
+  ]
+}

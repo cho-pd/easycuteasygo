@@ -18,7 +18,7 @@ struct TransitionPresetEntry
     drift::EffectPresetMeta meta;        // id, displayName, category, parameters[]
     drift::GpuEffectDefinition gpu;
     QMap<QString, QVariant> fixedParams; // always applied, not exposed as sliders
-    QString audioCurve;                  // "crossfade" (default) | "dip" | "hold"
+    QString audioCurve;                  // "crossfade" (default, equal-power) | "linear" | "dip" | "hold"
     QString previewStripPath;            // absolute path to the horizontal sprite-sheet (optional)
     int previewFrames = 0;               // number of cells in the strip
     int catalogOrder = 0;

@@ -1,4 +1,5 @@
 #include "TextStyle.h"
+#include "VeditTextArt.h" // VEDIT
 
 #include "Effect.h"
 #include "TextAnimationPreset.h"
@@ -263,6 +264,128 @@ QList<TextPreset> buildPresets()
     };
     const auto byWord = [] { return QMap<QString, VectorSlotValue>{{QStringLiteral("unit"), txt("word")}}; };
     const auto byChar = [] { return QMap<QString, VectorSlotValue>{{QStringLiteral("unit"), txt("character")}}; };
+
+    // VEDIT: Korean styles first, set in the bundled Korean fonts (fonts.korean, OFL) — the Latin
+    // families below fall back to a system face for Hangul and lose their look.
+    {
+        TextStyle s;
+        s.fontFamily = QStringLiteral("검은고딕");
+        s.pixelSize = 110;
+        s.fontWeight = 400;
+        s.layers = {legacyShadow(true, QColor(0, 0, 0), 0.0, 6.0, 14.0, 0.5), legacyStroke(4.0),
+                    solidFillLayer(Qt::white)};
+        s.animation.in = presetSlot("pop", 0.35, "back");
+        s.animation.out = presetSlot("fade", 0.3, "easeIn");
+        add("ko-title", "Big title", s, "Big title sample");
+    }
+    {
+        TextStyle s;
+        s.fontFamily = QStringLiteral("Pretendard");
+        s.pixelSize = 46;
+        s.fontWeight = 600;
+        s.valign = TextVAlign::Bottom;
+        s.boxEnabled = true;
+        s.boxColor = QColor(0, 0, 0, 150);
+        s.boxPadding = 12.0;
+        s.boxRadius = 8.0;
+        s.layers = {solidFillLayer(Qt::white)};
+        s.animation.in = presetSlot("fade", 0.3, "easeOut");
+        s.animation.out = presetSlot("fade", 0.25, "easeIn");
+        add("ko-subtitle", "Bottom caption", s, "Bottom caption sample");
+    }
+    {
+        TextStyle s;
+        s.fontFamily = QStringLiteral("Pretendard");
+        s.pixelSize = 44;
+        s.fontWeight = 800;
+        s.align = TextAlign::Left;
+        s.valign = TextVAlign::Bottom;
+        s.boxEnabled = true;
+        s.boxColor = QColor(255, 212, 0, 240);
+        s.boxPadding = 12.0;
+        s.boxRadius = 2.0;
+        s.layers = {solidFillLayer(QColor(20, 20, 20))};
+        s.animation.in = presetSlot("slide-right", 0.45, "easeOut");
+        s.animation.out = presetSlot("slide-left", 0.35, "easeIn");
+        add("ko-news", "News caption", s, "News caption sample");
+    }
+    {
+        TextStyle s;
+        s.fontFamily = QStringLiteral("나눔손글씨 펜");
+        s.pixelSize = 96;
+        s.fontWeight = 400;
+        s.layers = {legacyShadow(true, QColor(0, 0, 0), 0.0, 4.0, 8.0), solidFillLayer(Qt::white)};
+        s.animation.in = presetSlot("typewriter", 0.4, "linear", {{QStringLiteral("stagger"), num(0.09)}});
+        s.animation.out = presetSlot("fade", 0.4, "easeIn");
+        add("ko-handwriting", "Handwriting", s, "Handwriting sample");
+    }
+    {
+        TextStyle s;
+        s.fontFamily = QStringLiteral("나눔손글씨 붓");
+        s.pixelSize = 120;
+        s.fontWeight = 400;
+        s.layers = {legacyGlow(true, QColor(255, 255, 255), 12.0, 0.3), legacyShadow(true, QColor(0, 0, 0), 0.0, 4.0, 8.0),
+                    solidFillLayer(Qt::white)};
+        s.animation.in = presetSlot("blur-in", 0.7, "easeOut");
+        s.animation.out = presetSlot("fade", 0.5, "easeIn");
+        add("ko-brush", "Brush writing", s, "Brush writing sample");
+    }
+    {
+        TextStyle s;
+        s.fontFamily = QStringLiteral("주아");
+        s.pixelSize = 88;
+        s.fontWeight = 400;
+        s.layers = {strokeLayer(9.0, QColor(90, 40, 60), QStringLiteral("outline")), strokeLayer(5.0, Qt::white),
+                    gradientFillLayer("candy", 0.0, TextGradientSpace::Word)};
+        s.animation.in = presetSlot("vedit-pop-char", 0.35, "back", byChar());
+        s.animation.out = presetSlot("shrink", 0.3, "easeIn");
+        add("ko-cute", "Cute", s, "Cute sample");
+    }
+    {
+        TextStyle s;
+        s.fontFamily = QStringLiteral("고운바탕");
+        s.pixelSize = 76;
+        s.fontWeight = 700;
+        s.letterSpacing = 2.0;
+        s.layers = {legacyShadow(true, QColor(0, 0, 0), 0.0, 5.0, 12.0, 0.5), gradientFillLayer("gold", 90.0)};
+        s.animation.in = presetSlot("fade", 0.7, "easeOut");
+        s.animation.out = presetSlot("fade", 0.5, "easeIn");
+        add("ko-elegant", "Elegant", s, "Elegant sample");
+    }
+    {
+        TextStyle s;
+        s.fontFamily = QStringLiteral("도현");
+        s.pixelSize = 124;
+        s.fontWeight = 400;
+        s.letterSpacing = 2.0;
+        s.layers = {legacyShadow(true, QColor(0, 0, 0), 0.0, 8.0, 14.0), legacyStroke(4.0), gradientFillLayer("fire", 90.0)};
+        s.animation.in = presetSlot("stamp", 0.35, "easeIn");
+        s.animation.out = presetSlot("fade-scale", 0.4, "easeIn");
+        add("ko-poster", "Poster", s, "Poster sample");
+    }
+    {
+        TextStyle s;
+        s.fontFamily = QStringLiteral("나눔명조");
+        s.pixelSize = 80;
+        s.fontWeight = 800;
+        s.lineHeight = 1.3;
+        s.layers = {legacyGlow(true, QColor(255, 236, 190), 16.0, 0.4), solidFillLayer(Qt::white)};
+        s.animation.in = presetSlot("vedit-blur-zoom", 0.8, "easeOut");
+        s.animation.out = presetSlot("fade", 0.5, "easeIn");
+        add("ko-greeting", "Greeting", s, "Greeting sample");
+    }
+    {
+        TextStyle s;
+        s.fontFamily = QStringLiteral("주아");
+        s.pixelSize = 100;
+        s.fontWeight = 400;
+        s.layers = {legacyShadow(true, QColor(0, 0, 0), 0.0, 6.0, 10.0), strokeLayer(5.0, Qt::white),
+                    gradientFillLayer("rainbow", 0.0, TextGradientSpace::Word)};
+        s.animation.in = presetSlot("vedit-spring-word", 0.5, "back", byWord());
+        s.animation.out = presetSlot("fade", 0.3, "easeIn");
+        s.animation.loop = loopSlot("vedit-beat-word");
+        add("ko-celebrate", "Celebrate", s, "Celebrate sample");
+    }
 
     {
         TextStyle s;
@@ -732,6 +855,11 @@ std::optional<TextPreset> textPresetForId(const QString &id)
         if (preset.id == id)
             return preset;
     }
+    // VEDIT: the bubbles and word art of the text page (not in the style list).
+    for (const QList<TextPreset> *list : {&veditBubblePresets(), &veditWordArtPresets()})
+        for (const TextPreset &preset : *list)
+            if (preset.id == id)
+                return preset;
     return std::nullopt;
 }
 
@@ -811,7 +939,7 @@ const QStringList &flatKeyframeKeys()
 {
     static const QStringList keys{QStringLiteral("pixelSize"), QStringLiteral("letterSpacing"),
                                   QStringLiteral("lineHeight"), QStringLiteral("boxPadding"),
-                                  QStringLiteral("pathBend")};
+                                  QStringLiteral("boxPaddingY"), QStringLiteral("pathBend")};
     return keys;
 }
 
@@ -876,6 +1004,8 @@ QString textKeyframeLabel(const QString &key, const TextStyle &s)
         return QCoreApplication::translate("TextStyle", "Line height");
     if (canonical == QLatin1String("boxPadding"))
         return QCoreApplication::translate("TextStyle", "Box padding");
+    if (canonical == QLatin1String("boxPaddingY")) // VEDIT
+        return QCoreApplication::translate("TextStyle", "Box padding (top and bottom)");
     if (canonical == QLatin1String("pathBend"))
         return QCoreApplication::translate("TextStyle", "Bend");
     return shadingLayerKeyframeLabel(s.layers, canonical.isEmpty() ? key : canonical);
@@ -894,6 +1024,8 @@ bool textStyleScalar(const TextStyle &s, const QString &rawKey, double *out)
         *out = s.lineHeight;
     else if (key == QStringLiteral("boxPadding"))
         *out = s.boxPadding;
+    else if (key == QStringLiteral("boxPaddingY")) // VEDIT
+        *out = s.verticalBoxPadding();
     else if (key == QStringLiteral("pathBend"))
         *out = s.pathBend;
     else {
@@ -917,6 +1049,8 @@ bool setTextStyleScalar(TextStyle &s, const QString &rawKey, double value)
         s.lineHeight = value;
     else if (key == QStringLiteral("boxPadding"))
         s.boxPadding = qMax(0.0, value);
+    else if (key == QStringLiteral("boxPaddingY")) // VEDIT
+        s.boxPaddingY = qMax(0.0, value);
     else if (key == QStringLiteral("pathBend"))
         s.pathBend = qBound(-100.0, value, 100.0);
     else {
@@ -978,7 +1112,11 @@ QJsonObject textStyleToJson(const TextStyle &s)
         {QStringLiteral("boxEnabled"), s.boxEnabled},
         {QStringLiteral("boxColor"), s.boxColor.name(QColor::HexArgb)},
         {QStringLiteral("boxPadding"), s.boxPadding},
+        {QStringLiteral("boxPaddingY"), s.boxPaddingY}, // VEDIT
         {QStringLiteral("boxRadius"), s.boxRadius},
+        {QStringLiteral("bubbleShape"), s.bubbleShape}, // VEDIT
+        {QStringLiteral("bubbleBorderColor"), s.bubbleBorderColor.name(QColor::HexArgb)}, // VEDIT
+        {QStringLiteral("bubbleBorderWidth"), s.bubbleBorderWidth}, // VEDIT
         {QStringLiteral("wordHighlight"), textHighlightToJson(s.wordHighlight)},
         {QStringLiteral("underlineEnabled"), s.underlineEnabled},
         {QStringLiteral("underlineColor"), s.underlineColor.name(QColor::HexArgb)},
@@ -1083,7 +1221,13 @@ TextStyle textStyleFromJson(const QJsonObject &o)
     s.boxEnabled = o.value(QStringLiteral("boxEnabled")).toBool(s.boxEnabled);
     s.boxColor = QColor(o.value(QStringLiteral("boxColor")).toString(s.boxColor.name(QColor::HexArgb)));
     s.boxPadding = o.value(QStringLiteral("boxPadding")).toDouble(s.boxPadding);
+    s.boxPaddingY = o.value(QStringLiteral("boxPaddingY")).toDouble(s.boxPaddingY); // VEDIT
     s.boxRadius = o.value(QStringLiteral("boxRadius")).toDouble(s.boxRadius);
+    // VEDIT: 말풍선
+    s.bubbleShape = o.value(QStringLiteral("bubbleShape")).toString(s.bubbleShape);
+    s.bubbleBorderColor =
+        QColor(o.value(QStringLiteral("bubbleBorderColor")).toString(s.bubbleBorderColor.name(QColor::HexArgb)));
+    s.bubbleBorderWidth = o.value(QStringLiteral("bubbleBorderWidth")).toDouble(s.bubbleBorderWidth);
     s.wordHighlight =
         textHighlightFromJson(o.value(QStringLiteral("wordHighlight")).toObject(), s.wordHighlight);
     s.underlineEnabled = o.value(QStringLiteral("underlineEnabled")).toBool(s.underlineEnabled);

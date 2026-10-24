@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "id": "vedit-slide-word",
+  "label": "Slide by word",
+  "category": "word",
+  "sampleText": "Slide word",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 308,
+  "defaults": {
+    "unit": "word",
+    "stagger": 0.12,
+    "duration": 0.45,
+    "ease": "easeOut"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "position": {
+          "x": 1.5,
+          "y": 0,
+          "unit": "em"
+        },
+        "opacity": 0
+      }
+    }
+  ]
+}

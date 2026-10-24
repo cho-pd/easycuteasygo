@@ -1,0 +1,36 @@
+{
+  "id": "space.room",
+  "displayName": "Small room",
+  "category": "space",
+  "icon": "audio-lines",
+  "order": 400,
+  "backend": "juce",
+  "processor": "reverb",
+  "prerollMs": 0,
+  "parameters": [
+    {
+      "identifier": "room",
+      "displayName": "Room size",
+      "type": "float",
+      "minValue": 0.0,
+      "maxValue": 1.0,
+      "defaultValue": 0.35
+    },
+    {
+      "identifier": "wet",
+      "displayName": "Amount",
+      "type": "float",
+      "minValue": 0.0,
+      "maxValue": 1.0,
+      "defaultValue": 0.25
+    },
+    {
+      "identifier": "damping",
+      "displayName": "Darkness",
+      "type": "float",
+      "minValue": 0.0,
+      "maxValue": 1.0,
+      "defaultValue": 0.5
+    }
+  ]
+}

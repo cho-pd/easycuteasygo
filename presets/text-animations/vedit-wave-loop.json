@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "id": "vedit-wave-loop",
+  "label": "Wave by letter",
+  "category": "character",
+  "sampleText": "Wave wave",
+  "slots": [
+    "loop"
+  ],
+  "order": 324,
+  "animators": [
+    {
+      "selectors": [
+        {
+          "driver": "wiggle",
+          "domain": "character",
+          "wave": "sine",
+          "frequencyHz": 1.0,
+          "spatialPhaseDeg": 40,
+          "minAmount": -100,
+          "maxAmount": 100
+        }
+      ],
+      "props": {
+        "position": {
+          "x": 0,
+          "y": -0.25,
+          "unit": "em"
+        }
+      }
+    }
+  ]
+}

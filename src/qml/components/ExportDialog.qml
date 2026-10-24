@@ -22,6 +22,31 @@ ThemedDialog {
     property int audioBitrateKbps: 192
     property bool advancedOpen: false
     property bool exportWorkAreaOnly: false
+    // VEDIT: the purpose card picked last ("" = none / changed by hand).
+    property string purposeId: ""
+
+    function applyPurpose(p) {
+        purposeId = p.id
+        let pick = null
+        for (let i = 0; i < scaleOptions.length; ++i) {
+            if (scaleOptions[i].id === p.scale)
+                pick = scaleOptions[i]
+        }
+        if (!pick) { // e.g. 720p on a project that is already smaller: keep the original size
+            for (let j = 0; j < scaleOptions.length; ++j) {
+                if (scaleOptions[j].id === "source")
+                    pick = scaleOptions[j]
+            }
+        }
+        if (pick) {
+            scaleId = pick.id
+            targetHeight = pick.targetHeight
+        }
+        videoBitrateKbps = p.kbps
+        // VEDIT: a purpose means a known size (KakaoTalk!) — encode at its bitrate, not by quality.
+        if (videoSupportsBitrate)
+            rateControl = "bitrate"
+    }
 
     // Export frame rate. fpsNum 0 means "follow the project fps". Rational so the
     // NTSC rates (30000/1001 and friends) survive the round-trip.
@@ -435,8 +460,45 @@ ThemedDialog {
                     text: qsTr("Saves what you see in the preview. Pick a size — the picture shape stays the same.")
                 }
 
+                // VEDIT: start from the purpose, CapCut/senior style — one tap sets size and quality.
                 ThemedLabel {
-                    text: qsTr("Downscale")
+                    text: "어디에 쓰실 건가요?"
+                }
+
+                Flow {
+                    width: parent.width
+                    spacing: Theme.spacingMd
+
+                    Repeater {
+                        model: [
+                            { id: "kakao", label: "카카오톡으로 보내기", scale: "720p", kbps: 5000 },
+                            { id: "youtube", label: "유튜브에 올리기", scale: "1080p", kbps: 12000 },
+                            { id: "keep", label: "내 컴퓨터에 보관", scale: "source", kbps: 20000 },
+                            { id: "tv", label: "TV에서 보기", scale: "1080p", kbps: 16000 }
+                        ]
+                        delegate: ThemedChip {
+                            required property var modelData
+                            text: modelData.label
+                            selected: root.purposeId === modelData.id
+                            onClicked: root.applyPurpose(modelData)
+                        }
+                    }
+                }
+
+                // VEDIT: 예상 크기 — know before saving whether it will fit a KakaoTalk message.
+                ThemedLabel {
+                    readonly property bool exact: root.rateControl === "bitrate"
+                    readonly property real mb: EditorState.estimatedExportMegabytes(
+                        root.videoBitrateKbps, root.audioBitrateKbps, root.targetHeight, exact,
+                        root.exportWorkAreaOnly && EditorState.workAreaActive
+                            ? EditorState.workAreaOutSeconds - EditorState.workAreaInSeconds : -1)
+                    visible: mb > 0
+                    text: "예상 크기: 약 " + (mb >= 1000 ? (mb / 1000).toFixed(1) + "GB" : Math.max(1, Math.round(mb)) + "MB")
+                          + (exact ? "" : " (대략)")
+                }
+
+                ThemedLabel {
+                    text: "해상도" // VEDIT: was "Downscale" — 2K/4K can upscale now
                 }
 
                 Flow {
@@ -452,6 +514,7 @@ ThemedDialog {
                             selected: root.scaleId === modelData.id
                             tooltip: qsTr("Export at %1×%2").arg(modelData.width).arg(modelData.height)
                             onClicked: {
+                                root.purposeId = "" // VEDIT: picked by hand now
                                 root.scaleId = modelData.id
                                 root.targetHeight = modelData.targetHeight
                                 if (modelData.videoBitrateKbps)
@@ -640,7 +703,8 @@ ThemedDialog {
                                 from: 0
                                 to: 51
                                 stepSize: 1
-                                value: root.crf
+                                defaultValue: 18 // VEDIT
+                                Binding on value { value: root.crf } // VEDIT: survives a reset
                                 valueFormatter: function (v) { return qsTr("RF %1").arg(Math.round(v)) }
                                 onMoved: root.crf = Math.round(value)
                             }

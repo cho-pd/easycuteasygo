@@ -51,7 +51,8 @@ target_include_directories(tst_editorstate PRIVATE ../src)
 target_link_libraries(tst_editorstate PRIVATE Qt6::Test Qt6::Gui Qt6::Quick Qt6::Multimedia Qt6::Concurrent Qt6::Network driftcore driftengine)
 target_compile_definitions(tst_editorstate PRIVATE
     DRIFT_TEST_DENOISE_MODEL_DIR="${CMAKE_SOURCE_DIR}/models/deepfilternet3"
-    DRIFT_VERSION="${PROJECT_VERSION}")
+    DRIFT_VERSION="${PROJECT_VERSION}"
+    VEDIT_TEST_BUNDLED_DIR="${CMAKE_SOURCE_DIR}/../bundled-addons") # VEDIT
 add_test(NAME EditorState COMMAND tst_editorstate)
 drift_copy_effects(tst_editorstate)
 drift_copy_audio_effects(tst_editorstate)
@@ -127,6 +128,7 @@ target_compile_definitions(tst_engine PRIVATE
     DRIFT_TEST_ADDON_EFFECTS_DIR="${CMAKE_SOURCE_DIR}/../drift-addons/staging/effects-core/effects"
     DRIFT_TEST_TRANSITIONS_DIR="${CMAKE_SOURCE_DIR}/transitions"
     DRIFT_TEST_FONTS_DIR="${CMAKE_SOURCE_DIR}/fonts"
+    VEDIT_TEST_BUNDLED_DIR="${CMAKE_SOURCE_DIR}/../bundled-addons" # VEDIT: the fonts the app ships
     DRIFT_TEST_EMOJI_FONT_DIR="${CMAKE_SOURCE_DIR}/emoji-fonts"
     DRIFT_TEST_AUDIO_EFFECTS_DIR="${CMAKE_SOURCE_DIR}/audio-effects"
     DRIFT_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"

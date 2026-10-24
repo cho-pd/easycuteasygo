@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "vedit-rotate-word",
+  "label": "Turn by word",
+  "category": "word",
+  "sampleText": "Turn word",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 309,
+  "defaults": {
+    "unit": "word",
+    "stagger": 0.12,
+    "duration": 0.5,
+    "ease": "easeOut"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "rotation": 90,
+        "opacity": 0
+      }
+    }
+  ]
+}

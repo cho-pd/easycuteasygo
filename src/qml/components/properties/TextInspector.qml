@@ -178,7 +178,11 @@ Item {
     function applyText() {
         if (!root.hasSelection || root.clipKind !== "text" || root.clipData.id !== root.contentClipId)
             return
-        EditorState.commitTextEdit(EditorState.selectedTrack, EditorState.selectedClip, textContentField.text)
+        // VEDIT: through the basic-text path, so the box hugs the new words (CapCut).
+        if (textContentField.text.length > 0)
+            EditorState.setTextBasics(EditorState.selectedTrack, EditorState.selectedClip, { "text": textContentField.text })
+        else
+            EditorState.commitTextEdit(EditorState.selectedTrack, EditorState.selectedClip, textContentField.text)
     }
 
     // Lands a freshly added text clip in its content field, where the inline editor used to open.
@@ -246,7 +250,8 @@ Item {
             return
         }
         root.setSlot({ "preset": id })
-        root.seekToSlotStart()
+        // VEDIT: CapCut plays a picked animation at once.
+        Qt.callLater(root.previewAnimation)
     }
     // Plays the slot from its start and stops once the last unit has finished.
     function previewAnimation() {
@@ -299,6 +304,8 @@ Item {
         const s = root.textStyle
         if (boxPaddingField && !boxPaddingField.activeFocus)
             boxPaddingField.value = s.boxPadding
+        if (boxPaddingYField && !boxPaddingYField.activeFocus) // VEDIT
+            boxPaddingYField.value = (s.boxPaddingY !== undefined && s.boxPaddingY >= 0) ? s.boxPaddingY : s.boxPadding
         if (boxRadiusField && !boxRadiusField.activeFocus)
             boxRadiusField.value = s.boxRadius
         if (wordHighlightPaddingField && !wordHighlightPaddingField.activeFocus)
@@ -342,23 +349,83 @@ Item {
         width: root.width
         spacing: Theme.spacingMd
 
+        // VEDIT (조박사님 2026-10-21, CapCut): two top tabs — 텍스트 · 애니메이션 — and inside 텍스트
+        // the three-cell bar 기본 · 말풍선 · 편집효과. The layer-by-layer style page (our extra)
+        // folds in at the foot of 편집효과.
         Row {
-            id: textTabRow
-            width: parent.width
-            spacing: Theme.spacingSm
-
+            id: textTopTabs
+            spacing: 18
             Repeater {
-                model: [
-                    { "id": "text", "label": qsTr("Text") },
-                    { "id": "style", "label": qsTr("Style") },
-                    { "id": "animate", "label": qsTr("Animate") }
-                ]
-                delegate: ThemedToggleButton {
+                model: [{ "id": "text", "label": qsTr("Text") }, { "id": "animate", "label": qsTr("Animation") }]
+                delegate: Item {
                     required property var modelData
-                    width: (textTabRow.width - textTabRow.spacing * 2) / 3
-                    text: modelData.label
-                    checked: root.textTab === modelData.id
-                    onClicked: root.textTab = modelData.id
+                    readonly property bool current: modelData.id === "animate" ? root.textTab === "animate"
+                                                                                : root.textTab !== "animate"
+                    width: topTabLabel.implicitWidth
+                    height: 28
+                    Text {
+                        id: topTabLabel
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.label
+                        color: parent.current ? Theme.primary : Theme.panelForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSm
+                        font.weight: parent.current ? Font.DemiBold : Font.Normal
+                    }
+                    Rectangle {
+                        visible: parent.current
+                        anchors.bottom: parent.bottom
+                        width: parent.width
+                        height: 2
+                        color: Theme.primary
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.textTab = parent.modelData.id === "animate" ? "animate" : "text"
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            id: textTabRow
+            visible: root.textTab !== "animate"
+            width: parent.width
+            height: 28
+            radius: Theme.radiusSm
+            color: Theme.panelAccent
+            Row {
+                anchors.fill: parent
+                anchors.margins: 2
+                Repeater {
+                    id: textTabRepeater
+                    model: [
+                        { "id": "text", "label": qsTr("Basic") },
+                        { "id": "bubble", "label": qsTr("Speech bubble") },
+                        { "id": "art", "label": qsTr("Word art") }
+                    ]
+                    delegate: Rectangle {
+                        required property var modelData
+                        readonly property bool current: root.textTab === modelData.id
+                                                        || (modelData.id === "art" && root.textTab === "style")
+                        width: (textTabRow.width - 4) / textTabRepeater.count
+                        height: parent.height
+                        radius: Theme.radiusSm - 1
+                        color: current ? Qt.lighter(Theme.panelAccent, 1.6) : "transparent"
+                        Text {
+                            anchors.centerIn: parent
+                            text: modelData.label
+                            color: parent.current ? Theme.panelForeground : Theme.mutedForeground
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSm
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.textTab = parent.modelData.id
+                        }
+                    }
                 }
             }
         }
@@ -380,8 +447,24 @@ Item {
                     width: parent.width
                     height: root.contentFieldHeight
                     clip: true
+                    font.pixelSize: 13 // VEDIT: CapCut-sized
                     placeholderText: qsTr("Type your text…")
                     onEditingFinished: root.applyText()
+                    // VEDIT: CapCut — the words change on the picture as they are typed (a short
+                    // pause after the last key), no Apply press needed.
+                    onTextChanged: {
+                        if (activeFocus)
+                            liveTypingTimer.restart()
+                    }
+                }
+
+                Timer {
+                    id: liveTypingTimer
+                    interval: 350
+                    onTriggered: {
+                        if (root.contentDirty && textContentField.text.length > 0)
+                            root.applyText()
+                    }
                 }
 
                 // Drag grip: the field grows and shrinks with it.
@@ -422,6 +505,7 @@ Item {
                 }
 
                 ThemedButton {
+                    visible: false // VEDIT: typing applies by itself
                     width: parent.width
                     variant: "primary"
                     glyph: Theme.icons.check
@@ -432,11 +516,17 @@ Item {
                 }
             }
 
+            // VEDIT: CapCut's basic text page replaces the font and spacing blocks below.
+            TextBasicsPanel {
+                width: parent.width
+                visible: root.hasTextStyle
+            }
+
             CollapsibleSection {
                 width: parent.width
                 title: qsTr("Font")
                 collapsible: false
-                visible: root.hasTextStyle
+                visible: false // VEDIT: TextBasicsPanel
 
                 Text {
                     text: qsTr("Font")
@@ -483,6 +573,63 @@ Item {
                         sliderTo: 500
                         unit: "px"
                     }
+                }
+
+                // VEDIT: 드래그 없이 글자 크기 — four sizes that read well on a TV or a phone.
+                Flow {
+                    width: parent.width
+                    spacing: 6
+                    Repeater {
+                        model: [{ px: 40, label: qsTr("Small") }, { px: 52, label: qsTr("Normal") },
+                                { px: 72, label: qsTr("Large") }, { px: 100, label: qsTr("Extra large") }]
+                        delegate: ThemedChip {
+                            required property var modelData
+                            text: modelData.label
+                            selected: Number(root.textStyle.pixelSize) === modelData.px
+                            onClicked: root.setTextStyleKey("pixelSize", modelData.px)
+                        }
+                    }
+                }
+
+                // VEDIT: 드래그 없이 글자 색 — five colours that read well, one press each (48 px targets).
+                Flow {
+                    width: parent.width
+                    spacing: 8
+                    Repeater {
+                        model: [{ hex: "#ffffffff", label: qsTr("White") }, { hex: "#ffffd640", label: qsTr("Yellow") },
+                                { hex: "#ff111111", label: qsTr("Black") }, { hex: "#ffe62828", label: qsTr("Red") },
+                                { hex: "#ff4fc3f7", label: qsTr("Sky blue") }]
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: 48
+                            height: 48
+                            radius: 24
+                            color: modelData.hex
+                            border.width: String(root.frontFillColor).toLowerCase() === modelData.hex ? 3 : 1
+                            border.color: String(root.frontFillColor).toLowerCase() === modelData.hex
+                                          ? Theme.focusRing : Theme.panelBorder
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
+                                onClicked: root.setTextStyleKey("color", parent.modelData.hex)
+                                ToolTip.visible: containsMouse
+                                ToolTip.delay: 400
+                                ToolTip.text: parent.modelData.label
+                            }
+                        }
+                    }
+                }
+
+                // VEDIT: 글자 뒤 어두운 상자 — the readability switch, out where it can be found (it
+                // also lives folded away under Decoration › Background).
+                ThemedChip {
+                    text: qsTr("Dark box behind the words")
+                    selected: root.textStyle.boxEnabled === true
+                    onClicked: EditorState.setTextStyle(EditorState.selectedTrack, EditorState.selectedClip,
+                                                        root.textStyle.boxEnabled === true
+                                                            ? { "boxEnabled": false }
+                                                            : { "boxEnabled": true, "boxColor": "#99000000" })
                 }
 
                 Row {
@@ -587,7 +734,7 @@ Item {
                             required property var modelData
                             width: 34
                             glyph: modelData.glyph
-                            checked: root.textStyle.valign === modelData.value
+                            checked: root.textStyle.valign === (modelData.value === "middle" ? "center" : modelData.value) // VEDIT
                             tooltip: modelData.label
                             onClicked: root.setTextStyleKey("valign", modelData.value)
                         }
@@ -600,7 +747,7 @@ Item {
                 title: qsTr("Spacing")
                 tooltip: qsTr("Line height, letter spacing, wrapping and bend")
                 expanded: false
-                visible: root.hasTextStyle
+                visible: false // VEDIT: TextBasicsPanel
 
                 Row {
                     width: parent.width
@@ -660,6 +807,48 @@ Item {
             }
         }
 
+        TextGalleryPanel { // VEDIT: 말풍선
+            width: parent.width
+            kind: "bubble"
+            visible: root.textTab === "bubble" && root.hasTextStyle
+        }
+
+        TextGalleryPanel { // VEDIT: 편집효과 (the layer page opens below it)
+            width: parent.width
+            kind: "art"
+            visible: (root.textTab === "art" || root.textTab === "style") && root.hasTextStyle
+        }
+
+        // VEDIT: the layer page, folded in under 편집효과 (it used to be a fourth tab).
+        Item {
+            visible: (root.textTab === "art" || root.textTab === "style") && root.hasTextStyle
+            width: parent.width
+            height: 28
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 6
+                IconGlyph {
+                    anchors.verticalCenter: parent.verticalCenter
+                    glyph: root.textTab === "style" ? Theme.icons.chevronDown : Theme.icons.chevronRight
+                    iconSize: 12
+                    iconColor: Theme.mutedForeground
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Advanced style (layers)")
+                    color: Theme.panelForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSm
+                    font.weight: Font.Medium
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.textTab = root.textTab === "style" ? "art" : "style"
+            }
+        }
+
         Column {
             width: parent.width
             spacing: Theme.spacingMd
@@ -702,17 +891,68 @@ Item {
                                                             .arg(EditorState.userTextPresets().length + 1))
                 }
 
+                // VEDIT: 자막 위치 — the whole caption band to the top, middle or bottom of the screen.
+                Text {
+                    visible: root.clipKind === "subtitle"
+                    text: qsTr("Caption position")
+                    color: Theme.panelForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSm
+                }
+                Flow {
+                    visible: root.clipKind === "subtitle"
+                    width: parent.width
+                    spacing: 6
+                    Repeater {
+                        model: [{ id: "top", label: qsTr("Top") }, { id: "middle", label: qsTr("Middle") },
+                                { id: "bottom", label: qsTr("Bottom") }]
+                        delegate: ThemedChip {
+                            required property var modelData
+                            text: modelData.label
+                            // Middle is stored as "center".
+                            selected: root.textStyle.valign === (modelData.id === "middle" ? "center" : modelData.id)
+                            onClicked: EditorState.setCaptionPlacement(EditorState.selectedTrack,
+                                                                       EditorState.selectedClip, modelData.id)
+                        }
+                    }
+                }
+
+                // VEDIT: 긴 자막 나누기 — long caption lines become short single lines.
+                ThemedButton {
+                    width: parent.width
+                    visible: root.clipKind === "subtitle"
+                    variant: "secondary"
+                    glyph: Theme.icons.scissors
+                    text: qsTr("Split long captions")
+                    tooltip: qsTr("Breaks every caption longer than one short line into shorter ones")
+                    onClicked: EditorState.splitLongCaptions(EditorState.selectedTrack, EditorState.selectedClip)
+                }
+
+                // VEDIT: 글자 읽어주기 — a Windows voice speaks the words onto a new sound track.
+                ThemedButton {
+                    width: parent.width
+                    visible: root.clipKind === "text" || root.clipKind === "subtitle"
+                    variant: "secondary"
+                    glyph: Theme.icons.volumeHigh
+                    text: root.clipKind === "subtitle" ? qsTr("Read the captions aloud") : qsTr("Read the words aloud")
+                    tooltip: qsTr("A computer voice reads this text; the sound goes where the text starts")
+                    onClicked: EditorState.readTextAloud(EditorState.selectedTrack, EditorState.selectedClip)
+                }
+
                 Row {
                     width: parent.width
                     spacing: Theme.spacingSm
-                    visible: root.clipKind === "subtitle"
+                    // VEDIT: text clips too, not only captions.
+                    visible: root.clipKind === "subtitle" || root.clipKind === "text"
 
                     ThemedButton {
                         width: (parent.width - parent.spacing) * 0.6
                         variant: "secondary"
                         glyph: Theme.icons.captions
-                        text: qsTr("Apply to all captions")
-                        tooltip: qsTr("Copy this style to every other caption on this track")
+                        text: root.clipKind === "text" ? qsTr("Apply to all text") : qsTr("Apply to all captions")
+                        tooltip: root.clipKind === "text"
+                                 ? qsTr("Copy this look to every other text clip on this track")
+                                 : qsTr("Copy this style to every other caption on this track")
                         onClicked: EditorState.applyTextStyleToCaptions(
                                        EditorState.selectedTrack, EditorState.selectedClip, "track")
                     }
@@ -720,7 +960,9 @@ Item {
                         width: (parent.width - parent.spacing) * 0.4
                         variant: "secondary"
                         text: qsTr("…every track")
-                        tooltip: qsTr("Copy this style to every caption in the project")
+                        tooltip: root.clipKind === "text"
+                                 ? qsTr("Copy this look to every text clip in the project")
+                                 : qsTr("Copy this style to every caption in the project")
                         onClicked: EditorState.applyTextStyleToCaptions(
                                        EditorState.selectedTrack, EditorState.selectedClip, "project")
                     }
@@ -856,7 +1098,7 @@ Item {
                                 width: (parent.width - parent.spacing) / 2
                                 spacing: 4
                                 Text {
-                                    text: qsTr("Padding")
+                                    text: qsTr("Side padding") // VEDIT (조박사님, CapCut): sides and top/bottom apart
                                     HoverHandler { id: tipHover1088 }
                                     ThemedToolTip { text: qsTr("Space between the text and the edge of its background box"); visible: tipHover1088.hovered }
                                     color: Theme.mutedForeground
@@ -872,6 +1114,27 @@ Item {
                                     step: 1
                                     from: 0
                                     onEdited: v => root.setTextStyleKey("boxPadding", v)
+                                }
+                            }
+
+                            Column { // VEDIT (조박사님, CapCut)
+                                width: (parent.width - parent.spacing) / 2
+                                spacing: 4
+                                Text {
+                                    text: qsTr("Top and bottom padding")
+                                    color: Theme.mutedForeground
+                                    font.pixelSize: Theme.fontSizeXs
+                                    font.family: Theme.fontFamily
+                                }
+                                ThemedNumberField {
+                                    id: boxPaddingYField
+                                    to: 500
+                                    unit: "px"
+                                    width: parent.width
+                                    decimals: 1
+                                    step: 1
+                                    from: 0
+                                    onEdited: v => root.setTextStyleKey("boxPaddingY", v)
                                 }
                             }
 
@@ -1214,7 +1477,8 @@ Item {
                     ]
                     delegate: ThemedToggleButton {
                         required property var modelData
-                        width: 64
+                        width: 84 // VEDIT: room for 들어오기 at 16 px
+                        labelSize: 16
                         text: modelData.label
                         checked: root.animSlot === modelData.id
                         onClicked: {
@@ -1231,7 +1495,7 @@ Item {
                 text: qsTr("Plays for every caption")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
             }
 
             Flickable {
@@ -1321,7 +1585,7 @@ Item {
                         elide: Text.ElideRight
                         color: Theme.panelForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm
+                        font.pixelSize: Theme.fontSizeSm // VEDIT: CapCut-sized
                         font.weight: Font.DemiBold
                     }
                     IconButton {
@@ -1353,18 +1617,19 @@ Item {
                         Text {
                             text: root.animSlot === "loop" ? qsTr("Period") : qsTr("Duration")
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
                             font.family: Theme.fontFamily
                         }
                         Text {
                             text: Number(durationSlider.value).toFixed(2) + " s"
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
                             font.family: Theme.monoFontFamily
                         }
                     }
                     ThemedSlider {
                         id: durationSlider
+                        defaultValue: root.animSlot === "loop" ? 1 : 0.5 // VEDIT
                         lockWhilePlaying: true
                         width: parent.width
                         label: root.animSlot === "loop" ? qsTr("Period") : qsTr("Duration")
@@ -1406,7 +1671,7 @@ Item {
                         Text {
                             text: qsTr("By")
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
                             font.family: Theme.fontFamily
                         }
                         ThemedComboBox {
@@ -1430,7 +1695,7 @@ Item {
                                 visible: staggerHover.hovered
                             }
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
                             font.family: Theme.fontFamily
                         }
                         ThemedNumberField {
@@ -1458,7 +1723,7 @@ Item {
                     Text {
                         text: qsTr("Order")
                         color: Theme.mutedForeground
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
                         font.family: Theme.fontFamily
                     }
                     ThemedComboBox {
@@ -1477,7 +1742,7 @@ Item {
                     Text {
                         text: qsTr("Ease")
                         color: Theme.mutedForeground
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
                         font.family: Theme.fontFamily
                     }
                     Flow {
@@ -1519,7 +1784,7 @@ Item {
                     text: qsTr("Custom animator (set via MCP). Preset controls are disabled.")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
                 }
                 ThemedButton {
                     variant: "secondary"

@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "id": "vedit-color-pop",
+  "label": "Colour pop",
+  "category": "colour",
+  "sampleText": "Colour",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 305,
+  "defaults": {
+    "unit": "character",
+    "stagger": 0.05,
+    "duration": 0.5,
+    "ease": "back"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "scale": 150,
+        "fillColor": "#ffffd400",
+        "opacity": 0
+      }
+    }
+  ]
+}

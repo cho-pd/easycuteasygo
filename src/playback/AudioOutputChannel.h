@@ -75,9 +75,20 @@ public:
 
     void start();
     void stop();
+    // VEDIT (조박사님: "무음에서 시작해도 틱 소리"): stop playing but keep the device open, feeding
+    // it silence — opening the output again on the next start() is what clicks on many devices.
+    // Blocking, like stop(), so no refill is running once it returns. start() then resumes without
+    // reopening anything.
+    void pause();
+    // VEDIT: silence the speakers without stopping the clock (voice recording keeps the
+    // picture running but must not record the timeline's own sound back through the mic).
+    void setMuted(bool muted);
 
     // Microseconds the device has actually played. Audio thread only.
     qint64 processedUSecs() const;
+    // VEDIT: after start() resumed a paused (still open) device, how much silence was still
+    // queued in it — the new sound is heard only after that. 0 when the device was (re)opened.
+    qint64 resumeQueuedUSecs() const { return m_resumeQueuedUs.load(std::memory_order_acquire); }
 
 signals:
     // The device took a different rate than the one asked for; the caller's clock and mixer have
@@ -109,6 +120,15 @@ private:
     int m_preferredRate = 48000;
     std::atomic<int> m_sampleRate{48000};
     std::atomic<bool> m_running{false};
+    std::atomic<bool> m_muted{false}; // VEDIT
+    // VEDIT (조박사님: "톡" at play): the first few ms after start() fade in from silence, so the
+    // speaker never jumps straight to a mid-waveform sample. Set by start(), read on the audio thread.
+    std::atomic<bool> m_rampRestart{false};
+    std::atomic<bool> m_paused{false}; // VEDIT: device kept open, fed silence
+    std::atomic<qint64> m_resumeQueuedUs{0}; // VEDIT: see resumeQueuedUSecs()
+    bool m_sinkStarted = false; // VEDIT: audio thread — the sink was started and not stopped
+    int m_rampPos = 0; // audio thread only
+    void applyStartRamp(float *stereo, int frames); // audio thread only
     // One automatic rebuild per start(): a device that fails the moment it is opened would
     // otherwise have us rebuilding in a loop.
     bool m_recovered = false;

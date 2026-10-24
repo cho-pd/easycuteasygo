@@ -804,7 +804,7 @@ QVariantMap DebugReport::collect()
 QString DebugReport::formatPlainText(const QVariantMap &info)
 {
     QString text;
-    text += QStringLiteral("CutWire Drift debug report\n\n");
+    text += QStringLiteral("Easy Cut, Easy Go! debug report\n\n");
 
     text += QStringLiteral("## System\n");
     const QVariantList system = info.value(QStringLiteral("system")).toList();

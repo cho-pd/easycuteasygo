@@ -1,0 +1,186 @@
+{
+  "id": "adjust.curves",
+  "displayName": "Curves",
+  "category": "color",
+  "order": 47,
+  "parameters": [
+    {
+      "identifier": "m0",
+      "displayName": "RGB curve 0%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.0
+    },
+    {
+      "identifier": "m1",
+      "displayName": "RGB curve 25%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.25
+    },
+    {
+      "identifier": "m2",
+      "displayName": "RGB curve 50%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.5
+    },
+    {
+      "identifier": "m3",
+      "displayName": "RGB curve 75%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.75
+    },
+    {
+      "identifier": "m4",
+      "displayName": "RGB curve 100%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 1.0
+    },
+    {
+      "identifier": "r0",
+      "displayName": "Red curve 0%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.0
+    },
+    {
+      "identifier": "r1",
+      "displayName": "Red curve 25%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.25
+    },
+    {
+      "identifier": "r2",
+      "displayName": "Red curve 50%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.5
+    },
+    {
+      "identifier": "r3",
+      "displayName": "Red curve 75%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.75
+    },
+    {
+      "identifier": "r4",
+      "displayName": "Red curve 100%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 1.0
+    },
+    {
+      "identifier": "g0",
+      "displayName": "Green curve 0%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.0
+    },
+    {
+      "identifier": "g1",
+      "displayName": "Green curve 25%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.25
+    },
+    {
+      "identifier": "g2",
+      "displayName": "Green curve 50%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.5
+    },
+    {
+      "identifier": "g3",
+      "displayName": "Green curve 75%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.75
+    },
+    {
+      "identifier": "g4",
+      "displayName": "Green curve 100%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 1.0
+    },
+    {
+      "identifier": "b0",
+      "displayName": "Blue curve 0%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.0
+    },
+    {
+      "identifier": "b1",
+      "displayName": "Blue curve 25%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.25
+    },
+    {
+      "identifier": "b2",
+      "displayName": "Blue curve 50%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.5
+    },
+    {
+      "identifier": "b3",
+      "displayName": "Blue curve 75%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0.75
+    },
+    {
+      "identifier": "b4",
+      "displayName": "Blue curve 100%",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 1.0
+    }
+  ],
+  "backend": "gpu",
+  "pipeline": {
+    "intermediateBuffers": [],
+    "passes": [
+      {
+        "passIndex": 0,
+        "fragmentShader": "main.frag",
+        "inputs": [
+          {
+            "type": "source_texture"
+          }
+        ],
+        "output": {
+          "type": "canvas"
+        }
+      }
+    ]
+  }
+}

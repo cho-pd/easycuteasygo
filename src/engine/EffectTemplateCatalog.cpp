@@ -153,6 +153,9 @@ std::optional<EffectTemplateEntry> loadManifest(const QString &packageDir, QStri
     entry.displayName = root.value(QStringLiteral("displayName")).toString();
     if (entry.displayName.isEmpty())
         entry.displayName = entry.id;
+    // VEDIT: template names in the UI language (marks in src/vedit/VeditRuntimeStrings.cpp).
+    entry.displayName = QCoreApplication::translate("EffectTemplateNames",
+                                                    entry.displayName.toUtf8().constData());
     const QString categoryRaw = root.value(QStringLiteral("category")).toString();
     entry.category = GpuPackageParse::slugifyCategory(categoryRaw.isEmpty() ? QStringLiteral("rhythm")
                                                                               : categoryRaw);

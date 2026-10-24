@@ -30,7 +30,14 @@ struct InstalledAddon
     QDateTime installedAt;
     quint64 sizeBytes{};
     QList<InstalledProvide> provides;
+    // VEDIT: shipped beside the executable (bundled-addons/<id>/) rather than downloaded.
+    // Never written to installed.json and never uninstalled; installDir is where it lives.
+    bool bundled{};
+    QString installDir;
 };
+
+// VEDIT: <applicationDirPath>/bundled-addons, or $VEDIT_BUNDLED_ADDONS_DIR when set.
+QString bundledAddonsDir();
 
 QString addonsDir();                              // <AppDataLocation>/addons
 QString addonInstallDir(const QString &id);       // <addonsDir>/<id>

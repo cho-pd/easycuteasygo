@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "vedit-flip-word",
+  "label": "Flip by word",
+  "category": "word",
+  "sampleText": "Flip word",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 307,
+  "defaults": {
+    "unit": "word",
+    "stagger": 0.12,
+    "duration": 0.45,
+    "ease": "easeOut"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "scaleY": 0,
+        "opacity": 0
+      }
+    }
+  ]
+}

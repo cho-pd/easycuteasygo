@@ -21,7 +21,7 @@
   #define MyOutputBase "Drift-Setup-x64"
 #endif
 #define MyAppPublisher "CutWire Studios"
-#define MyAppExeName "drift.exe"
+#define MyAppExeName "ECEG.exe" ; VEDIT
 
 [Setup]
 AppId={{{#MyAppId}}

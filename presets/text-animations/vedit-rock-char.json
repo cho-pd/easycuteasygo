@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "vedit-rock-char",
+  "label": "Rock by letter",
+  "category": "character",
+  "sampleText": "Rock",
+  "slots": [
+    "loop"
+  ],
+  "order": 321,
+  "animators": [
+    {
+      "selectors": [
+        {
+          "driver": "wiggle",
+          "domain": "character",
+          "wave": "sine",
+          "frequencyHz": 1.2,
+          "spatialPhaseDeg": 60,
+          "minAmount": -100,
+          "maxAmount": 100
+        }
+      ],
+      "props": {
+        "rotation": 10
+      }
+    }
+  ]
+}

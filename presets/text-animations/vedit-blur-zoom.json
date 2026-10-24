@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "id": "vedit-blur-zoom",
+  "label": "Soft zoom",
+  "category": "basic",
+  "sampleText": "Soft zoom",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 310,
+  "defaults": {
+    "duration": 0.6,
+    "ease": "easeOut"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "blur": 20,
+        "scale": 160,
+        "opacity": 0
+      }
+    }
+  ]
+}

@@ -82,6 +82,9 @@ std::optional<AudioEffectEntry> loadManifest(const QString &packageDir, QString 
     entry.displayName = root.value(QStringLiteral("displayName")).toString();
     if (entry.displayName.isEmpty())
         entry.displayName = entry.id;
+    // VEDIT: package names are English; show them in the UI language.
+    entry.displayName = QCoreApplication::translate("AudioEffectNames",
+                                                    entry.displayName.toUtf8().constData());
     const QString categoryRaw = root.value(QStringLiteral("category")).toString();
     entry.category = GpuPackageParse::slugifyCategory(categoryRaw.isEmpty() ? QStringLiteral("space")
                                                                             : categoryRaw);
@@ -112,6 +115,8 @@ std::optional<AudioEffectEntry> loadManifest(const QString &packageDir, QString 
         return std::nullopt;
     }
 
+    for (drift::EffectParamSpec &spec : entry.parameters) // VEDIT: parameter names too
+        spec.label = QCoreApplication::translate("AudioEffectParams", spec.label.toUtf8().constData());
     entry.icon = root.value(QStringLiteral("icon")).toString();
     // Optional thumbnail: explicit relative/absolute path, else thumbnail.png in the package.
     QString thumbRel = root.value(QStringLiteral("thumbnail")).toString();

@@ -88,6 +88,16 @@ Item {
                                                            objectToggle.checked)
             }
 
+            // VEDIT: CapCut's 장면 나누기 — every shot becomes its own clip in one press.
+            ThemedButton {
+                text: qsTr("Cut at every scene")
+                variant: "primary"
+                glyph: Theme.icons.scissors
+                visible: EditorState.scenes.length > 1
+                tooltip: qsTr("Cut the clip wherever the shot changes, so each scene is its own clip")
+                onClicked: EditorState.splitAtScenes()
+            }
+
             ThemedButton {
                 text: qsTr("Clear")
                 variant: "secondary"

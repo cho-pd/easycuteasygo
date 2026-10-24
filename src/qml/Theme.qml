@@ -138,8 +138,9 @@ QtObject {
     // Once toggled, the choice lives in QSettings via EditorState and survives
     // restarts; it is app-wide, not stored per project.
     readonly property bool systemPrefersDark: Qt.styleHints.colorScheme !== Qt.Light
+    // VEDIT: black by default whatever the OS theme is (조박사님 지시); light stays one toggle away.
     readonly property bool darkMode: EditorState.darkModeOverridden ? EditorState.darkModePreferred
-                                                                    : systemPrefersDark
+                                                                    : true
 
     function toggleDarkMode() {
         EditorState.setDarkModePreference(!darkMode);
@@ -150,15 +151,16 @@ QtObject {
     }
 
     // --- Color palettes: app shell vs. panel surfaces, light and dark ------------
+    // VEDIT: app and panel backgrounds pushed to black.
     readonly property var _dark: ({
-        appBackground: "#0d0d0d",
+        appBackground: "#000000",
         foreground: "#dedede",
         border: "#292929",
         accent: "#242424",
         accentForeground: "#f2f2f2",
         mutedForeground: "#808080",
         popoverHover: "#212121",
-        panelBackground: "#1a1a1a",
+        panelBackground: "#0a0a0a",
         panelForeground: "#d9d9d9",
         panelBorder: "#2e2e2e",
         panelAccent: "#262626",
@@ -439,12 +441,14 @@ QtObject {
     readonly property real dialogMargin: 32
 
     // --- Typography ------------------------------------------------------------
-    readonly property real fontSizeXs: 11.52
-    readonly property real fontSizeSm: 12.64
-    readonly property real fontSizeBase: 14.72
-    readonly property real fontSizeTiny: 9.6   // 0.6rem clip captions
+    // VEDIT: about 10% smaller across the board (조박사님 "모든 텍스트가 너무 커") — the Korean
+    // fallback face runs larger than Inter at the same pixel size.
+    readonly property real fontSizeXs: 10.5
+    readonly property real fontSizeSm: 11.5
+    readonly property real fontSizeBase: 13.25
+    readonly property real fontSizeTiny: 9   // 0.6rem clip captions
     readonly property real fontSizeTick: 10    // literal 10px ruler tick labels
-    readonly property real fontSizeCard: 11.2  // 0.7rem asset card filenames
+    readonly property real fontSizeCard: 10.5  // 0.7rem asset card filenames
 
     // --- Layout: chrome ------------------------------------------------------
     readonly property real headerHeight: 54.4
@@ -453,7 +457,7 @@ QtObject {
 
     // --- Layout: assets panel -----------------------------------------------
     readonly property real panelHeaderHeight: touchUi ? 52 : 44
-    readonly property real tabRailWidth: touchUi ? 52 : 40
+    readonly property real tabRailWidth: touchUi ? 52 : 64 // VEDIT: room for the label under each icon
     readonly property real assetCardWidth: 112
     readonly property real assetCardGap: 16
 
@@ -482,10 +486,13 @@ QtObject {
     // Tall enough to be an easy seek/scrub hit target (CapCut/Premiere-style).
     readonly property real timelineRulerHeight: 28
     readonly property real timelineBookmarkRowHeight: 18
-    readonly property real trackHeightVideo: 65
-    readonly property real trackHeightAudio: 50
-    readonly property real trackHeightText: touchUi ? 44 : 25
-    readonly property real trackHeightSubtitle: touchUi ? 44 : 25
+    // VEDIT: 대 is 130 / 90 (조박사님); 중 and 소 shrink both rows alike so the ratio holds.
+    readonly property real clipSizeScale: [0.5, 0.75, 1.0][EditorState.timelineClipSize] || 1.0
+    readonly property real trackHeightVideo: Math.round(130 * clipSizeScale)
+    readonly property real trackHeightAudio: Math.round(90 * clipSizeScale)
+    // VEDIT (조박사님): text rows follow the clip-size switch like every other row, so they can be made taller.
+    readonly property real trackHeightText: touchUi ? 44 : Math.round(60 * clipSizeScale)
+    readonly property real trackHeightSubtitle: touchUi ? 44 : Math.round(60 * clipSizeScale)
     readonly property real trackHeightShape: 50
     // An adjustment carries no picture and no waveform — just the list of effects in it — so it
     // needs a label's worth of room, not a video track's.
@@ -496,10 +503,10 @@ QtObject {
     // 20px lanes came out at 12-14dp of usable strip on a phone once the row borders were
     // taken off — under half the touch floor for the toggles that live in them.
     readonly property real adjustmentLaneHeight: touchUi ? 24 : 20
-    readonly property real trackGap: 6
+    readonly property real trackGap: 1 // VEDIT (조박사님): the dark line between tracks, 1 px
     // Invisible hit area above tracks (no visible UI) for new-track drops when timeline has clips.
     readonly property real newTrackHitSlop: 24
-    readonly property real trackLabelsWidth: 130
+    readonly property real trackLabelsWidth: 166 // VEDIT: +36 for the colour strip
     readonly property real pixelsPerSecondBase: 50
     // Empty runway after the last clip: fixed in pixels at every zoom (not a
     // fixed number of seconds). Sized as a fraction of the timeline viewport.
@@ -510,6 +517,9 @@ QtObject {
     readonly property real playheadHandleSize: 16
     readonly property real playheadSeekGrabWidth: 18
     readonly property real clipSelectionRingWidth: 1.5
+    // VEDIT: clips are drawn at their exact length (no gap at a cut); the rounded corners leave a
+    // small notch top and bottom so the eye still finds where one clip meets the next (조박사님).
+    readonly property real clipCornerRadius: 7
     // Name band across the top of a clip. Clamped against track height at the use
     // site so it never swallows a short (25px text/subtitle) row.
     readonly property real clipHeaderBandHeight: 20
@@ -602,12 +612,14 @@ QtObject {
         copy: "copy",
         trash: "trash-2",
         snowflake: "snowflake",
+        mic: "mic", // VEDIT: 목소리 녹음
         bookmark: "bookmark",
         repeat: "repeat",
         star: "star",
         layers: "layers",
         box: "box",
         split: "split",
+        razor: "razor", // VEDIT: blade for "split here"
         magnet: "magnet",
         linkTwo: "link-2",
         unlink: "unlink-2",
@@ -650,6 +662,7 @@ QtObject {
         music: "music",
         audioLines: "audio-lines",
         image: "image",
+        camera: "camera", // VEDIT: 화면 캡처
         shapes: "shapes",
         chevronDown: "chevron-down",
         chevronUp: "chevron-up",

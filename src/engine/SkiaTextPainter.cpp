@@ -5,6 +5,7 @@
 #include "SkiaTextEffects.h"
 #include "SkiaVectorResources.h"
 #include "core/TextAnimationPreset.h"
+#include "core/VeditTextArt.h" // VEDIT
 
 #include <QCache>
 #include <QHash>
@@ -260,10 +261,25 @@ public:
 
         if (m_style.boxEnabled && !m_set->ink.isEmpty()) {
             const double padding = m_style.boxPadding * m_scale;
-            const QRectF box = m_set->ink.adjusted(-padding, -padding, padding, padding);
+            const double paddingY = m_style.verticalBoxPadding() * m_scale; // VEDIT: own top/bottom
+            const QRectF box = m_set->ink.adjusted(-padding, -paddingY, padding, paddingY);
             fill.setColor(toSkColor(m_style.boxColor));
             const float r = float(m_style.boxRadius * m_scale);
-            canvas.drawRoundRect(toSkRect(box), r, r, fill);
+            if (m_style.bubbleShape.isEmpty() && m_style.bubbleBorderWidth <= 0.0) {
+                canvas.drawRoundRect(toSkRect(box), r, r, fill);
+            } else { // VEDIT: 말풍선
+                const SkPath bubble = toSkPath(veditBubblePath(m_style.bubbleShape, box, r));
+                canvas.drawPath(bubble, fill);
+                if (m_style.bubbleBorderWidth > 0.0 && m_style.bubbleBorderColor.alpha() > 0) {
+                    SkPaint outline;
+                    outline.setAntiAlias(true);
+                    outline.setStyle(SkPaint::kStroke_Style);
+                    outline.setStrokeJoin(SkPaint::kRound_Join);
+                    outline.setStrokeWidth(float(m_style.bubbleBorderWidth * m_scale));
+                    outline.setColor(toSkColor(m_style.bubbleBorderColor));
+                    canvas.drawPath(bubble, outline);
+                }
+            }
         }
 
         // Pills follow the straight cell geometry, which a bent line no longer has.

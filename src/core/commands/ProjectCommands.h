@@ -23,6 +23,12 @@ public:
     QString afterHash() const;
     const Project &before() const { return m_before; }
     const Project &after() const { return m_after; }
+    // VEDIT: a follow-up tidy (empty tracks removed after the edit) folds into this step.
+    void setAfter(const Project &after)
+    {
+        m_after = after;
+        m_afterHash.clear();
+    }
 
 private:
     void restore(const Project &snapshot);

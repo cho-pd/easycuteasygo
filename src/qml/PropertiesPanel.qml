@@ -34,6 +34,7 @@ PanelFrame {
     readonly property var transition: EditorState.selectedTransitionData
     readonly property bool hasTransitionSelection: !!transition && Object.keys(transition).length > 0
     readonly property int transitionTabIndex: tabIndexOf("transition")
+    property string lastKindGroup: "" // VEDIT: "sound" / "picture" — the kind last selected
     readonly property string clipKind: hasSelection ? (root.clipData.kind || "") : ""
     readonly property bool hasTextStyle: hasSelection
                                          && (clipKind === "text" || clipKind === "subtitle")
@@ -51,7 +52,8 @@ PanelFrame {
         property var shapeExpandedLayerIds: ({})
     }
 
-    property int activeTab: 0
+    property int activeTab: generalTabIndex
+    readonly property int generalTabIndex: tabIndexOf("general") // VEDIT: no longer the first tab
     readonly property string currentTabId: tabsModel.get(activeTab).tabId
 
     onActiveTabChanged: {
@@ -77,6 +79,21 @@ PanelFrame {
             root.syncStabilizeTab()
             root.syncAdjustmentTab()
             root.syncActiveTab()
+            // VEDIT (조박사님): only when the kind of clip changes — picture to sound opens 소리,
+            // sound to picture opens 변형; picture to picture (or a click on the same clip) keeps
+            // whatever tab is open.
+            const kindGroup = root.clipKind === "audio" ? "sound"
+                            : (root.clipKind === "video" || root.clipKind === "image") ? "picture" : ""
+            if (kindGroup !== "" && kindGroup !== root.lastKindGroup) {
+                if (kindGroup === "sound" && root.tabIndexOf("audio") >= 0)
+                    root.activeTab = root.tabIndexOf("audio")
+                else if (kindGroup === "picture"
+                         && root.tabIndexOf("transform") >= 0 && root.tabVisible("transform"))
+                    root.activeTab = root.tabIndexOf("transform") // from sound, nothing, or another kind
+            }
+            // Nothing picked (or a title, a shape…) counts as a change too, so the next picture
+            // clip opens on 변형 again.
+            root.lastKindGroup = kindGroup
         }
         function onSelectedClipDataChanged() {
             root.clipDataRevision++
@@ -99,6 +116,8 @@ PanelFrame {
             Qt.callLater(() => {
                 if (textLoader.item)
                     textLoader.item.focusContent()
+                else
+                    textLoader.focusWhenLoaded = true // VEDIT: still building (asynchronous)
             })
         }
     }
@@ -117,6 +136,7 @@ PanelFrame {
         "model3d": qsTr("3D Model"),
         "subtitles": qsTr("Subtitles"),
         "transform": qsTr("Transform"),
+        "adjust": "조정", // VEDIT
         "stabilize": qsTr("Stabilization"),
         "animation": qsTr("Animation"),
         "audio": qsTr("Audio"),
@@ -134,13 +154,13 @@ PanelFrame {
     // `group` drives hairlines between the next *visible* tab of a different group.
     ListModel {
         id: tabsModel
-        ListElement { tabId: "general"; icon: 0; group: 0 }
         ListElement { tabId: "text"; icon: 1; group: 0 }
         ListElement { tabId: "shape"; icon: 2; group: 0 }
         ListElement { tabId: "vector"; icon: 14; group: 0 }
         ListElement { tabId: "model3d"; icon: 15; group: 0 }
         ListElement { tabId: "subtitles"; icon: 3; group: 0 }
         ListElement { tabId: "transform"; icon: 4; group: 1 }
+        ListElement { tabId: "adjust"; icon: 16; group: 1 } // VEDIT: CapCut Adjust
         ListElement { tabId: "stabilize"; icon: 5; group: 1 }
         ListElement { tabId: "animation"; icon: 6; group: 1 }
         ListElement { tabId: "audio"; icon: 7; group: 1 }
@@ -150,6 +170,8 @@ PanelFrame {
         ListElement { tabId: "effects"; icon: 11; group: 2 }
         ListElement { tabId: "audioEffects"; icon: 12; group: 2 }
         ListElement { tabId: "transition"; icon: 13; group: 2 }
+        // VEDIT (조박사님): 일반 (the clip's details) at the far right.
+        ListElement { tabId: "general"; icon: 0; group: 3 }
     }
     property var tabIcons: [
         Theme.icons.info,
@@ -165,9 +187,10 @@ PanelFrame {
         Theme.icons.mask,
         Theme.icons.wand,
         Theme.icons.audioLines,
-        Theme.icons.chevronsRight,
+        "crossfade", // VEDIT (조박사님): 전환 — the same icon as the assets panel's 전환 tab
         Theme.icons.layers,
-        Theme.icons.box
+        Theme.icons.box,
+        Theme.icons.sliders
     ]
 
     function tabVisible(tabId) {
@@ -186,6 +209,9 @@ PanelFrame {
                 return kind === "mask" || kind === "videoEffects"
             return false
         }
+        // VEDIT (조박사님): 섞는 방식 is a section of 변형 now — its own tab only where there is no 변형.
+        if (tabId === "blending")
+            return false
         if (tabId === "subtitles")
             return root.clipKind === "subtitle"
         if (tabId === "shape")
@@ -203,6 +229,8 @@ PanelFrame {
                    || root.clipKind === "composite"
         if (tabId === "stabilize")
             return root.clipKind === "video"
+        if (tabId === "adjust") // VEDIT
+            return root.clipKind === "video" || root.clipKind === "image"
         // Masks and effect stacks live on the adjustments pinned to a clip, and those adjustments
         // are what you select to edit them. The clip is where you *aim* one from — the assets
         // panel does that — but not where it is configured: a clip can carry several mask
@@ -254,7 +282,7 @@ PanelFrame {
     function syncSubtitlesTab() {
         if (root.subtitlesTabIndex >= 0 && root.activeTab === root.subtitlesTabIndex
                 && root.clipKind !== "subtitle")
-            root.activeTab = 0
+            root.activeTab = root.generalTabIndex
     }
 
     // The Shape tab is hidden for every other clip kind, so leaving it selected would show a blank
@@ -262,25 +290,33 @@ PanelFrame {
     function syncShapeTab() {
         if (root.shapeTabIndex >= 0 && root.activeTab === root.shapeTabIndex
                 && root.clipKind !== "shape")
-            root.activeTab = 0
+            root.activeTab = root.generalTabIndex
     }
 
     // Same for the Text tab, which only exists for clips carrying a text style.
     function syncTextTab() {
         if (root.textTabIndex >= 0 && root.activeTab === root.textTabIndex && !root.hasTextStyle)
-            root.activeTab = 0
+            root.activeTab = root.generalTabIndex
+        // VEDIT: CapCut — picking a text opens its 글자 tab, not 일반. Moving between texts keeps
+        // whatever tab is open (e.g. 변형 while placing several titles).
+        const kind = root.hasTextStyle && root.clipKind === "text" ? "text" : root.clipKind
+        if (kind === "text" && root.lastSelectedKind !== "text" && root.textTabIndex >= 0
+                && root.tabVisible("text"))
+            root.activeTab = root.textTabIndex
+        root.lastSelectedKind = kind
     }
+    property string lastSelectedKind: "" // VEDIT
 
     function syncAnimationTab() {
         if (root.animationTabIndex >= 0 && root.activeTab === root.animationTabIndex
                 && !root.tabVisible("animation"))
-            root.activeTab = 0
+            root.activeTab = root.generalTabIndex
     }
 
     function syncStabilizeTab() {
         if (root.stabilizeTabIndex >= 0 && root.activeTab === root.stabilizeTabIndex
                 && !root.tabVisible("stabilize"))
-            root.activeTab = 0
+            root.activeTab = root.generalTabIndex
     }
 
     // Selecting an adjustment is how you edit its payload now, so it opens the pane that edits
@@ -299,7 +335,7 @@ PanelFrame {
     // tab open on the clip you came from can vanish under you and leave an empty pane.
     function syncActiveTab() {
         if (!root.tabVisible(root.currentTabId))
-            root.activeTab = 0
+            root.activeTab = root.generalTabIndex
     }
 
     // Tell the timeline to show its subtitle-cue lane only while the Subtitles tab is open.
@@ -523,8 +559,8 @@ PanelFrame {
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             anchors.left: parent.left
-            width: root.sheetMode ? 0 : Theme.tabRailWidth
-            visible: !root.sheetMode
+            width: 0 // VEDIT: replaced by topTabs
+            visible: false
             contentWidth: width
             contentHeight: propertiesTabRailColumn.height
             clip: true
@@ -591,6 +627,22 @@ PanelFrame {
                             Accessible.checked: root.activeTab === index
                         }
 
+                        // VEDIT: CapCut-style label under every rail icon, so tabs are
+                        // found by name rather than by hovering for a tooltip.
+                        Text {
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            text: root.tabLabels[model.tabId]
+                            color: root.activeTab === index ? Theme.foreground : Theme.mutedForeground
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSm
+                            elide: Text.ElideRight
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: root.activeTab = index
+                            }
+                        }
+
                         Item {
                             visible: root.showSeparatorAfter(index)
                             width: parent.width
@@ -616,14 +668,30 @@ PanelFrame {
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             anchors.left: propertiesTabRail.right
-            width: root.sheetMode ? 0 : Theme.borderWidth
-            visible: !root.sheetMode
+            width: 0 // VEDIT
+            visible: false
             color: Theme.panelBorder
+        }
+
+        // VEDIT: CapCut-style tabs across the top instead of the vertical rail (조박사님).
+        TopTabStrip {
+            id: topTabs
+            anchors.top: tabStripHost.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            visible: !root.sheetMode
+            height: visible ? implicitHeight : 0
+            model: tabsModel
+            icons: root.tabIcons
+            labels: root.tabLabels
+            tabVisible: function(tabId) { return root.tabVisible(tabId) }
+            currentIndex: root.activeTab
+            onTabClicked: function(index) { root.activeTab = index }
         }
 
         Flickable {
             id: tabFlick
-            anchors.top: tabStripHost.bottom
+            anchors.top: topTabs.bottom
             anchors.left: railDivider.right
             anchors.right: parent.right
             anchors.bottom: parent.bottom
@@ -695,6 +763,17 @@ PanelFrame {
                     id: textLoader
                     active: root.currentTabId === "text"
                     visible: active
+                    // VEDIT (조박사님: "텍스트 클립을 선택하면 너무 늦게 선택된다"): the text page is
+                    // big; built in the background, the clip shows as picked at once and the page
+                    // fills in a moment later.
+                    asynchronous: true
+                    property bool focusWhenLoaded: false
+                    onLoaded: {
+                        if (focusWhenLoaded) {
+                            focusWhenLoaded = false
+                            item.focusContent()
+                        }
+                    }
                     sourceComponent: Component {
                         TextInspector {
                             width: tabColumn.width
@@ -716,10 +795,54 @@ PanelFrame {
                     active: root.currentTabId === "transform"
                     visible: active
                     sourceComponent: Component {
-                        TransformInspector {
+                        Column {
                             width: tabColumn.width
-                            sizeLinked: inspectorUi.sizeLinked
-                            onSizeLinkedChanged: inspectorUi.sizeLinked = sizeLinked
+                            spacing: Theme.spacingXl
+                            TransformInspector {
+                                width: tabColumn.width
+                                sizeLinked: inspectorUi.sizeLinked
+                                onSizeLinkedChanged: inspectorUi.sizeLinked = sizeLinked
+                            }
+                            // VEDIT (조박사님, CapCut): 섞는 방식 lives inside 변형 as its 혼합 section.
+                            Column {
+                                id: blendSection
+                                visible: root.clipKind !== "audio"
+                                width: tabColumn.width
+                                spacing: 8
+                                property bool open: true
+                                Rectangle { width: parent.width; height: 1; color: Theme.panelBorder }
+                                Item {
+                                    width: parent.width
+                                    height: 28
+                                    Row {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        spacing: 6
+                                        IconGlyph {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            glyph: blendSection.open ? Theme.icons.chevronDown : Theme.icons.chevronRight
+                                            iconSize: 14
+                                            iconColor: Theme.mutedForeground
+                                        }
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: qsTr("Blend")
+                                            color: Theme.panelForeground
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeSm
+                                            font.weight: Font.Medium
+                                        }
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: blendSection.open = !blendSection.open
+                                    }
+                                }
+                                BlendingInspector {
+                                    visible: blendSection.open
+                                    width: tabColumn.width
+                                }
+                            }
                         }
                     }
                 }
@@ -740,6 +863,12 @@ PanelFrame {
                     active: root.currentTabId === "audio"
                     visible: active
                     sourceComponent: Component { AudioInspector { width: tabColumn.width } }
+                }
+
+                Loader { // VEDIT: CapCut Adjust
+                    active: root.currentTabId === "adjust"
+                    visible: active
+                    sourceComponent: Component { AdjustInspector { width: tabColumn.width } }
                 }
 
                 Loader {

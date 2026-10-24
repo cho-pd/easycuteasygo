@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "id": "vedit-pen-write",
+  "label": "Pen writing",
+  "category": "character",
+  "sampleText": "Hand written",
+  "slots": [
+    "in"
+  ],
+  "order": 330,
+  "defaults": {
+    "unit": "character",
+    "stagger": 0.07,
+    "duration": 0.28,
+    "ease": "linear"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "wipe": {
+          "enabled": true,
+          "angleDeg": 0,
+          "softness": 0.2
+        }
+      }
+    }
+  ]
+}

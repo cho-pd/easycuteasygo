@@ -25,12 +25,12 @@ Item {
         return Math.max(1, EditorState.projectHeight())
     }
 
-    readonly property var propOpacity: { "key": "opacity", "label": qsTr("Opacity"), "def": 1.0, "decimals": 2 }
+    readonly property var propOpacity: { "key": "opacity", "label": qsTr("Opacity"), "def": 1.0, "decimals": 2, "reset": 1.0 }
     readonly property var propX: { "key": "x", "label": "X", "def": 0.0, "decimals": 0 }
     readonly property var propY: { "key": "y", "label": "Y", "def": 0.0, "decimals": 0 }
     readonly property var propWidth: { "key": "width", "label": qsTr("Width"), "def": root.canvasW, "decimals": 0 }
     readonly property var propHeight: { "key": "height", "label": qsTr("Height"), "def": root.canvasH, "decimals": 0 }
-    readonly property var propRotation: { "key": "rotation", "label": qsTr("Angle"), "def": 0.0, "decimals": 1 }
+    readonly property var propRotation: { "key": "rotation", "label": qsTr("Angle"), "def": 0.0, "decimals": 1, "reset": 0.0 }
 
     // One slider that scales width and height together about the box centre; the link button
     // swaps it for the separate Width/Height rows.
@@ -122,48 +122,7 @@ Item {
             spacing: 10
             visible: root.clipKind !== "audio"
 
-            Text {
-                width: parent.width
-                wrapMode: Text.WordWrap
-                text: qsTr("Move to a time, set a value, then click the diamond to add a keyframe. With Auto keyframes on, dragging a slider or the preview also creates them.")
-                color: Theme.mutedForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
-            }
-
-            ThemedChip {
-                text: qsTr("Auto keyframes")
-                selected: EditorState.autoKeyEnabled
-                onClicked: EditorState.autoKeyEnabled = !EditorState.autoKeyEnabled
-            }
-
-            Text {
-                text: root.isModel3d ? qsTr("Offset (px)") : qsTr("Position (px)")
-                color: Theme.mutedForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
-                font.weight: Font.Medium
-            }
-
-            PropertyKeyframeRow {
-                width: parent.width
-                propDef: root.propX
-                keyframeList: (root.clipData.keyframes && root.clipData.keyframes.x && root.clipData.keyframes.x.points) || []
-                useSlider: true
-                sliderFrom: -root.canvasW
-                sliderTo: root.canvasW * 2
-                unit: "px"
-            }
-            PropertyKeyframeRow {
-                width: parent.width
-                propDef: root.propY
-                keyframeList: (root.clipData.keyframes && root.clipData.keyframes.y && root.clipData.keyframes.y.points) || []
-                useSlider: true
-                sliderFrom: -root.canvasH
-                sliderTo: root.canvasH * 2
-                unit: "px"
-            }
-
+            // VEDIT (조박사님): 크기 first.
             Item {
                 visible: !root.isModel3d
                 width: parent.width
@@ -179,9 +138,32 @@ Item {
                     font.weight: Font.Medium
                 }
 
+                // VEDIT (CapCut): ◇ for 크기 — keys width, height and position together so the
+                // picture grows and shrinks about the same centre.
+                KeyframeToggle {
+                    id: scaleKey
+                    visible: root.sizeLinked
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    readonly property var scaleProps: ["width", "height", "x", "y"]
+                    readonly property var keyState: {
+                        void root.clipDataRevision
+                        void root.liveRevision
+                        void EditorState.playheadSeconds
+                        void EditorState.tracksRevision
+                        return EditorState.clipPropsKeyState(EditorState.selectedTrack, EditorState.selectedClip, scaleProps)
+                    }
+                    animated: keyState.animated === true
+                    atPlayhead: keyState.atPlayhead === true
+                    prevSeconds: keyState.prev !== undefined ? keyState.prev : -1
+                    nextSeconds: keyState.next !== undefined ? keyState.next : -1
+                    onToggled: EditorState.toggleClipPropsKeyframe(EditorState.selectedTrack, EditorState.selectedClip, scaleProps)
+                }
+
                 IconButton {
                     id: sizeLinkButton
-                    anchors.right: parent.right
+                    anchors.right: scaleKey.visible ? scaleKey.left : parent.right
+                    anchors.rightMargin: scaleKey.visible ? 6 : 0 // VEDIT: ◇ stays at the far right
                     anchors.verticalCenter: parent.verticalCenter
                     buttonSize: 24
                     iconSize: 14
@@ -200,6 +182,7 @@ Item {
 
                 ThemedSlider {
                     id: scaleSlider
+                    defaultValue: 1 // VEDIT: 100%
                     lockWhilePlaying: true
                     label: qsTr("Scale")
                     width: parent.width - scaleReadout.width - parent.spacing
@@ -252,6 +235,48 @@ Item {
                 useSlider: true
                 sliderFrom: 1
                 sliderTo: Math.max(root.canvasH * 2, 2)
+                unit: "px"
+            }
+
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: qsTr("Move to a time, set a value, then click the diamond to add a keyframe. With Auto keyframes on, dragging a slider or the preview also creates them.")
+                color: Theme.mutedForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeXs
+            }
+
+            ThemedChip {
+                text: qsTr("Auto keyframes")
+                selected: EditorState.autoKeyEnabled
+                onClicked: EditorState.autoKeyEnabled = !EditorState.autoKeyEnabled
+            }
+
+            Text {
+                text: root.isModel3d ? qsTr("Offset (px)") : qsTr("Position (px)")
+                color: Theme.mutedForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeXs
+                font.weight: Font.Medium
+            }
+
+            PropertyKeyframeRow {
+                width: parent.width
+                propDef: root.propX
+                keyframeList: (root.clipData.keyframes && root.clipData.keyframes.x && root.clipData.keyframes.x.points) || []
+                useSlider: true
+                sliderFrom: -root.canvasW
+                sliderTo: root.canvasW * 2
+                unit: "px"
+            }
+            PropertyKeyframeRow {
+                width: parent.width
+                propDef: root.propY
+                keyframeList: (root.clipData.keyframes && root.clipData.keyframes.y && root.clipData.keyframes.y.points) || []
+                useSlider: true
+                sliderFrom: -root.canvasH
+                sliderTo: root.canvasH * 2
                 unit: "px"
             }
 
@@ -385,6 +410,176 @@ Item {
                     onClicked: EditorState.setClipFlip(
                                    EditorState.selectedTrack, EditorState.selectedClip,
                                    !!root.clipData.flipH, !root.clipData.flipV)
+                }
+            }
+
+            // VEDIT: CapCut's 화면 속 화면 — put the picture small in a corner (or back to full) in one press.
+            Column {
+                visible: root.clipKind === "video" || root.clipKind === "image"
+                width: parent.width
+                spacing: 6
+
+                Text {
+                    text: qsTr("Place on screen")
+                    color: Theme.foreground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeBase
+                    font.weight: Font.DemiBold
+                }
+
+                Flow {
+                    width: parent.width
+                    spacing: 6
+                    Repeater {
+                        model: [
+                            { label: qsTr("Top left"), where: "topLeft" },
+                            { label: qsTr("Top right"), where: "topRight" },
+                            { label: qsTr("Bottom left"), where: "bottomLeft" },
+                            { label: qsTr("Bottom right"), where: "bottomRight" },
+                            { label: qsTr("Small in the middle"), where: "center" },
+                            { label: qsTr("Full screen"), where: "full" }
+                        ]
+                        delegate: ThemedChip {
+                            required property var modelData
+                            text: modelData.label
+                            onClicked: EditorState.placeClipOnScreen(EditorState.selectedTrack,
+                                                                     EditorState.selectedClip, modelData.where)
+                        }
+                    }
+                }
+            }
+
+            // VEDIT: CapCut's 캔버스 — what fills the empty space around a photo or video that is not
+            // the screen's shape. One setting for the whole video (the project background).
+            Column {
+                visible: root.clipKind === "video" || root.clipKind === "image"
+                width: parent.width
+                spacing: 6
+
+                Text {
+                    text: qsTr("Empty space around the picture")
+                    color: Theme.foreground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeBase
+                    font.weight: Font.DemiBold
+                }
+
+                Flow {
+                    width: parent.width
+                    spacing: 6
+                    Repeater {
+                        model: [
+                            { label: qsTr("Black"), kind: "color", color: "#ff000000" },
+                            { label: qsTr("Blurred picture"), kind: "blur", color: "" },
+                            { label: qsTr("White"), kind: "color", color: "#ffffffff" }
+                        ]
+                        delegate: ThemedChip {
+                            required property var modelData
+                            readonly property var bg: EditorState.background
+                            text: modelData.label
+                            selected: modelData.kind === "blur"
+                                      ? bg.kind === "blur"
+                                      : (bg.kind === "color"
+                                         && String(bg.color).toLowerCase() === modelData.color)
+                            onClicked: EditorState.setBackground(modelData.kind === "blur"
+                                                                 ? { kind: "blur", blurStrength: 40 }
+                                                                 : { kind: "color", color: modelData.color })
+                        }
+                    }
+                }
+            }
+
+            // VEDIT: CapCut-style crop. Insets per edge, as a share of the frame; the kept part stays
+            // where it was on the canvas. Each slider drag is one undo step.
+            Column {
+                visible: root.clipKind === "video" || root.clipKind === "image"
+                width: parent.width
+                spacing: 6
+
+                Text {
+                    text: "자르기"
+                    color: Theme.foreground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeBase
+                    font.weight: Font.DemiBold
+                }
+
+                Repeater {
+                    model: [
+                        { key: "cropL", label: "왼쪽" },
+                        { key: "cropT", label: "위" },
+                        { key: "cropR", label: "오른쪽" },
+                        { key: "cropB", label: "아래" }
+                    ]
+                    // VEDIT: a visible name and value above each bar (the slider's `label` is
+                    // for screen readers only).
+                    delegate: Column {
+                        id: cropRow
+                        required property var modelData
+                        width: parent.width
+                        spacing: 2
+                        Item {
+                            width: parent.width
+                            height: cropName.implicitHeight
+                            Text {
+                                id: cropName
+                                text: cropRow.modelData.label
+                                color: Theme.panelForeground
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSm
+                            }
+                            Text {
+                                anchors.right: parent.right
+                                text: Math.round(cropSlider.value * 100) + "%"
+                                color: Theme.mutedForeground
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSm
+                            }
+                        }
+                    ThemedSlider {
+                        id: cropSlider
+                        defaultValue: 0 // VEDIT
+                        property var modelData: cropRow.modelData
+                        width: parent.width
+                        label: modelData.label
+                        from: 0
+                        to: 0.49
+                        stepSize: 0.005
+                        valueFormatter: function (v) { return Math.round(v * 100) + "%" }
+                        Binding on value {
+                            when: !cropSlider.pressed
+                            value: {
+                                void root.clipDataRevision
+                                return Number(root.clipData[cropSlider.modelData.key] || 0)
+                            }
+                        }
+                        function insets(v) {
+                            const c = root.clipData
+                            const o = { cropL: Number(c.cropL || 0), cropT: Number(c.cropT || 0),
+                                        cropR: Number(c.cropR || 0), cropB: Number(c.cropB || 0) }
+                            o[modelData.key] = v
+                            return o
+                        }
+                        onPressedChanged: {
+                            if (pressed)
+                                EditorState.beginPreviewDrag("자르기")
+                            else
+                                EditorState.commitPreviewDrag()
+                        }
+                        onMoved: {
+                            const o = insets(value)
+                            EditorState.previewSetClipCrop(EditorState.selectedTrack, EditorState.selectedClip,
+                                                           o.cropL, o.cropT, o.cropR, o.cropB)
+                        }
+                    }
+                    }
+                }
+
+                ThemedButton {
+                    text: "자르기 없애기"
+                    enabled: Number(root.clipData.cropL || 0) + Number(root.clipData.cropT || 0)
+                             + Number(root.clipData.cropR || 0) + Number(root.clipData.cropB || 0) > 0
+                    onClicked: EditorState.setClipCrop(EditorState.selectedTrack, EditorState.selectedClip, 0, 0, 0, 0)
                 }
             }
 

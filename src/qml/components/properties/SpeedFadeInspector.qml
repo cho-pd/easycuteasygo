@@ -79,6 +79,50 @@ Item {
             }
         }
 
+            // VEDIT: CapCut's curve presets, applied to the clip in one click.
+            Column {
+                width: parent.width
+                spacing: 6
+                visible: root.speedKind
+
+                Text {
+                    text: "속도 곡선"
+                    color: Theme.foreground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeBase
+                    font.weight: Font.DemiBold
+                }
+
+                Flow {
+                    width: parent.width
+                    spacing: 6
+                    readonly property string current: {
+                        void root.clipDataRevision
+                        return EditorState.clipSpeedCurvePreset(EditorState.selectedTrack,
+                                                                EditorState.selectedClip)
+                    }
+                    Repeater {
+                        model: [
+                            { id: "none", label: "없음" },
+                            { id: "montage", label: "몽타주" },
+                            { id: "hero", label: "히어로" },
+                            { id: "bullet", label: "총알" },
+                            { id: "jumpcut", label: "점프 컷" },
+                            { id: "flashin", label: "플래시 인" },
+                            { id: "flashout", label: "플래시 아웃" }
+                        ]
+                        delegate: ThemedChip {
+                            required property var modelData
+                            text: modelData.label
+                            selected: parent.current === modelData.id
+                            onClicked: EditorState.applySpeedCurvePreset(
+                                           EditorState.selectedTrack, EditorState.selectedClip,
+                                           modelData.id)
+                        }
+                    }
+                }
+            }
+
             Row {
                 width: parent.width
                 spacing: 6
@@ -89,7 +133,11 @@ Item {
                         { label: "0.5×", value: 0.5 },
                         { label: "1×", value: 1.0 },
                         { label: "2×", value: 2.0 },
-                        { label: "4×", value: 4.0 }
+                        { label: "4×", value: 4.0 },
+                        // VEDIT (조박사님): faster steps
+                        { label: "10×", value: 10.0 },
+                        { label: "25×", value: 25.0 },
+                        { label: "100×", value: 100.0 }
                     ]
                     delegate: ThemedChip {
                         required property var modelData
@@ -110,20 +158,79 @@ Item {
             visible: root.speedKind
             enabled: !speedColumn.hasSpeedCurve && !EditorState.playing
             width: parent.width
-            from: 0.25
-            to: 4.0
-            stepSize: 0.05
+            // VEDIT (조박사님): CapCut's 0.1x-100x in marked steps, evenly spaced —
+            // 0.1 · 0.5 · 1 · 2 · 5 · 10 · 15 · 20 · 25 · 100 (그 이상) — with a smooth ramp between.
+            readonly property var stops: [0.1, 0.5, 1, 2, 5, 10, 15, 20, 25, 100]
+            function speedAt(v) {
+                const i = Math.max(0, Math.min(stops.length - 2, Math.floor(v)))
+                const t = Math.max(0, Math.min(1, v - i))
+                return stops[i] * Math.pow(stops[i + 1] / stops[i], t)
+            }
+            function positionOf(sp) {
+                sp = Math.max(stops[0], Math.min(stops[stops.length - 1], sp))
+                for (let i = 0; i < stops.length - 1; ++i)
+                    if (sp <= stops[i + 1])
+                        return i + Math.log(sp / stops[i]) / Math.log(stops[i + 1] / stops[i])
+                return stops.length - 1
+            }
+            defaultValue: 2 // VEDIT: 1x
+            from: 0
+            to: stops.length - 1
+            stepSize: 0.01
+            valueFormatter: function (v) { return speedAt(v).toFixed(2) + "×" }
             Binding on value {
                 when: !speedSlider.pressed
-                value: root.clipData.speed || 1.0
+                value: speedSlider.positionOf(root.clipData.speed || 1.0)
             }
             onMoved: EditorState.previewSetClipSpeed(
-                         EditorState.selectedTrack, EditorState.selectedClip, value)
+                         EditorState.selectedTrack, EditorState.selectedClip, speedSlider.speedAt(value))
             onPressedChanged: {
                 if (pressed)
                     EditorState.beginPreviewDrag(qsTr("Speed changed"))
                 else
                     EditorState.commitPreviewDrag()
+            }
+        }
+
+        // VEDIT (조박사님): the steps marked under the speed slider.
+        Item {
+            visible: root.speedKind
+            width: speedSlider.width
+            height: 26
+            Repeater {
+                model: speedSlider.stops
+                delegate: Item {
+                    required property var modelData
+                    required property int index
+                    readonly property real handleW: Theme.iconSizeMd
+                    x: speedSlider.leftPadding + handleW / 2
+                       + index / (speedSlider.stops.length - 1) * (speedSlider.availableWidth - handleW)
+                    Rectangle {
+                        x: -0.5
+                        y: 0
+                        width: 1
+                        height: 6
+                        color: Theme.mutedForeground
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.left
+                        y: 8
+                        text: index === speedSlider.stops.length - 1 ? qsTr("More") : modelData
+                        color: Math.abs((root.clipData.speed || 1) - modelData) < 0.01
+                               ? Theme.primary : Theme.mutedForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeTiny
+                    }
+                    MouseArea {
+                        x: -12
+                        width: 24
+                        height: 26
+                        enabled: speedSlider.enabled
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: EditorState.setClipSpeed(EditorState.selectedTrack,
+                                                            EditorState.selectedClip, modelData)
+                    }
+                }
             }
         }
 

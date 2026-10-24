@@ -237,6 +237,7 @@ Item {
 
                             ThemedSlider {
                                 id: audioParamSlider
+                                defaultValue: audioParamRow.paramData["default"] // VEDIT
                                 lockWhilePlaying: true
                                 label: audioParamRow.paramData.label
                                 visible: !audioParamRow.paramData.isBoolean

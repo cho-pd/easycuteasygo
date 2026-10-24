@@ -26,6 +26,13 @@ Slider {
     // For sliders that edit the clip: greyed out while playing. Disabling a pressed slider
     // releases it, which commits the drag the caller began on press.
     property bool lockWhilePlaying: false
+
+    // VEDIT (조박사님): every bar in the app — double-click the handle and it goes back to its
+    // default. Undefined leaves a slider without one (a seek bar has no default).
+    property var defaultValue: undefined
+    property double _lastPressMs: 0
+    property bool _resetPending: false
+    property bool _applyingReset: false
     enabled: !(root.lockWhilePlaying && EditorState.playing)
 
     from: 0
@@ -84,7 +91,22 @@ Slider {
                 root._hapticMin = false
                 root._hapticMax = false
                 Haptics.press()
+                // VEDIT: the second press of a double-click. Done while pressed so a caller's
+                // preview drag (begun on press, committed on release) carries it as one edit,
+                // and a caller that commits on move gets the move.
+                const now = Date.now()
+                if (root.defaultValue !== undefined && root.defaultValue !== null
+                        && now - root._lastPressMs < 400) {
+                    root._lastPressMs = 0
+                    // Held until the release: Qt sets the value from the release point and
+                    // emits moved() just before un-pressing, and onMoved below puts it back.
+                    root._resetPending = true
+                    root._applyReset()
+                } else {
+                    root._lastPressMs = now
+                }
             } else {
+                root._resetPending = false
                 root.restoreFlickable()
             }
         }
@@ -152,7 +174,19 @@ Slider {
         text: root.valueFormatter(root.value)
     }
 
+    function _applyReset() {
+        _applyingReset = true
+        value = Number(defaultValue)
+        moved()
+        _applyingReset = false
+    }
+
     onMoved: {
+        // VEDIT: a double-click's release tried to move the value; keep the default.
+        if (_resetPending && !_applyingReset && value !== Number(defaultValue)) {
+            _applyReset()
+            return
+        }
         if (!pressed)
             return
         const span = to - from

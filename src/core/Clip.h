@@ -47,6 +47,10 @@ struct Clip
     QString assetId;
     // Shared by linked video/audio companions; empty when unlinked.
     QString linkId;
+    // VEDIT: a sound split off a video and the video it came from share this — not a link
+    // (neither follows the other), only a memory of where the sound belongs, so it can be told
+    // when it has drifted out of sync. Empty for everything else.
+    QString syncId;
     ClipType type = ClipType::Video;
 
     // Adjustment clips only.
@@ -97,6 +101,24 @@ struct Clip
     // multiplying with it, so there is only ever one number describing the rate at a given
     // moment. The source range stays fixed and the timeline duration is what the ramp derives.
     SpeedCurve speedCurve;
+    // VEDIT: which CapCut preset produced speedCurve ("montage", "hero"...); empty for a
+    // hand-drawn curve or none.
+    QString speedPreset;
+    // VEDIT: CapCut 콤보 motion on this clip ("zoomIn", "panRight"...), and the still framing it
+    // was laid out from, so switching motions or choosing "hold still" never compounds the zoom.
+    QString motionPreset;
+    double motionBaseX = 0.0;
+    double motionBaseY = 0.0;
+    double motionBaseW = 0.0;
+    double motionBaseH = 0.0;
+    // VEDIT: CapCut-style crop, as insets from each edge of the (display-oriented) source frame,
+    // 0..1. The transform box still describes the whole uncropped frame; the compositor draws
+    // only the inset sub-rectangle, in place and at the same scale.
+    double cropL = 0.0;
+    double cropT = 0.0;
+    double cropR = 0.0;
+    double cropB = 0.0;
+    bool hasCrop() const { return cropL > 0.0 || cropT > 0.0 || cropR > 0.0 || cropB > 0.0; }
     bool reverse = false; // play source range backward; speed still applies as magnitude
     bool flipH = false;
     bool flipV = false;
@@ -152,6 +174,23 @@ struct Clip
     // CapCut-style body intro/outro (whole-clip opacity/transform motion).
     ClipAnimation animIn;
     ClipAnimation animOut;
+    // VEDIT: CapCut's 콤보 (clipAnimComboIds) — a whole-clip movement in place of animIn/animOut.
+    QString animCombo;
+    // VEDIT: Vegas's event level — the line along the top of a clip on the timeline. For a sound
+    // clip it is a gain (0..1, shown in dB); for a picture, text or shape it scales the opacity.
+    // On top of any volume / opacity keyframes.
+    double level = 1.0;
+    // VEDIT: which side of a stereo recording plays where — 0 follows the track, 1 the left side
+    // on both speakers, 2 the right side on both, 3 left and right mixed together, 4 swapped.
+    int channelMode = 0;
+    // VEDIT: the fade-out's own curve (Vegas fade types per edge); unset, it follows fadeCurve.
+    bool fadeOutCurveSet = false;
+    FadeCurve fadeOutCurve = FadeCurve::Smooth;
+    FadeCurve effectiveFadeOutCurve() const { return fadeOutCurveSet ? fadeOutCurve : fadeCurve; }
+    // A piece of a cut clip carries on the same movement: where this piece starts inside it, and
+    // how long the whole movement is (0 = this clip's own length).
+    TimeUs animComboOriginUs = 0;
+    TimeUs animComboSpanUs = 0;
 
     // Layout on the project canvas in pixels: top-left origin, size in px.
     // Empty tracks use defaults (0,0,projectW,projectH) at evaluate time.
@@ -280,7 +319,7 @@ struct Clip
             out = shapedProgress(t, animOut.curve, animOut.shape);
         } else if (!skipOut && fadeOutUs > 0 && fromEnd < fadeOutUs) {
             out = shapedProgress(static_cast<double>(fromEnd) / static_cast<double>(fadeOutUs),
-                                 fadeCurve, fadeShape);
+                                 effectiveFadeOutCurve(), fadeShape); // VEDIT
         }
 
         return in * out;

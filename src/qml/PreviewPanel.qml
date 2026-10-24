@@ -40,13 +40,35 @@ PanelFrame {
         return pad(h) + ":" + pad(m) + ":" + pad(s) + ":" + pad(f);
     }
 
-    Column {
+    // VEDIT (조박사님): fullscreen gives the picture the whole screen; the seek bar and the controls
+    // float over its foot and fade away while the mouse is still.
+    property bool fullscreenControlsShown: true
+    Timer {
+        id: controlsHideTimer
+        interval: 2500
+        onTriggered: root.fullscreenControlsShown = false
+    }
+    HoverHandler {
+        enabled: root.previewFullscreen
+        onPointChanged: {
+            root.fullscreenControlsShown = true
+            controlsHideTimer.restart()
+        }
+    }
+    onPreviewFullscreenChanged: {
+        fullscreenControlsShown = true
+        if (previewFullscreen)
+            controlsHideTimer.restart()
+    }
+
+    Item {
         anchors.fill: parent
 
         Item {
             id: viewportOuter
             width: parent.width
-            height: parent.height - toolbar.height - scrubBar.height
+            height: root.previewFullscreen ? parent.height
+                                           : parent.height - toolbar.height - scrubBar.height
             clip: true
 
             // `transformBlocked` is now handled centrally in Main.qml and shown
@@ -59,7 +81,8 @@ PanelFrame {
                 // The inset is also the gutter the transform grips overflow into
                 // when a clip sits flush against a canvas edge — viewportOuter
                 // clips, so a zero margin would shear the bottom handles in half.
-                anchors.margins: Theme.spacingLg
+                // VEDIT (조박사님): fullscreen shows the output itself, edge to edge at 100 %.
+                anchors.margins: root.previewFullscreen ? 0 : Theme.spacingLg
 
                 property real aspect: {
                     void EditorState.tracksRevision
@@ -79,8 +102,10 @@ PanelFrame {
 
                 readonly property real baseWidth: Math.min(width, height * aspect)
                 readonly property real baseHeight: baseWidth / aspect
-                property real fitWidth: baseWidth * cropZoom * userZoom
-                property real fitHeight: baseHeight * cropZoom * userZoom
+                // VEDIT: fullscreen ignores the view zoom and pan — the output fitted, nothing else.
+                readonly property bool outputOnly: root.previewFullscreen
+                property real fitWidth: outputOnly ? baseWidth : baseWidth * cropZoom * userZoom
+                property real fitHeight: outputOnly ? baseHeight : baseHeight * cropZoom * userZoom
 
                 function resetView() {
                     userZoom = 1.0
@@ -102,6 +127,13 @@ PanelFrame {
                     const nw = baseWidth * cropZoom * next
                     const nh = baseHeight * cropZoom * next
                     userZoom = next
+                    // VEDIT (조박사님): at or below the fitted size the picture sits in the middle of
+                    // the canvas — zooming out about the pointer left it stranded off to one side.
+                    if (next <= 1.0) {
+                        panX = 0
+                        panY = 0
+                        return
+                    }
                     panX = (mx - fx * nw) - (width - nw) / 2
                     panY = (my - fy * nh) - (height - nh) / 2
                 }
@@ -155,11 +187,11 @@ PanelFrame {
                     id: canvasRect
                     width: viewport.fitWidth
                     height: viewport.fitHeight
-                    x: (viewport.width - width) / 2 + viewport.panX
-                    y: (viewport.height - height) / 2 + viewport.panY
+                    x: (viewport.width - width) / 2 + (viewport.outputOnly ? 0 : viewport.panX)
+                    y: (viewport.height - height) / 2 + (viewport.outputOnly ? 0 : viewport.panY)
                     color: (EditorState.background && EditorState.background.kind === "transparent")
                            ? "transparent" : Theme.overlayColor
-                    border.width: Theme.borderWidth
+                    border.width: viewport.outputOnly ? 0 : Theme.borderWidth
                     border.color: Theme.border
                     clip: true
 
@@ -333,7 +365,7 @@ PanelFrame {
                     width: canvasRect.width
                     height: canvasRect.height
                     z: 150
-                    visible: !root.playing && EditorState.projectWidth() > 0
+                    visible: !root.playing && EditorState.projectWidth() > 0 && !root.previewFullscreen // VEDIT
                              && EditorState.maskEditActive && !EditorState.canvasCropMode
                 }
 
@@ -346,8 +378,39 @@ PanelFrame {
                     width: canvasRect.width
                     height: canvasRect.height
                     z: 120
-                    visible: !root.playing && EditorState.projectWidth() > 0
+                    visible: !root.playing && EditorState.projectWidth() > 0 && !root.previewFullscreen // VEDIT
                              && !EditorState.canvasCropMode && !EditorState.maskEditActive
+                }
+
+                // VEDIT: 지울 색 찍기 — while armed, a click on the picture picks the colour to key out.
+                MouseArea {
+                    x: canvasRect.x
+                    y: canvasRect.y
+                    width: canvasRect.width
+                    height: canvasRect.height
+                    z: 200
+                    visible: EditorState.chromaPickActive
+                    cursorShape: Qt.CrossCursor
+                    focus: visible
+                    Keys.onEscapePressed: EditorState.cancelChromaPick()
+                    onClicked: (mouse) => EditorState.pickChromaKeyAt(mouse.x / width, mouse.y / height)
+                    Rectangle {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.top
+                        anchors.topMargin: 8
+                        width: pickHint.implicitWidth + 24
+                        height: pickHint.implicitHeight + 12
+                        radius: 6
+                        color: Qt.rgba(0, 0, 0, 0.75)
+                        Text {
+                            id: pickHint
+                            anchors.centerIn: parent
+                            text: qsTr("Click the background colour to remove")
+                            color: "#ffffff"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeBase
+                        }
+                    }
                 }
 
                 TransformOverlay {
@@ -361,7 +424,7 @@ PanelFrame {
                     width: canvasRect.width
                     height: canvasRect.height
                     z: 100
-                    visible: !root.playing && EditorState.projectWidth() > 0
+                    visible: !root.playing && EditorState.projectWidth() > 0 && !root.previewFullscreen // VEDIT
                              && !EditorState.canvasCropMode && !EditorState.maskEditActive
                 }
 
@@ -381,6 +444,23 @@ PanelFrame {
                 }
             }
         }
+
+        Rectangle { // VEDIT: a dark band under the floating controls, fullscreen only
+            visible: root.previewFullscreen && controlsDock.visible
+            opacity: controlsDock.opacity
+            anchors.fill: controlsDock
+            color: Qt.rgba(0, 0, 0, 0.55)
+            z: 9
+        }
+        Column {
+            id: controlsDock
+            width: parent.width
+            anchors.bottom: parent.bottom
+            z: 10
+            opacity: !root.previewFullscreen || root.fullscreenControlsShown || controlsDockHover.hovered ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: 250 } }
+            HoverHandler { id: controlsDockHover }
 
         // Scrub bar. Only in fullscreen: the timeline panel is the seek surface
         // everywhere else, and it is hidden in this mode.
@@ -419,9 +499,11 @@ PanelFrame {
 
         PreviewToolbar {
             id: toolbar
+            width: parent.width
             panel: root
             previewViewport: viewport
         }
+        } // controlsDock
     }
 
     Connections {

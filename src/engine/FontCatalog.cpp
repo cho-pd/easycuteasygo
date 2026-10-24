@@ -100,6 +100,16 @@ FontFamilyEntry loadPackage(const QString &packageDir)
     return entry;
 }
 
+// VEDIT: a family is found by its catalog name ("검은고딕") or the name inside the font file
+// ("Black Han Sans"), ignoring case and spaces ("NanumMyeongjo" = "Nanum Myeongjo"). Before, only
+// the catalog name was known, and a style naming the file's family fell back to whatever Qt chose.
+QString familyKey(const QString &name)
+{
+    QString key = name.toLower();
+    key.remove(QLatin1Char(' '));
+    return key;
+}
+
 void rebuildLocked(const QStringList &packageRoots)
 {
     g_catalog.clear();
@@ -120,9 +130,9 @@ void rebuildLocked(const QStringList &packageRoots)
             if (entry.family.isEmpty())
                 continue;
             // First root wins, so DRIFT_FONTS_DIR can shadow the shipped bundle.
-            if (g_familyIndex.contains(entry.family.toLower()))
+            if (g_familyIndex.contains(familyKey(entry.family)))
                 continue;
-            g_familyIndex.insert(entry.family.toLower(), g_catalog.size());
+            g_familyIndex.insert(familyKey(entry.family), g_catalog.size());
             g_catalog.append(entry);
         }
     }
@@ -137,7 +147,12 @@ void rebuildLocked(const QStringList &packageRoots)
 
     g_familyIndex.clear();
     for (int i = 0; i < g_catalog.size(); ++i)
-        g_familyIndex.insert(g_catalog.at(i).family.toLower(), i);
+        g_familyIndex.insert(familyKey(g_catalog.at(i).family), i);
+    for (int i = 0; i < g_catalog.size(); ++i) { // the file's own name, where nothing else has it
+        const QString key = familyKey(g_catalog.at(i).qtFamily);
+        if (!key.isEmpty() && !g_familyIndex.contains(key))
+            g_familyIndex.insert(key, i);
+    }
 
     g_initialized = true;
 }
@@ -188,7 +203,7 @@ const FontFamilyEntry *fontFamilyForName(const QString &family)
 {
     QMutexLocker lock(&g_mutex);
     ensureLocked();
-    const auto it = g_familyIndex.constFind(family.toLower());
+    const auto it = g_familyIndex.constFind(familyKey(family));
     if (it == g_familyIndex.constEnd())
         return nullptr;
     return &g_catalog.at(it.value());

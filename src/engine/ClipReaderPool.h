@@ -52,6 +52,15 @@ public:
     // calls that follow then hit each reader's cache instead of decoding one
     // clip after another on the caller's thread.
     void warmVideoFrames(const QList<VideoRequest> &requests);
+    // VEDIT: also read ahead from each warmed position, so a clip about to start has its opening
+    // frames ready, not just its first.
+    void warmVideoFrames(const QList<VideoRequest> &requests, drift::TimeUs readAheadUs);
+    // VEDIT: marks these clips' workers as in use without reading, so the clips about to start
+    // are neither closed nor handed to another clip while they wait.
+    void touchVideoStreams(const QList<VideoRequest> &requests);
+    // VEDIT (Codex 검토 1): the clips on screen and the next ones to start. Touched like above, and
+    // the only workers the decoder cap keeps when it has to close something.
+    void protectVideoStreams(const QList<VideoRequest> &requests);
 
     // How far past the frame being composited each reader keeps decoding, in
     // source time. Set per composite from the render options; 0 (the default)
@@ -99,6 +108,15 @@ public:
     // segmentation or face tracking, which never appear on the timeline — keeps a thread, an open
     // demuxer/decoder and its frame caches alive for the rest of the process.
     void retainActivePaths(const QSet<QString> &videoPaths, const QSet<QString> &audioPaths);
+    int videoWorkerCount(); // VEDIT: play trace
+    static constexpr qint64 kVideoIdleCloseMs = 4000; // VEDIT: see retainActivePaths
+    static constexpr int kMaxVideoWorkers = 4; // VEDIT
+    static constexpr qint64 kAdoptIdleMs = 1000; // VEDIT: see ensureWorker
+    QSet<QString> m_protectedVideoKeys; // VEDIT: guarded by m_mutex
+    static QString videoKey(const QString &path, quint64 streamId)
+    {
+        return streamId != 0 ? path + QStringLiteral("#") + QString::number(streamId, 16) : path;
+    }
 
     // Drop every worker that is not mid-decode, ignoring the idle gate. For the Android
     // application-state handler: backgrounding is the one moment where reopening every file later
@@ -122,8 +140,10 @@ private:
     };
 
     static void stopWorkerEntry(WorkerEntry &entry);
+    // VEDIT: `streamId` != 0 gives that stream (one clip) a worker thread of its own — see
+    // ensureWorker. 0 keeps the one-thread-per-file behaviour (audio, still frames).
     WorkerEntry &ensureWorker(std::map<QString, std::unique_ptr<WorkerEntry>> &workers,
-                              const QString &path);
+                              const QString &path, quint64 streamId = 0);
     // Caller holds m_mutex. Erases every entry outside `keep` that has been untouched for at least
     // minIdleMs and has no decode in flight, and hands the owning pointers back so the caller can
     // stop them once the lock is released — stopWorkerEntry joins a thread and must not run under

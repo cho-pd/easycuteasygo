@@ -58,8 +58,14 @@ struct GpuLayer
     QImage fgr;
     QRectF rect;             // destination rect on the canvas, in canvas pixels
     double rotation = 0.0;   // degrees, clockwise, about the rect centre
+    // VEDIT: 3D turns about the rect centre (degrees), drawn in perspective — clip movements.
+    double yaw = 0.0;
+    double pitch = 0.0;
     bool flipH = false;
     bool flipV = false;
+    // VEDIT: the part of the layer texture drawn into `rect` (crop). Must default to the unit
+    // rect — every full-canvas helper layer relies on it.
+    QRectF uv{0.0, 0.0, 1.0, 1.0};
     double opacity = 1.0;
     drift::TimeUs clipTimeUs = 0; // effect time base (relative to clip start)
     // This frame's baked face anchors, one per tracked slot, sampled by FrameCompositor. Carried

@@ -62,14 +62,28 @@ Item {
     readonly property var clipData: model
     // The revision, not the selection itself: reading EditorState.selection rebuilt a list of
     // maps for the whole selection, and this binding exists once per clip in the project.
+    // VEDIT (조박사님): with a transition selected only the transition reads as selected — the
+    // clip it starts from is held internally (for the inspector) but not drawn as picked.
     property bool selected: (EditorState.selectionRevision,
-                             EditorState.selectionContains(trackIndex, clipIndex))
+                             EditorState.selectedTransitionTrack < 0
+                             && EditorState.selectionContains(trackIndex, clipIndex))
     // Live trim geometry, held here instead of being written to the project on every pointer
     // sample. Applying the edit per sample meant rebuilding the whole timeline model each time —
     // ~33 ms on a heavy project, several frames — for a change to one clip. The drag now previews
     // against these and commits once on release; EditorState.previewTrim* runs the same
     // computation the commit will, so the clip does not move when it lands.
     property bool trimPreviewActive: false
+    // VEDIT (조박사님): an end dragged out over the next clip shows the crossfade (and its
+    // seconds) while still dragging — the panel draws it from this live length.
+    function reportLiveTrim() {
+        if (trimPreviewActive)
+            panel.setLiveTrim(trackIndex, clipData.id, trimPreviewStart, trimPreviewDuration)
+        else
+            panel.clearLiveTrim(clipData.id)
+    }
+    onTrimPreviewActiveChanged: reportLiveTrim()
+    onTrimPreviewStartChanged: reportLiveTrim()
+    onTrimPreviewDurationChanged: reportLiveTrim()
     property real trimPreviewStart: 0
     property real trimPreviewDuration: 0
     property real trimPreviewIn: 0
@@ -124,14 +138,23 @@ Item {
     // Track::ClipDisplay: 0 filmstrip, 1 filmstrip + waveform bar, 2 waveform only.
     readonly property int clipDisplay: panel.tracks[trackIndex].clipDisplay !== undefined
                                        ? panel.tracks[trackIndex].clipDisplay : 1
-    readonly property bool showWaveform: clipDisplay === 2
+    // VEDIT: a photo on the video track has no sound — it always shows its picture, full height.
+    readonly property bool isStill: clipData.kind === "image"
+    readonly property bool showWaveform: clipDisplay === 2 && !isStill
     // CapCut-style strip under the filmstrip. Dropped once the audio has been separated
     // (its waveform is on the audio track then) and when the body is too short to split.
-    readonly property bool showWaveformBar: trackType === "video" && clipDisplay === 1
+    readonly property bool showWaveformBar: trackType === "video" && clipDisplay === 1 && !isStill
                                             && clipData.hasEmbeddedAudio === true
                                             && height - headerBandHeight >= 30
+    // VEDIT (조박사님): a video whose sound was separated (or that has none) keeps the sound strip
+    // as an empty black band, so it reads at a glance that its sound lives elsewhere.
+    readonly property bool showEmptyAudioBar: trackType === "video" && clipDisplay === 1 && !isStill
+                                              && clipData.kind === "video"
+                                              && clipData.hasEmbeddedAudio !== true
+                                              && height - headerBandHeight >= 30
+    // VEDIT: a taller strip so stereo can split into L/R lanes under the picture.
     readonly property real waveformBarHeight:
-        Math.max(12, Math.round((height - headerBandHeight) * 0.3))
+        Math.max(16, Math.round((height - headerBandHeight) * 0.45))
     property bool showChannelWaveforms: panel.tracks[trackIndex].showChannelWaveforms === true
     property var clipEffects: clipData.effects || []
     property var clipAudioEffects: clipData.audioEffects || []
@@ -184,13 +207,17 @@ Item {
     readonly property bool timelineFadeHandles: trackType !== "subtitle"
 
     // Gain along a fade ramp (progress 0..1). Mirrors Clip::shapeFade / FadeShape.
-    function fadeGainAt(progress) {
+    function fadeGainAt(progress, curveOverride) {
         const t = Math.max(0, Math.min(1, progress))
-        const curve = clipItem.clipData.fadeCurve || "smooth"
+        const curve = curveOverride || clipItem.clipData.fadeCurve || "smooth"
         if (curve === "linear")
             return t
         if (curve === "equalPower")
             return Math.sin(t * Math.PI * 0.5)
+        if (curve === "slow") // VEDIT
+            return 1 - Math.cos(t * Math.PI * 0.5)
+        if (curve === "sharp") // VEDIT
+            return 0.5 - Math.sin(Math.asin(1 - 2 * t) / 3)
         if (curve === "bezier") {
             // Mirrors FadeShape::bezierAt — anchors pinned at (0,0)/(1,1), solve x for t.
             const h = clipItem.clipData.fadeHandles || [0.42, 0.0, 0.58, 1.0]
@@ -304,9 +331,11 @@ Item {
     readonly property real edgeMargin: touchMode
                                        ? Math.min(Theme.androidClipEdgeMargin, width / 4)
                                        : 14
+    // VEDIT (조박사님): on desktop the trim grab starts at the clip's own edge — no trim bar
+    // appears with the pointer outside the clip.
     readonly property real trimHotspotExtra: touchMode
                                              ? Theme.androidTrimHotspotExtra
-                                             : 10
+                                             : 0
 
     // --- Trim strips vs. scrolling the layers ---------------------------------------------
     // On touch each trim strip is ~38dp wide and runs the full height of the clip, at both
@@ -388,15 +417,20 @@ Item {
     // and clamped so it can never swallow a
     // short (25px) text or subtitle row.
     // One line now: the effect list that used to need a taller band moved to the lane.
-    readonly property real headerBandHeight:
-        Math.min(Theme.clipHeaderBandHeight, Math.max(0, height * 0.5))
+    // VEDIT (조박사님, as in Vegas): a sound clip has no name band — its waveform fills the whole
+    // clip and the name sits on top of it (audioNameTag below).
+    readonly property real headerBandHeight: trackType === "audio" ? 0
+        : Math.min(Theme.clipHeaderBandHeight, Math.max(0, height * 0.5))
 
+    // VEDIT: clips start exactly at their time (no 1.5 px shift), so a cut lines up with the
+    // playhead and the ruler. Vertical inset stays for the selection ring.
+    readonly property real xInset: 0
     y: Theme.clipSelectionRingWidth
     // Floored so short clips stay visible and
     // trimmable even at low zoom.
-    width: Math.max(Theme.clipMinWidth,
-                    effectiveDuration * panel.pxPerSecond
-                    - 2 * Theme.clipSelectionRingWidth)
+    // VEDIT: exactly the clip's length — no inset at either end, so two clips that touch in time
+    // touch on screen. The 3 px it used to lose read as a missing frame (조박사님).
+    width: Math.max(Theme.clipMinWidth, effectiveDuration * panel.pxPerSecond)
     height: Math.max(0, trackRow.height - 2 * Theme.clipSelectionRingWidth)
 
     // A clip scrolled off the side of the timeline still cost a full set of scene-graph nodes,
@@ -431,7 +465,7 @@ Item {
         // Keep linked/selected partners locked to this clip's live X and Y.
         panel.updateMoveFollow(x - clipMouse.moveOriginX,
                                y - Theme.clipSelectionRingWidth)
-        const desired = Math.max(0, (x - Theme.clipSelectionRingWidth) / panel.pxPerSecond)
+        const desired = Math.max(0, (x - clipItem.xInset) / panel.pxPerSecond)
         const pos = mapToItem(timelineColumn, width / 2, height / 2)
         const targetTrack = panel.trackIndexAtY(pos.y)
         const effTrack = targetTrack >= 0 ? targetTrack : trackIndex
@@ -453,14 +487,21 @@ Item {
     readonly property real followOffsetY: (moveFollowFollower && trackIndex === panel.moveLeaderTrack)
                                           ? panel.moveFollowDeltaY : 0
 
+    // VEDIT: stands aside while a dragged clip is about to be inserted before it (끼워 넣기).
+    readonly property real insertShiftX: (panel.insertTrack === trackIndex && panel.insertTrack >= 0
+                                          && clipData.id !== panel.insertExcludeId
+                                          && clipItem.effectiveStart >= panel.insertSeamSec - 0.001)
+                                         ? panel.insertDurSec * panel.pxPerSecond : 0
+
     Binding {
         target: clipItem
         property: "x"
         when: !clipMouse.drag.active
-        value: Math.max(Theme.clipSelectionRingWidth,
+        value: Math.max(clipItem.xInset,
                         clipItem.effectiveStart * panel.pxPerSecond
-                        + Theme.clipSelectionRingWidth
-                        + clipItem.followOffsetX)
+                        + clipItem.xInset
+                        + clipItem.followOffsetX
+                        + clipItem.insertShiftX)
     }
 
     Binding {
@@ -488,10 +529,72 @@ Item {
         NumberAnimation { duration: Theme.durationPress; easing.type: Theme.easing }
     }
 
+    // VEDIT: 트랙 잠금.
+    readonly property bool trackLocked: !!(panel.tracks && panel.tracks[trackIndex]
+                                           && panel.tracks[trackIndex].locked === true)
+
+    // VEDIT (조박사님): a video clip's effects ride in the upper half of its band, edge to edge,
+    // drawn under the name (which keeps its place and size); the effect list sits at the right.
+    // This item only takes the clicks on that list: click opens the effects, right-click offers
+    // 효과 줄 분리 — the effects leave for a lane of their own and stop following the clip.
+    // VEDIT (조박사님): what the yellow edge handles stand for — a movement's length when the
+    // side has one (들어오기 / 나가기), else the fade.
+    readonly property real edgeInLength: (clipData.animInLength || 0) > 0 ? clipData.animInLength : (clipData.fadeIn || 0)
+    readonly property real edgeOutLength: (clipData.animOutLength || 0) > 0 ? clipData.animOutLength : (clipData.fadeOut || 0)
+    readonly property bool fxShown: trackType === "video" && clipData.kind !== "adjustment"
+                                    && clipEffects.length > 0 && headerBandHeight > 0
+    // VEDIT (조박사님): a speed change counts as an effect too — the upper half of the band turns
+    // red and says how fast (4×).
+    readonly property real clipSpeed: Number(clipData.speed) || 1
+    readonly property bool speedShown: (clipData.kind === "video" || clipData.kind === "audio")
+                                       && (Math.abs(clipSpeed - 1) > 0.001 || clipData.hasSpeedCurve === true)
+                                       && headerBandHeight > 0
+    readonly property string speedText: !speedShown ? ""
+                                        : (clipData.hasSpeedCurve === true ? qsTr("Speed curve")
+                                                                           : Number(clipSpeed.toFixed(2)) + "×")
+    Item {
+        id: fxBand
+        visible: clipItem.fxShown
+        z: 3
+        y: 0
+        height: Math.round(clipItem.headerBandHeight / 2)
+        width: Math.min(fxListText.implicitWidth + 8, parent.width / 2)
+        x: parent.width - width - clipItem.edgeMargin
+
+        MouseArea {
+            id: fxMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            cursorShape: Qt.PointingHandCursor
+            onClicked: (mouse) => {
+                EditorState.noteTrackClicked(clipItem.trackIndex)
+                if (mouse.button === Qt.RightButton)
+                    fxMenu.popup()
+                else
+                    EditorState.selectEffectHost(clipItem.trackIndex, clipItem.clipIndex)
+            }
+        }
+
+        ThemedContextMenu {
+            id: fxMenu
+            ThemedMenuItem {
+                text: qsTr("Open effects")
+                icon.name: Theme.icons.wand
+                onTriggered: EditorState.selectEffectHost(clipItem.trackIndex, clipItem.clipIndex)
+            }
+            ThemedMenuItem {
+                text: qsTr("Separate effect lane")
+                icon.name: Theme.icons.unlink
+                onTriggered: EditorState.separateEffectLane(clipItem.trackIndex, clipItem.clipIndex)
+            }
+        }
+    }
+
     Rectangle {
         id: clipBackground
         anchors.fill: parent
-        radius: Theme.radiusSm
+        radius: Theme.clipCornerRadius // VEDIT: rounded so the meeting point of two clips shows
         // Lightens on hover — previously nothing
         // in the clip reacted to the pointer.
         color: {
@@ -500,15 +603,19 @@ Item {
                 const lit = clipMouse.containsMouse || clipItem.lifted
                 return lit ? Qt.lighter(base, 1.15) : base
             }
-            const base = panel.clipColor(
+            let base = panel.clipColor(
                 clipItem.clipData.kind === "composite" ? "composite"
                 : clipItem.trackType === "shape" ? "graphic" : clipItem.trackType)
+            // VEDIT (조박사님): a sound split off a video that no longer lines up with it gets a
+            // little red — no number, just the hint.
+            if (clipItem.clipData.outOfSync === true)
+                base = Qt.tint(base, Qt.rgba(0.95, 0.12, 0.12, 0.38))
             const lit = clipMouse.containsMouse || clipItem.lifted
             return lit ? Qt.lighter(base, 1.15) : base
         }
         border.width: clipItem.effectDropTarget
                       ? Theme.borderWidthFocus
-                      : (clipItem.selected ? Theme.clipSelectionRingWidth : 0)
+                      : (clipItem.selected ? 2 : 0) // VEDIT (조박사님): a 2 px yellow line round a picked clip
         border.color: clipItem.effectDropTarget ? Theme.clipEffect : Theme.primary
         clip: true
 
@@ -524,6 +631,88 @@ Item {
             visible: clipItem.effectDropTarget
             color: Qt.rgba(Theme.clipEffect.r, Theme.clipEffect.g, Theme.clipEffect.b, 0.28)
             z: 4
+        }
+
+        // VEDIT: CapCut's animation marks along the clip's bottom edge — a band the length of the
+        // 들어오기 from the left, of the 나가기 from the right, or across the whole clip for a 콤보,
+        // each with a small arrow pointing the way the clip moves.
+        Item {
+            id: animMarks
+            anchors.fill: parent
+            z: 3
+            readonly property real inW: Math.min(width, (clipItem.clipData.animInLength || 0) * panel.pxPerSecond)
+            readonly property real outW: Math.min(width, (clipItem.clipData.animOutLength || 0) * panel.pxPerSecond)
+            readonly property bool combo: (clipItem.clipData.animComboId || "").length > 0
+            readonly property color markColor: Qt.rgba(1.0, 0.82, 0.35, 0.85)
+
+            // VEDIT (조박사님): the 들어오기 / 나가기 stretch of the clip faintly tinted, fading toward
+            // the middle, so where a movement plays reads at a glance.
+            Rectangle {
+                visible: !animMarks.combo && animMarks.inW > 1
+                x: 0
+                width: animMarks.inW
+                height: parent.height
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0.0; color: Qt.rgba(1.0, 0.85, 0.4, 0.22) }
+                    GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.85, 0.4, 0.06) }
+                }
+            }
+            Rectangle {
+                visible: !animMarks.combo && animMarks.outW > 1
+                x: parent.width - width
+                width: animMarks.outW
+                height: parent.height
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0.0; color: Qt.rgba(1.0, 0.85, 0.4, 0.06) }
+                    GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.85, 0.4, 0.22) }
+                }
+            }
+
+            Rectangle {
+                visible: animMarks.combo
+                x: 0
+                y: parent.height - height
+                width: parent.width
+                height: 4
+                color: animMarks.markColor
+                opacity: 0.8
+            }
+            Rectangle {
+                visible: !animMarks.combo && animMarks.inW > 1
+                x: 0
+                y: parent.height - height
+                width: animMarks.inW
+                height: 4
+                color: animMarks.markColor
+                Text {
+                    visible: parent.width >= 14
+                    anchors.right: parent.right
+                    anchors.bottom: parent.top
+                    text: "\u203A" // ›
+                    color: animMarks.markColor
+                    font.pixelSize: 14
+                    font.bold: true
+                }
+            }
+            Rectangle {
+                visible: !animMarks.combo && animMarks.outW > 1
+                x: parent.width - width
+                y: parent.height - height
+                width: animMarks.outW
+                height: 4
+                color: animMarks.markColor
+                Text {
+                    visible: parent.width >= 14
+                    anchors.left: parent.left
+                    anchors.bottom: parent.top
+                    text: "\u203A"
+                    color: animMarks.markColor
+                    font.pixelSize: 14
+                    font.bold: true
+                }
+            }
         }
 
         // Fade ramp overlays — sized only to the fade spans so a multi-hour clip
@@ -586,7 +775,9 @@ Item {
             height: parent.height
             x: parent.width - width
             visible: width > 0.5
-            property string curveKey: (clipItem.clipData.fadeCurve || "smooth")
+            // VEDIT: the fade-out has its own curve
+            readonly property string outCurve: clipItem.clipData.fadeOutCurve || clipItem.clipData.fadeCurve || "smooth"
+            property string curveKey: outCurve
                                       + "|" + JSON.stringify(clipItem.clipData.fadeShape || [])
             onWidthChanged: requestPaint()
             onHeightChanged: requestPaint()
@@ -607,7 +798,7 @@ Item {
                 ctx.lineTo(width, 0)
                 for (let i = steps; i >= 0; --i) {
                     const t = i / steps
-                    const g = clipItem.fadeGainAt(1.0 - t)
+                    const g = clipItem.fadeGainAt(1.0 - t, fadeOutCanvas.outCurve)
                     ctx.lineTo(t * width, height * (1.0 - g))
                 }
                 ctx.closePath()
@@ -615,7 +806,7 @@ Item {
                 ctx.beginPath()
                 for (let i = 0; i <= steps; ++i) {
                     const t = i / steps
-                    const g = clipItem.fadeGainAt(1.0 - t)
+                    const g = clipItem.fadeGainAt(1.0 - t, fadeOutCanvas.outCurve)
                     const x = t * width
                     const y = height * (1.0 - g)
                     if (i === 0)
@@ -625,6 +816,16 @@ Item {
                 }
                 ctx.stroke()
             }
+        }
+
+        Rectangle { // VEDIT: the empty sound strip of a video whose sound was separated
+            visible: clipItem.showEmptyAudioBar
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: clipItem.waveformBarHeight
+            color: Qt.rgba(0, 0, 0, 0.35) // 조박사님: the same as the sound strip of a clip with sound
+            z: 0
         }
 
         ClipFilmstrip {
@@ -637,7 +838,7 @@ Item {
                                 || clipItem.trackType === "shape")
                                ? clipItem.headerBandHeight
                                : 0
-            anchors.bottomMargin: clipItem.showWaveformBar ? clipItem.waveformBarHeight : 0
+            anchors.bottomMargin: (clipItem.showWaveformBar || clipItem.showEmptyAudioBar) ? clipItem.waveformBarHeight : 0
             visible: clipItem.clipData.filmstripPath
                      && clipItem.clipData.filmstripPath.length > 0
                      && !clipItem.showWaveform
@@ -681,6 +882,35 @@ Item {
             //
             // A VFR "!" leads the name so it survives any zoom; the pills follow it. The name only
             // gives up width when everything doesn't fit, so a long name elides and pills stay whole.
+            // VEDIT: the FX strip (see fxBand) — upper half, edge to edge, list at the right.
+            Rectangle {
+                visible: clipItem.fxShown || clipItem.speedShown
+                x: 0
+                y: 0
+                width: parent.width
+                // VEDIT (조박사님): a speed change takes the whole header, its "4×" as large as the name.
+                height: clipItem.speedShown ? parent.height : Math.round(parent.height / 2)
+                readonly property color base: clipItem.speedShown ? "#d62f2f" : Theme.clipEffect
+                color: fxMouse.containsMouse ? Qt.lighter(base, 1.2) : base
+                Text {
+                    id: fxListText
+                    anchors.right: parent.right
+                    anchors.rightMargin: clipItem.edgeMargin + 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.min(implicitWidth, parent.width / 2)
+                    horizontalAlignment: Text.AlignRight
+                    text: clipItem.speedText
+                          + (clipItem.speedShown && clipItem.fxShown ? "   " : "")
+                          + (clipItem.fxShown ? "FX  " + clipItem.effectsLabelText : "")
+                    color: Theme.onMedia
+                    font.pixelSize: clipItem.speedShown ? Theme.fontSizeTiny
+                                                        : Theme.fontSizeTiny - 1.5 // VEDIT (조박사님): a little smaller
+                    font.family: Theme.fontFamily
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideLeft
+                }
+            }
+
             Row {
                 id: clipNameRow
                 anchors.left: parent.left
@@ -816,10 +1046,31 @@ Item {
 
             // Channels the decoder found, 0 until the first block lands — so a multi-channel
             // clip draws the merged lane for one frame and then splits.
+            // VEDIT: what the source actually carries — "mono", "stereo", "left" / "right" (a
+            // stereo file with one silent side), "multi", or "" before the first block decodes.
+            readonly property string channelLayout: {
+                void decodeRevision
+                if (!clipItem.wfPath)
+                    return ""
+                return EditorState.waveformChannelLayout(clipItem.wfPath, clipItem.wfStream)
+            }
+            // Stereo with one silent side draws just the side that has sound, in one lane.
+            // VEDIT (조박사님, as Vegas shows it): a stereo file with one silent side is drawn as two
+            // lanes too — the side with sound, and an empty lane for the silent side — so it is
+            // plain which speaker it plays on. (It used to fill one full-height lane, which read as
+            // mono.)
+            readonly property bool oneSided: channelLayout === "left" || channelLayout === "right"
+            readonly property int soloChannel: -1
+
             readonly property int sourceChannels: {
                 void decodeRevision
-                if (!clipItem.showChannelWaveforms || clipItem.showWaveformBar
-                        || !clipItem.clipData.path)
+                if (!clipItem.clipData.path)
+                    return 0
+                // Stereo always splits into L/R (VEDIT); other layouts keep the per-track
+                // opt-in for every channel (5.1, 7.1...).
+                if (channelLayout === "stereo" || waveformHost.oneSided)
+                    return 2
+                if (!clipItem.showChannelWaveforms || clipItem.showWaveformBar)
                     return 0
                 return EditorState.waveformChannelCount(
                     clipItem.clipData.path, clipItem.clipData.audioStreamIndex || 0)
@@ -846,6 +1097,10 @@ Item {
 
             Canvas {
                 id: waveformCanvas
+                // VEDIT: a sound clip's waveform shrinks with its event level, as in Vegas — each
+                // lane about its own centre line (drawn smaller, not squeezed toward the middle).
+                readonly property real gainScale: clipItem.trackType === "audio" ? clipItem.liveLevel : 1.0
+                onGainScaleChanged: requestPaint()
 
                 // Visible slice of the clip, snapped to a 256px grid so scrolling only
                 // re-queries peaks every step instead of every frame.
@@ -878,7 +1133,7 @@ Item {
                         return []
                     // The per-channel query covers this window already; asking for the merged
                     // envelope as well would double the work for something nothing draws.
-                    if (waveformHost.laneCount > 1)
+                    if (waveformHost.laneCount > 1 || waveformHost.soloChannel >= 0)
                         return []
                     return EditorState.waveformPeaksRange(
                         clipItem.wfPath,
@@ -892,7 +1147,7 @@ Item {
                 property var channelData: {
                     void waveformHost.decodeRevision
                     if (!clipItem.wfPath || srcPerPx <= 0
-                            || waveformHost.laneCount <= 1)
+                            || (waveformHost.laneCount <= 1 && waveformHost.soloChannel < 0))
                         return null
                     return EditorState.waveformChannelPeaksRange(
                         clipItem.wfPath,
@@ -935,7 +1190,7 @@ Item {
                                 if (values[i] > peak)
                                     peak = values[i]
                             }
-                            const amp = Math.max(0.5, peak * half)
+                            const amp = Math.max(0.5, peak * half * waveformCanvas.gainScale)
                             if (x === 0)
                                 ctx.moveTo(x, mid - amp)
                             else
@@ -952,7 +1207,7 @@ Item {
                                 if (values[j] > peakB)
                                     peakB = values[j]
                             }
-                            const ampB = Math.max(0.5, peakB * half)
+                            const ampB = Math.max(0.5, peakB * half * waveformCanvas.gainScale)
                             ctx.lineTo(xb + 1, mid + ampB)
                             ctx.lineTo(xb, mid + ampB)
                         }
@@ -974,7 +1229,43 @@ Item {
 
                     if (waveformHost.laneCount > 1 && channelData
                             && channelData.channels > 1 && channelData.buckets > 0) {
+                        // VEDIT: draw the sides as they will play (L on both, R on both, mixed)
+                        const mode = clipItem.effectiveChannelMode
+                        if (mode > 0 && channelData.channels === 2) {
+                            const b = channelData.buckets
+                            const src = channelData.peaks
+                            if (mode === 3) {
+                                // VEDIT (조박사님): L/R mixed is mono — one lane, full height
+                                const mono = new Array(b)
+                                for (let k = 0; k < b; ++k)
+                                    mono[k] = (src[k] + src[b + k]) / 2
+                                paintLanes(ctx, { channels: 1, buckets: b, peaks: mono });
+                                return;
+                            }
+                            const out = new Array(2 * b)
+                            for (let k = 0; k < b; ++k) {
+                                if (mode === 4) { // VEDIT: swapped
+                                    out[k] = src[b + k]
+                                    out[b + k] = src[k]
+                                    continue
+                                }
+                                const v1 = mode === 1 ? src[k] : src[b + k]
+                                out[k] = v1
+                                out[b + k] = v1
+                            }
+                            paintLanes(ctx, { channels: 2, buckets: b, peaks: out });
+                            return;
+                        }
                         paintLanes(ctx, channelData);
+                        return;
+                    }
+                    // VEDIT: one-sided stereo — draw only the channel with sound, full height.
+                    if (waveformHost.soloChannel >= 0 && channelData && channelData.buckets > 0
+                            && channelData.channels > waveformHost.soloChannel) {
+                        const b = channelData.buckets;
+                        const start = waveformHost.soloChannel * b;
+                        paintLanes(ctx, { channels: 1, buckets: b,
+                                          peaks: channelData.peaks.slice(start, start + b) });
                         return;
                     }
 
@@ -994,7 +1285,7 @@ Item {
                             if (peaks[i] > peak)
                                 peak = peaks[i];
                         }
-                        var amp = peak * mid * 0.9;
+                        var amp = peak * mid * 0.9 * gainScale;
                         if (amp > 0.5)
                             ctx.fillRect(x, mid - amp, 1, amp * 2);
                     }
@@ -1005,22 +1296,175 @@ Item {
             // tracks the viewport, so anything painted in its coordinates slides while you
             // scroll. Hidden when a lane is too short for the glyph to fit.
             Repeater {
-                model: waveformHost.laneCount > 1 ? waveformHost.laneCount : 0
+                // VEDIT: a one-sided stereo lane is labelled too, so "only L" is visible.
+                model: clipItem.effectiveChannelMode === 3 ? 0 // VEDIT: mono, no L / R
+                       : waveformHost.laneCount > 1 ? waveformHost.laneCount
+                                                    : (waveformHost.soloChannel >= 0 ? 1 : 0)
 
                 Text {
                     readonly property var names: waveformCanvas.channelData
                                                  ? waveformCanvas.channelData.names : null
-                    x: 3
+                    x: clipItem.trackType === "audio" ? waveformHost.width - width - 4 : 3 // VEDIT: clear of the name
                     y: index * waveformHost.laneHeight
                        + (waveformHost.laneHeight - height) / 2
                     visible: waveformHost.laneHeight >= 14
-                    text: (names && names[index]) ? names[index] : (index + 1)
+                    // VEDIT: plain L / R for stereo instead of FL / FR.
+                    text: waveformHost.soloChannel >= 0 ? (waveformHost.soloChannel === 0 ? "L" : "R")
+                          : (waveformHost.channelLayout === "stereo" || waveformHost.oneSided) ? (index === 0 ? "L" : "R")
+                          : (names && names[index]) ? names[index] : (index + 1)
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeTiny
                 }
             }
         }
+    }
+
+    // VEDIT (조박사님, as in Vegas): a sound clip's name on top of its waveform, top-left.
+    Rectangle {
+        id: audioNameTag
+        visible: clipItem.trackType === "audio" && clipItem.width > 40 && (clipItem.clipData.name || "").length > 0
+        z: 3
+        x: Math.min(clipItem.fadeHandleSize + 4, 16)
+        y: 2
+        width: Math.min(audioNameText.implicitWidth + 8, Math.max(0, clipItem.width - x - 6))
+        height: audioNameText.implicitHeight + 2
+        radius: 2
+        color: Qt.rgba(0, 0, 0, 0.45)
+        clip: true
+        Text {
+            id: audioNameText
+            x: 4
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width - 8
+            text: clipItem.clipData.name || ""
+            elide: Text.ElideRight
+            color: Theme.onMedia
+            font.pixelSize: Theme.fontSizeTiny
+            font.family: Theme.fontFamily
+        }
+    }
+
+    // VEDIT (조박사님, Vegas's event level): the line along the clip's top. Drag it down: a sound
+    // clip gets quieter (its waveform shrinks, the dB shows); a picture, text or shape gets more
+    // transparent ("Opacity -10%") while the clip itself on the timeline stays as it is.
+    readonly property bool levelIsSound: clipItem.trackType === "audio"
+    // VEDIT: stereo sides — the clip's own choice, else its track's
+    readonly property int effectiveChannelMode: (clipItem.clipData.channelMode || 0) > 0
+                                                ? clipItem.clipData.channelMode
+                                                : ((panel.tracks && panel.tracks[clipItem.trackIndex]
+                                                    && panel.tracks[clipItem.trackIndex].channelMode) || 0)
+    onEffectiveChannelModeChanged: if (typeof waveformCanvas !== "undefined") waveformCanvas.requestPaint()
+    property real dragLevel: -1
+    readonly property real liveLevel: dragLevel >= 0 ? dragLevel
+                                                     : (clipItem.clipData.level !== undefined ? clipItem.clipData.level : 1.0)
+    // VEDIT: the waveform is redrawn at every step of the drag, not only when it ends
+    onLiveLevelChanged: if (typeof waveformCanvas !== "undefined" && waveformCanvas) waveformCanvas.requestPaint()
+    // Line position (0 = top) ↔ level: sound on a squared scale (half way ≈ -12 dB), pictures linear.
+    function levelFromPos(p) {
+        p = Math.max(0, Math.min(1, p))
+        return levelIsSound ? (1 - p) * (1 - p) : 1 - p
+    }
+    function posFromLevel(l) {
+        l = Math.max(0, Math.min(1, l))
+        return levelIsSound ? 1 - Math.sqrt(l) : 1 - l
+    }
+    function levelLabel(l) {
+        if (levelIsSound) {
+            if (l <= 0.0001)
+                return "-∞ dB"
+            const db = 20 * Math.log(l) / Math.LN10
+            return (db > -0.05 ? "0.0" : db.toFixed(1)) + " dB"
+        }
+        return qsTr("Opacity %1%").arg(l >= 0.9995 ? "0" : "-" + Math.round((1 - l) * 100))
+    }
+    readonly property bool levelSupported: clipItem.trackType !== "subtitle" && clipItem.clipData.kind !== "adjustment"
+    readonly property real levelLineY: posFromLevel(liveLevel) * (clipItem.height - 4) + 1
+
+    Rectangle {
+        id: levelLine
+        visible: clipItem.levelSupported && (clipItem.liveLevel < 0.999 || levelMouse.containsMouse || levelMouse.pressed)
+        z: 25
+        x: 0
+        width: clipItem.width
+        y: clipItem.levelLineY
+        height: levelMouse.containsMouse || levelMouse.pressed ? 2 : 1
+        color: Qt.rgba(1, 1, 1, levelMouse.containsMouse || levelMouse.pressed ? 0.95 : 0.6)
+    }
+    Rectangle {
+        visible: clipItem.levelSupported && (levelMouse.containsMouse || levelMouse.pressed)
+        z: 26
+        // VEDIT (조박사님): beside the pointer, not under it — to its right, or to its left near
+        // the clip's right end.
+        readonly property real pointerX: levelMouse.mouseX + levelMouse.x
+        x: pointerX + 18 + width <= clipItem.width - 2 ? pointerX + 18
+                                                       : Math.max(2, pointerX - 18 - width)
+        y: Math.max(0, Math.min(clipItem.height - height - 1, clipItem.levelLineY - height / 2))
+        width: levelText.implicitWidth + 8
+        height: levelText.implicitHeight + 2
+        radius: 3
+        color: Qt.rgba(0.1, 0.1, 0.1, 0.9)
+        border.width: 1
+        border.color: Qt.rgba(1, 1, 1, 0.7)
+        Text {
+            id: levelText
+            anchors.centerIn: parent
+            text: clipItem.levelLabel(clipItem.liveLevel)
+            color: "#ffffff"
+            font.family: Theme.fontFamily
+            font.pixelSize: 11
+        }
+    }
+    // VEDIT (조박사님): a handle in the middle of the level line, as in Vegas — shown while the
+    // pointer is on the clip, or the clip is selected, or the level is down.
+    Rectangle {
+        id: levelHandle
+        visible: clipItem.levelSupported && !clipItem.touchMode
+                 && (clipMouse.containsMouse || levelMouse.containsMouse || levelMouse.pressed
+                     || clipItem.selected || clipItem.liveLevel < 0.999)
+                 && clipItem.width > 2 * (clipItem.fadeHandleSize + 12) + 24
+        z: 26
+        width: 24
+        height: 6
+        radius: 0 // 조박사님: square corners
+        x: (clipItem.width - width) / 2
+        y: Math.max(0, Math.min(clipItem.height - height, clipItem.levelLineY - height / 2 + 0.5))
+        color: levelMouse.containsMouse || levelMouse.pressed ? "#3a3a3a" : "#000000" // 조박사님: black
+        border.width: 1
+        border.color: "#8a8a8a" // VEDIT (조박사님): grey, not white
+    }
+    MouseArea {
+        id: levelMouse
+        enabled: clipItem.levelSupported && !clipItem.touchMode
+        z: 24
+        // Between the fade dots, a strip around the line.
+        x: clipItem.fadeHandleSize + 12
+        width: Math.max(0, clipItem.width - 2 * (clipItem.fadeHandleSize + 12))
+        y: Math.max(0, clipItem.levelLineY - 4)
+        height: 9
+        hoverEnabled: true
+        cursorShape: Qt.SizeVerCursor
+        preventStealing: true
+        onPositionChanged: (mouse) => {
+            if (!pressed)
+                return
+            const yy = mapToItem(clipItem, mouse.x, mouse.y).y
+            clipItem.dragLevel = clipItem.levelFromPos((yy - 1) / Math.max(1, clipItem.height - 4))
+            // VEDIT (조박사님): the preview and the sound follow while the line moves
+            EditorState.previewSetClipLevel(clipItem.trackIndex, clipItem.clipIndex, clipItem.dragLevel)
+        }
+        onReleased: {
+            if (clipItem.dragLevel >= 0) {
+                EditorState.commitPreviewDrag() // the whole drag is one undo step
+                clipItem.dragLevel = -1
+            }
+        }
+        onCanceled: {
+            if (clipItem.dragLevel >= 0)
+                EditorState.cancelPreviewDrag()
+            clipItem.dragLevel = -1
+        }
+        onDoubleClicked: EditorState.setClipLevel(clipItem.trackIndex, clipItem.clipIndex, 1.0) // back to full
     }
 
     MouseArea {
@@ -1037,6 +1481,8 @@ Item {
         // HoverHandlers (subtitle-grip pattern); do not claim a cursor here while
         // those zones are hovered or Qt keeps the open-hand shape.
         cursorShape: {
+            if (copyDrag)
+                return Qt.DragCopyCursor // VEDIT
             if (drag.active)
                 return Qt.ClosedHandCursor
             if (leftTrimMouse.containsMouse || rightTrimMouse.containsMouse
@@ -1059,7 +1505,9 @@ Item {
         // would have set stealMouse — leaving the clip grabbed and permanently
         // undraggable. A null drag.target skips the drag block entirely instead, so the
         // Flickable steals at its own threshold and panning works.
-        drag.target: clipItem.touchMode ? (moveArmed ? clipItem : null) : clipItem
+        // VEDIT: a locked track's clips stay put.
+        drag.target: clipItem.trackLocked ? null
+                     : (clipItem.touchMode ? (moveArmed ? clipItem : null) : clipItem)
         drag.axis: Drag.XAndYAxis
         // Once armed the finger is already down and still, so any motion is the move.
         // On desktop, 2px threshold eliminates the deadzone while preventing accidental micro-drags.
@@ -1068,9 +1516,9 @@ Item {
             if (clipItem.selected && EditorState.selectionCount > 1) {
                 const earliest = EditorState.selectionEarliestStartSeconds()
                 const minStart = Math.max(0, (clipItem.clipData.start || 0) - earliest)
-                return minStart * panel.pxPerSecond + Theme.clipSelectionRingWidth
+                return minStart * panel.pxPerSecond + clipItem.xInset
             }
-            return Theme.clipSelectionRingWidth
+            return clipItem.xInset
         }
         // Allow dropping onto any track, not just the immediate neighbours.
         drag.minimumY: -Math.max(clipItem.trackRow.height, panel.totalTracksHeightCached)
@@ -1090,6 +1538,8 @@ Item {
         // Touch only: the hold has been recognised and the clip is now draggable.
         // Releasing without moving opens the context menu instead.
         property bool moveArmed: false
+        // VEDIT: Ctrl is held while dragging — the drop will copy.
+        property bool copyDrag: false
 
         // Where inside the clip the finger landed, so the autoscroll driver below can
         // recompute the pointer's viewport position each tick instead of guessing at
@@ -1108,7 +1558,7 @@ Item {
             originTrack = clipItem.trackIndex
             originClip = clipItem.clipIndex
             moveOriginX = clipItem.clipData.start * panel.pxPerSecond
-                          + Theme.clipSelectionRingWidth
+                          + clipItem.xInset
             grabX = mouse.x + clipItem.edgeMargin
             grabY = mouse.y
             didDrag = false
@@ -1189,6 +1639,13 @@ Item {
             onLoaded: item.popup()
         }
 
+        FadeCurvePopup { // VEDIT
+            id: fadeTypePopup
+            mode: "clip"
+            x: Math.min(Math.max(0, clipItem.width / 2 - width / 2), clipItem.width)
+            y: -height - 6
+        }
+
         Component {
             id: clipContextMenuComponent
 
@@ -1199,7 +1656,6 @@ Item {
                 property bool canPasteAttributes: false
                 property bool canMergeTrackSubtitles: false
                 onAboutToShow: {
-                    canPasteEffects = EditorState.clipboardHasEffects()
                     canPasteAttributes = EditorState.canPasteAttributes()
                     canMergeTrackSubtitles = clipItem.trackType === "subtitle"
                             && EditorState.canMergeAllSubtitlesOnTrack(clipItem.trackIndex)
@@ -1208,6 +1664,8 @@ Item {
                 // Loader's item there would destroy an object still unwinding.
                 onClosed: Qt.callLater(function() { clipContextMenuLoader.active = false })
 
+                // VEDIT (조박사님): grouped by kind — attributes, sound, editing, split, move,
+                // composite, the rest, then Delete.
                 ThemedMenuItem {
                     text: qsTr("Properties")
                     icon.name: Theme.icons.sliders
@@ -1218,32 +1676,143 @@ Item {
                             panel.openClipProperties()
                     }
                 }
+                ThemedMenuItem { // VEDIT (조박사님): the keyframe lane above the tracks, on request only
+                    text: panel.keyframeLaneShown ? qsTr("Hide keyframe track") : qsTr("Show keyframe track")
+                    icon.name: Theme.icons.diamondPlus
+                    visible: clipItem.keyCapable
+                    height: visible ? implicitHeight : 0
+                    onTriggered: {
+                        if (!clipItem.selected)
+                            EditorState.selectClip(clipItem.trackIndex, clipItem.clipIndex)
+                        panel.keyframeLaneShown = !panel.keyframeLaneShown
+                    }
+                }
+                ThemedMenuItem { // VEDIT (조박사님)
+                    text: qsTr("Clear all attributes")
+                    icon.name: Theme.icons.undo
+                    onTriggered: EditorState.clearClipAttributes(clipItem.trackIndex, clipItem.clipIndex)
+                }
+                // VEDIT: CapCut's 특성 복사 / 특성 붙여넣기 — every attribute of this clip, pasted
+                // onto others through a checklist.
                 ThemedMenuItem {
-                    // Touch route into multi-clip selection; the panel owns the mode and
-                    // the desktop panel does not declare the property at all.
-                    text: qsTr("Select multiple")
-                    icon.name: Theme.icons.check
-                    visible: panel.multiSelectActive === false
-                    onTriggered: panel.multiSelectActive = true
+                    text: qsTr("Copy attributes")
+                    icon.name: Theme.icons.wand
+                    onTriggered: EditorState.copyAttributes(clipItem.trackIndex, clipItem.clipIndex)
                 }
                 ThemedMenuItem {
-                    text: qsTr("Open composite")
+                    text: qsTr("Paste attributes…")
+                    icon.name: Theme.icons.clipboardPaste
+                    enabled: clipContextMenu.canPasteAttributes
+                    onTriggered: EditorState.requestPasteAttributes()
+                }
+                // VEDIT: 효과 복사 / 효과 붙여넣기 removed — 특성 복사 / 특성 붙여넣기 covers them.
+                ThemedMenuItem {
+                    text: qsTr("Save effects as preset…")
+                    icon.name: Theme.icons.save
+                    visible: clipItem.hasAnyEffects
+                    onTriggered: clipItem.panel.requestSaveEffectPreset(clipItem.trackIndex,
+                                                                         clipItem.clipIndex)
+                }
+                ThemedMenuSeparator { }
+                // VEDIT (조박사님): stereo sides for this sound clip
+                ThemedContextMenu {
+                    title: qsTr("Sound channels")
+                    enabled: clipItem.trackType === "audio"
+                    ThemedMenuItem {
+                        text: ((clipItem.clipData.channelMode || 0) === 0 ? "✓  " : "     ") + qsTr("As the track")
+                        onTriggered: EditorState.setClipChannelMode(clipItem.trackIndex, clipItem.clipIndex, 0)
+                    }
+                    ThemedMenuItem {
+                        text: ((clipItem.clipData.channelMode || 0) === 1 ? "✓  " : "     ") + qsTr("Left on both sides (L → R)")
+                        onTriggered: EditorState.setClipChannelMode(clipItem.trackIndex, clipItem.clipIndex, 1)
+                    }
+                    ThemedMenuItem {
+                        text: ((clipItem.clipData.channelMode || 0) === 2 ? "✓  " : "     ") + qsTr("Right on both sides (R → L)")
+                        onTriggered: EditorState.setClipChannelMode(clipItem.trackIndex, clipItem.clipIndex, 2)
+                    }
+                    ThemedMenuItem {
+                        text: ((clipItem.clipData.channelMode || 0) === 3 ? "✓  " : "     ") + qsTr("Mix left and right (L/R mix)")
+                        onTriggered: EditorState.setClipChannelMode(clipItem.trackIndex, clipItem.clipIndex, 3)
+                    }
+                    ThemedMenuItem {
+                        text: ((clipItem.clipData.channelMode || 0) === 4 ? "✓  " : "     ") + qsTr("Swap left and right (L ↔ R)")
+                        onTriggered: EditorState.setClipChannelMode(clipItem.trackIndex, clipItem.clipIndex, 4)
+                    }
+                }
+                // VEDIT: Vegas's Fade Type menu for this clip's fades
+                ThemedMenuItem {
+                    text: qsTr("Fade type…")
+                    icon.name: Theme.icons.sliders
+                    visible: (clipItem.clipData.fadeIn || 0) > 0 || (clipItem.clipData.fadeOut || 0) > 0
+                    height: visible ? implicitHeight : 0
+                    onTriggered: {
+                        EditorState.selectClip(clipItem.trackIndex, clipItem.clipIndex)
+                        fadeTypePopup.clipMap = EditorState.selectedClipData
+                        fadeTypePopup.trackIndex = clipItem.trackIndex
+                        fadeTypePopup.clipIndex = clipItem.clipIndex
+                        fadeTypePopup.open()
+                    }
+                }
+                ThemedMenuItem {
+                    text: qsTr("Separate audio")
+                    icon.name: Theme.icons.audioLines
+                    // CapCut: only offer extract when the clip still has embedded audio.
+                    visible: clipItem.trackType === "video" && EditorState.separateAudioAvailable
+                    onTriggered: EditorState.separateAudioFromSelection()
+                }
+                ThemedMenuItem {
+                    // VEDIT: CapCut's 오디오 복구 — offered on the silenced video or its split-off audio.
+                    text: qsTr("Restore audio")
+                    icon.name: Theme.icons.audioLines
+                    visible: EditorState.restoreAudioAvailable
+                    onTriggered: EditorState.restoreAudioFromSelection()
+                }
+                ThemedMenuItem {
+                    text: qsTr("Separate all audio tracks")
+                    icon.name: Theme.icons.audioLines
+                    visible: clipItem.trackType === "video" && EditorState.separateAudioAvailable
+                             && EditorState.clipAudioStreamCount(clipItem.trackIndex, clipItem.clipIndex) > 1
+                    onTriggered: EditorState.separateAllAudioTracks(clipItem.trackIndex, clipItem.clipIndex)
+                }
+                // VEDIT: 소리로 맞추기 — the selected clips lined up by their sound (CapCut audio sync).
+                ThemedMenuItem {
+                    text: qsTr("Line up by sound")
                     icon.name: Theme.icons.layers
-                    visible: clipItem.clipData.kind === "composite"
-                    onTriggered: EditorState.openCompositeClip(clipItem.trackIndex, clipItem.clipIndex)
+                    visible: EditorState.syncByAudioAvailable
+                    onTriggered: EditorState.syncSelectionByAudio()
+                }
+                ThemedMenuSeparator { }
+                ThemedMenuItem {
+                    text: qsTr("Cut")
+                    icon.name: Theme.icons.scissors
+                    onTriggered: EditorState.cutSelection()
                 }
                 ThemedMenuItem {
-                    text: qsTr("Flatten composite")
-                    icon.name: Theme.icons.film
-                    visible: clipItem.clipData.kind === "composite"
-                    enabled: !EditorState.exportInProgress
-                    onTriggered: EditorState.flattenComposite(clipItem.trackIndex, clipItem.clipIndex)
+                    text: qsTr("Copy")
+                    icon.name: Theme.icons.copy
+                    onTriggered: EditorState.copySelection()
                 }
                 ThemedMenuItem {
-                    text: qsTr("Make composite")
-                    icon.name: Theme.icons.layers
-                    visible: EditorState.makeCompositeAvailable
-                    onTriggered: EditorState.makeCompositeFromSelection()
+                    text: qsTr("Duplicate")
+                    icon.name: Theme.icons.copyPlus
+                    onTriggered: EditorState.duplicateSelectedClip()
+                }
+                ThemedMenuItem {
+                    text: qsTr("Rename…")
+                    icon.name: Theme.icons.pencil
+                    onTriggered: clipItem.panel.requestRenameClip(clipItem.trackIndex, clipItem.clipIndex)
+                }
+                // VEDIT: CapCut's 바꾸기 — another photo or video in this clip's place, effects kept.
+                ThemedMenuItem {
+                    text: qsTr("Replace with another photo or video…")
+                    icon.name: Theme.icons.image
+                    visible: (clipItem.clipData.kind === "video" || clipItem.clipData.kind === "image")
+                             && !clipItem.clipData.linked
+                    onTriggered: {
+                        const url = FileDialogs.openFile(qsTr("Replace with…"), [AssetLibrary.mediaNameFilter()])
+                        if (url != "")
+                            EditorState.replaceClipMedia(clipItem.trackIndex, clipItem.clipIndex, url)
+                    }
                 }
                 ThemedMenuSeparator { }
                 ThemedMenuItem {
@@ -1262,20 +1831,65 @@ Item {
                     onTriggered: EditorState.splitClipAt(clipItem.trackIndex, clipItem.clipIndex,
                                                          EditorState.playheadSeconds)
                 }
+                ThemedMenuSeparator { }
+                // VEDIT: 드래그 없이 순서 바꾸기 — swap with the neighbour before or after.
                 ThemedMenuItem {
-                    text: qsTr("Separate audio")
-                    icon.name: Theme.icons.audioLines
-                    // CapCut: only offer extract when the clip still has embedded audio.
-                    visible: clipItem.trackType === "video" && EditorState.separateAudioAvailable
-                    onTriggered: EditorState.separateAudioFromSelection()
+                    text: qsTr("Move earlier")
+                    icon.name: Theme.icons.chevronLeft
+                    onTriggered: EditorState.moveClipInOrder(clipItem.trackIndex, clipItem.clipIndex, -1)
                 }
                 ThemedMenuItem {
-                    text: qsTr("Separate all audio tracks")
-                    icon.name: Theme.icons.audioLines
-                    visible: clipItem.trackType === "video" && EditorState.separateAudioAvailable
-                             && EditorState.clipAudioStreamCount(clipItem.trackIndex, clipItem.clipIndex) > 1
-                    onTriggered: EditorState.separateAllAudioTracks(clipItem.trackIndex, clipItem.clipIndex)
+                    text: qsTr("Move later")
+                    icon.name: Theme.icons.chevronRight
+                    onTriggered: EditorState.moveClipInOrder(clipItem.trackIndex, clipItem.clipIndex, 1)
                 }
+                // VEDIT: 드래그 없이 줄 옮기기 — picture-in-picture without dragging.
+                ThemedMenuItem {
+                    text: qsTr("Move to the track above")
+                    icon.name: Theme.icons.chevronUp
+                    onTriggered: EditorState.moveClipToNeighbourTrack(clipItem.trackIndex, clipItem.clipIndex, -1)
+                }
+                ThemedMenuItem {
+                    text: qsTr("Move to the track below")
+                    icon.name: Theme.icons.chevronDown
+                    onTriggered: EditorState.moveClipToNeighbourTrack(clipItem.trackIndex, clipItem.clipIndex, 1)
+                }
+                ThemedMenuSeparator { }
+                ThemedMenuItem {
+                    text: qsTr("Make composite")
+                    icon.name: Theme.icons.layers
+                    visible: EditorState.makeCompositeAvailable
+                    onTriggered: EditorState.makeCompositeFromSelection()
+                }
+                ThemedMenuItem {
+                    text: qsTr("Open composite")
+                    icon.name: Theme.icons.layers
+                    visible: clipItem.clipData.kind === "composite"
+                    onTriggered: EditorState.openCompositeClip(clipItem.trackIndex, clipItem.clipIndex)
+                }
+                // VEDIT: 합성 해제 — back to the separate clips it was made of.
+                ThemedMenuItem {
+                    text: qsTr("Undo composite")
+                    icon.name: Theme.icons.layers
+                    visible: clipItem.clipData.kind === "composite"
+                    onTriggered: EditorState.ungroupComposite(clipItem.trackIndex, clipItem.clipIndex)
+                }
+                ThemedMenuItem {
+                    text: qsTr("Flatten composite")
+                    icon.name: Theme.icons.film
+                    visible: clipItem.clipData.kind === "composite"
+                    enabled: !EditorState.exportInProgress
+                    onTriggered: EditorState.flattenComposite(clipItem.trackIndex, clipItem.clipIndex)
+                }
+                ThemedMenuItem {
+                    // Touch route into multi-clip selection; the panel owns the mode and
+                    // the desktop panel does not declare the property at all.
+                    text: qsTr("Select multiple")
+                    icon.name: Theme.icons.check
+                    visible: panel.multiSelectActive === false
+                    onTriggered: panel.multiSelectActive = true
+                }
+                ThemedMenuSeparator { }
                 ThemedMenuItem {
                     text: qsTr("Convert to edit-friendly format")
                     icon.name: Theme.icons.rabbit
@@ -1303,56 +1917,6 @@ Item {
                     enabled: clipContextMenu.canMergeTrackSubtitles
                     onTriggered: EditorState.mergeAllSubtitlesOnTrack(clipItem.trackIndex)
                 }
-                ThemedMenuSeparator { }
-                ThemedMenuItem {
-                    text: qsTr("Cut")
-                    icon.name: Theme.icons.scissors
-                    onTriggered: EditorState.cutSelection()
-                }
-                ThemedMenuItem {
-                    text: qsTr("Copy")
-                    icon.name: Theme.icons.copy
-                    onTriggered: EditorState.copySelection()
-                }
-                ThemedMenuItem {
-                    text: qsTr("Paste attributes…")
-                    icon.name: Theme.icons.clipboardPaste
-                    enabled: clipContextMenu.canPasteAttributes
-                    onTriggered: EditorState.requestPasteAttributes()
-                }
-                ThemedMenuItem {
-                    text: qsTr("Duplicate")
-                    icon.name: Theme.icons.copyPlus
-                    onTriggered: EditorState.duplicateSelectedClip()
-                }
-                ThemedMenuItem {
-                    text: qsTr("Rename…")
-                    icon.name: Theme.icons.pencil
-                    onTriggered: clipItem.panel.requestRenameClip(clipItem.trackIndex, clipItem.clipIndex)
-                }
-                ThemedMenuSeparator { }
-                ThemedMenuItem {
-                    text: qsTr("Copy effects")
-                    icon.name: Theme.icons.wand
-                    visible: clipItem.hasAnyEffects
-                    onTriggered: EditorState.copyClipEffectsToClipboard(clipItem.trackIndex,
-                                                                        clipItem.clipIndex)
-                }
-                ThemedMenuItem {
-                    text: qsTr("Paste effects")
-                    icon.name: Theme.icons.clipboardPaste
-                    enabled: clipContextMenu.canPasteEffects
-                    onTriggered: EditorState.pasteEffectsFromClipboard(clipItem.trackIndex,
-                                                                       clipItem.clipIndex)
-                }
-                ThemedMenuItem {
-                    text: qsTr("Save effects as preset…")
-                    icon.name: Theme.icons.save
-                    visible: clipItem.hasAnyEffects
-                    onTriggered: clipItem.panel.requestSaveEffectPreset(clipItem.trackIndex,
-                                                                         clipItem.clipIndex)
-                }
-                ThemedMenuSeparator { visible: clipItem.clipData.kind === "adjustment" }
                 ThemedMenuItem {
                     text: qsTr("Unlink from clip")
                     icon.name: Theme.icons.unlink
@@ -1376,8 +1940,17 @@ Item {
                 }
             }
         }
-        onReleased: {
+        onReleased: (mouse) => {
+            panel.endEdgeDrag() // VEDIT
+            panel.moveInsertIndex = -1 // VEDIT: the seam line never outlives the drag
+            // VEDIT: dropped with its head on a seam → 끼워 넣기.
+            const insertTo = panel.insertTrack
+            const insertBefore = panel.insertBeforeId
+            panel.clearInsertPreview()
             const moved = drag.active || didDrag
+            // VEDIT: Ctrl held at the drop copies instead of moving (VEGAS / CapCut).
+            const copyDrop = (mouse.modifiers & Qt.ControlModifier) !== 0
+            copyDrag = false
             // Armed but never moved: the hold was a request for the menu.
             const wantsMenu = clipItem.touchMode && moveArmed && !moved
             // NOTE: Keep didDrag true if moved so onClicked (which runs immediately after
@@ -1406,7 +1979,7 @@ Item {
             // updateMovePreview() exactly — same clamp, same call — so the clip lands on the
             // outline it was showing. Recomputed rather than read back from panel.dropStartSeconds
             // because that is throttled to whole pixels and can be a pixel stale at release.
-            const rawStart = Math.max(0, (clipItem.x - Theme.clipSelectionRingWidth)
+            const rawStart = Math.max(0, (clipItem.x - clipItem.xInset)
                                           / panel.pxPerSecond)
             const newStart = panel.snapClipStart(rawStart, clipItem.clipData.duration,
                                                  clipItem.clipData.id).start
@@ -1436,6 +2009,18 @@ Item {
                 // Dragged clear of every row: the inverse gesture, back to a track of its own
                 // affecting everything below it.
                 EditorState.moveAdjustmentToOwnTrack(originTrack, originClip, newStart)
+            } else if (!isAdjustment && insertTo >= 0 && !copyDrop) {
+                EditorState.insertClipBefore(originTrack, originClip, insertTo, insertBefore) // VEDIT
+            } else if (!isAdjustment) {
+                // VEDIT: dropped on the seam between two tracks (the red line) makes a new track
+                // there; above or below every row makes one at that end; Ctrl copies.
+                const seamRaw = typeof panel.seamInsertIndexAtY === "function" ? panel.seamInsertIndexAtY(pos.y) : -1
+                const seam = seamRaw >= 0 && panel.seamAllowsType(seamRaw, panel.tracks[originTrack].type) ? seamRaw : -1
+                panel.moveInsertIndex = -1
+                const newAt = seam >= 0 ? seam
+                            : (target.track < 0 && typeof panel.newTrackIndexForMove === "function")
+                              ? panel.newTrackIndexForMove(pos.y, originTrack) : -1
+                EditorState.dropClip(originTrack, originClip, seam >= 0 ? -1 : target.track, newStart, newAt, copyDrop)
             } else if (target.track >= 0 && target.track !== originTrack) {
                 EditorState.moveClipToTrack(originTrack, originClip, target.track, newStart)
             } else {
@@ -1445,8 +2030,10 @@ Item {
             // engaged.
             Haptics.drop()
         }
-        onPositionChanged: {
+        onPositionChanged: (mouse) => {
             if (pressed && drag.active) {
+                panel.noteEdgeDrag(clipItem, mapToItem(panel.timelineFlick, mouse.x, 0).x) // VEDIT: edge scroll
+                copyDrag = (mouse.modifiers & Qt.ControlModifier) !== 0 // VEDIT
                 didDrag = true
                 if (!moving) {
                     moving = true
@@ -1454,9 +2041,29 @@ Item {
                 }
                 panel.updateMoveFollow(clipItem.x - moveOriginX,
                                        clipItem.y - Theme.clipSelectionRingWidth)
+                // VEDIT: light the seam the clip's middle is on (adjustments keep their own rules).
+                if (clipItem.clipData.kind !== "adjustment" && typeof panel.seamInsertIndexAtY === "function") {
+                    const mid = clipItem.mapToItem(timelineColumn, clipItem.width / 2, clipItem.height / 2)
+                    const seamAt = panel.seamInsertIndexAtY(mid.y)
+                    panel.moveInsertIndex = seamAt >= 0 && panel.seamAllowsType(seamAt, panel.tracks[originTrack].type)
+                                            ? seamAt : -1
+                    // VEDIT: head on a seam of a gap-filling track → open it up (끼워 넣기).
+                    const target = panel.moveInsertIndex >= 0 ? -1 : panel.trackIndexAtY(mid.y)
+                    const head = Math.max(0, (clipItem.x - clipItem.xInset) / panel.pxPerSecond)
+                    if (target >= 0 && !copyDrag)
+                        panel.updateInsertPreview(target, head, clipItem.clipData.duration, clipItem.clipData.id)
+                    else
+                        panel.clearInsertPreview()
+                    if (panel.insertTrack >= 0)
+                        panel.clearLandingPreview()
+                }
             }
         }
         onCanceled: {
+            panel.endEdgeDrag() // VEDIT
+            panel.moveInsertIndex = -1 // VEDIT
+            panel.clearInsertPreview() // VEDIT
+            copyDrag = false // VEDIT
             didDrag = false
             moving = false
             moveArmed = false
@@ -1542,7 +2149,9 @@ Item {
         z: 40
         visible: clipItem.timelineFadeHandles && clipItem.selected
                  && clipItem.width > clipItem.fadeHandleMinWidth
-        color: Theme.primary
+        // VEDIT (조박사님): lights up a little under the pointer, so it reads as something to grab.
+        color: (fadeInMouse.containsMouse || fadeInMouse.pressed) ? Qt.lighter(Theme.primary, 1.3) : Theme.primary
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         border.color: Theme.onMedia
         border.width: 2
 
@@ -1552,7 +2161,7 @@ Item {
             when: !fadeInMouse.pressed
             value: Math.max(clipItem.fadeHandleInset,
                             Math.min(clipItem.width - clipItem.fadeHandleInset - fadeInHandle.width,
-                                     (clipItem.clipData.fadeIn || 0) * panel.pxPerSecond - fadeInHandle.width / 2))
+                                     clipItem.edgeInLength * panel.pxPerSecond - fadeInHandle.width / 2))
         }
 
         MouseArea {
@@ -1582,7 +2191,7 @@ Item {
                                                    px - fadeInHandle.width / 2))
                 EditorState.previewSetClipFade(clipItem.trackIndex, clipItem.clipIndex,
                                                px / panel.pxPerSecond,
-                                               clipItem.clipData.fadeOut || 0)
+                                               clipItem.edgeOutLength)
             }
             onReleased: EditorState.commitPreviewDrag()
             onCanceled: EditorState.cancelPreviewDrag()
@@ -1613,7 +2222,9 @@ Item {
         z: 40
         visible: clipItem.timelineFadeHandles && clipItem.selected
                  && clipItem.width > clipItem.fadeHandleMinWidth
-        color: Theme.primary
+        // VEDIT (조박사님): lights up a little under the pointer, so it reads as something to grab.
+        color: (fadeOutMouse.containsMouse || fadeOutMouse.pressed) ? Qt.lighter(Theme.primary, 1.3) : Theme.primary
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         border.color: Theme.onMedia
         border.width: 2
 
@@ -1623,7 +2234,7 @@ Item {
             when: !fadeOutMouse.pressed
             value: Math.max(clipItem.fadeHandleInset,
                             Math.min(clipItem.width - clipItem.fadeHandleInset - fadeOutHandle.width,
-                                     clipItem.width - (clipItem.clipData.fadeOut || 0) * panel.pxPerSecond - fadeOutHandle.width / 2))
+                                     clipItem.width - clipItem.edgeOutLength * panel.pxPerSecond - fadeOutHandle.width / 2))
         }
 
         MouseArea {
@@ -1652,7 +2263,7 @@ Item {
                                                     - fadeOutHandle.width,
                                                     px - fadeOutHandle.width / 2))
                 EditorState.previewSetClipFade(clipItem.trackIndex, clipItem.clipIndex,
-                                               clipItem.clipData.fadeIn || 0,
+                                               clipItem.edgeInLength,
                                                Math.max(0, (clipItem.width - px) / panel.pxPerSecond))
             }
             onReleased: EditorState.commitPreviewDrag()
@@ -1676,16 +2287,15 @@ Item {
     Rectangle {
         id: leftTrimHandle
         // Thin edge bar; hotspots still use the wide Theme width when idle.
-        width: (leftTrimMouse.containsMouse || leftTrimHover.hovered || leftTrimMouse.pressed)
-               ? Math.max(2, clipItem.trimHandleWidth * 0.35)
-               : clipItem.trimHandleWidth
+        // VEDIT (조박사님): the yellow bar is drawn half as thick; the grab area keeps its full width.
+        // VEDIT (조박사님): the thick yellow end shows only on the side the pointer is on.
+        readonly property bool hot: leftTrimMouse.containsMouse || leftTrimHover.hovered || leftTrimMouse.pressed
+        width: clipItem.trimHandleWidth / 2
         anchors.left: clipBackground.left
         anchors.top: clipBackground.top
         anchors.bottom: clipBackground.bottom
         color: clipItem.showTrimHandles ? Theme.primary : "transparent"
-        opacity: !clipItem.showTrimHandles ? 0
-                 : (leftTrimMouse.containsMouse || leftTrimHover.hovered || leftTrimMouse.pressed)
-                   ? 1.0 : 0.85
+        opacity: clipItem.showTrimHandles && hot ? 1.0 : 0
 
         Behavior on opacity {
             enabled: clipItem.showTrimHandles
@@ -1712,13 +2322,21 @@ Item {
 
         MouseArea {
             id: leftTrimMouse
-            anchors.fill: parent
+            property bool selectOnRelease: false // VEDIT
+            // VEDIT: a fixed-size hotspot. It used to fill the handle, which thins on hover, so
+            // the pointer fell off the shrunken strip, it widened again, caught the pointer,
+            // thinned … and the clip start shook under a still mouse.
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
             anchors.leftMargin: -clipItem.trimHotspotExtra
-            anchors.rightMargin: -4
+            // VEDIT (조박사님): on desktop 10 px inside the clip (a third of the 30 px it was)
+            width: clipItem.touchMode ? clipItem.trimHandleWidth + clipItem.trimHotspotExtra + 8 : 10
             // Leave the top corner for the fade-in dot.
             anchors.topMargin: clipItem.timelineFadeHandles && clipItem.showTrimHandles
-                               && !clipItem.touchMode ? (clipItem.height < 35 ? 10 : 16) : -6
-            anchors.bottomMargin: -6
+                               && !clipItem.touchMode ? (clipItem.height < 35 ? 10 : 16)
+                                                     : (clipItem.touchMode ? -6 : 0)
+            anchors.bottomMargin: clipItem.touchMode ? -6 : 0 // VEDIT: not past the clip
             // Same reason as the move drag: these are ~38px strips at both edges of
             // every clip and they hold the grab, so on touch they turned each clip
             // boundary into another place the timeline could not be panned. Only the
@@ -1749,8 +2367,10 @@ Item {
                 const wasSelected = clipItem.selected
                 Haptics.reset()
                 clipItem.beginEdgeGesture(leftTrimMouse, mouse)
-                if (!clipItem.selected)
-                    EditorState.selectClip(clipItem.trackIndex, clipItem.clipIndex)
+                // VEDIT: select on release, not on press — selecting opens the clip's settings
+                // panel (heavy for text and subtitles), and building it at the press made the
+                // edge lag behind the pointer at the start of the drag.
+                selectOnRelease = !wasSelected
                 if (!wasSelected)
                     Haptics.select()
                 // One undo entry and one dirty mark for the whole drag. Without this a trim was
@@ -1786,7 +2406,11 @@ Item {
                 // needs told, the source running out, has no cue on screen at all.
                 const p = EditorState.previewTrimLeft(clipItem.trackIndex, clipItem.clipIndex,
                                                       newStart)
-                if (p.ok && p.changed) {
+                // VEDIT (조박사님): the preview shows the frame the clip now starts on.
+                EditorState.showTrimEdge(clipItem.trackIndex, clipItem.clipIndex, -1, newStart)
+                // VEDIT: "unchanged" means back at the clip's own edge — show that too, or the
+                // preview stays where the pointer last was and the edge stops following it.
+                if (p.ok) {
                     clipItem.trimPreviewStart = p.start
                     clipItem.trimPreviewDuration = p.duration
                     clipItem.trimPreviewIn = p.inPoint
@@ -1805,10 +2429,15 @@ Item {
                     // geometry bindings are reading the project again by the time it lands.
                     clipItem.trimPreviewActive = false
                     panel.clearTrimFollow()
+                    EditorState.endTrimEdge() // VEDIT
                     // One call, so the edit, the undo push and finishEdit announce the timeline
                     // once between them rather than three times.
                     EditorState.commitTrim(clipItem.trackIndex, clipItem.clipIndex,
                                            -1, lastTrimSeconds)
+                }
+                if (selectOnRelease) { // VEDIT
+                    selectOnRelease = false
+                    EditorState.selectClip(clipItem.trackIndex, clipItem.clipIndex)
                 }
             }
             onCanceled: {
@@ -1817,25 +2446,26 @@ Item {
                     trimming = false
                     clipItem.trimPreviewActive = false
                     panel.clearTrimFollow()
+                    EditorState.endTrimEdge() // VEDIT
                     EditorState.endTrimGesture()
                     EditorState.cancelPreviewDrag()
                 }
+                selectOnRelease = false // VEDIT
             }
         }
     }
 
     Rectangle {
         id: rightTrimHandle
-        width: (rightTrimMouse.containsMouse || rightTrimHover.hovered || rightTrimMouse.pressed)
-               ? Math.max(2, clipItem.trimHandleWidth * 0.35)
-               : clipItem.trimHandleWidth
+        // VEDIT (조박사님): the yellow bar is drawn half as thick; the grab area keeps its full width.
+        // VEDIT (조박사님): the thick yellow end shows only on the side the pointer is on.
+        readonly property bool hot: rightTrimMouse.containsMouse || rightTrimHover.hovered || rightTrimMouse.pressed
+        width: clipItem.trimHandleWidth / 2
         anchors.right: clipBackground.right
         anchors.top: clipBackground.top
         anchors.bottom: clipBackground.bottom
         color: clipItem.showTrimHandles ? Theme.primary : "transparent"
-        opacity: !clipItem.showTrimHandles ? 0
-                 : (rightTrimMouse.containsMouse || rightTrimHover.hovered || rightTrimMouse.pressed)
-                   ? 1.0 : 0.85
+        opacity: clipItem.showTrimHandles && hot ? 1.0 : 0
 
         Behavior on opacity {
             enabled: clipItem.showTrimHandles
@@ -1862,13 +2492,19 @@ Item {
 
         MouseArea {
             id: rightTrimMouse
-            anchors.fill: parent
-            anchors.leftMargin: -4
+            property bool selectOnRelease: false // VEDIT
+            // VEDIT: fixed-size hotspot (see leftTrimMouse).
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
             anchors.rightMargin: -clipItem.trimHotspotExtra
+            // VEDIT (조박사님): on desktop 10 px inside the clip (a third of the 30 px it was)
+            width: clipItem.touchMode ? clipItem.trimHandleWidth + clipItem.trimHotspotExtra + 8 : 10
             // Leave the top corner for the fade-out dot.
             anchors.topMargin: clipItem.timelineFadeHandles && clipItem.showTrimHandles
-                               && !clipItem.touchMode ? (clipItem.height < 35 ? 10 : 16) : -6
-            anchors.bottomMargin: -6
+                               && !clipItem.touchMode ? (clipItem.height < 35 ? 10 : 16)
+                                                     : (clipItem.touchMode ? -6 : 0)
+            anchors.bottomMargin: clipItem.touchMode ? -6 : 0 // VEDIT: not past the clip
             // Same reason as the move drag: these are ~38px strips at both edges of
             // every clip and they hold the grab, so on touch they turned each clip
             // boundary into another place the timeline could not be panned. Only the
@@ -1895,8 +2531,10 @@ Item {
                 const wasSelected = clipItem.selected
                 Haptics.reset()
                 clipItem.beginEdgeGesture(rightTrimMouse, mouse)
-                if (!clipItem.selected)
-                    EditorState.selectClip(clipItem.trackIndex, clipItem.clipIndex)
+                // VEDIT: select on release, not on press — selecting opens the clip's settings
+                // panel (heavy for text and subtitles), and building it at the press made the
+                // edge lag behind the pointer at the start of the drag.
+                selectOnRelease = !wasSelected
                 if (!wasSelected)
                     Haptics.select()
                 EditorState.beginPreviewDrag(qsTr("Trim clip"))
@@ -1921,7 +2559,11 @@ Item {
                 // See the left handle: previewed here, committed once on release.
                 const p = EditorState.previewTrimRight(clipItem.trackIndex, clipItem.clipIndex,
                                                        newEnd)
-                if (p.ok && p.changed) {
+                // VEDIT (조박사님): the preview shows the frame the clip now ends on.
+                EditorState.showTrimEdge(clipItem.trackIndex, clipItem.clipIndex, 1, newEnd)
+                // VEDIT: "unchanged" means back at the clip's own edge — show that too, or the
+                // preview stays where the pointer last was and the edge stops following it.
+                if (p.ok) {
                     clipItem.trimPreviewStart = p.start
                     clipItem.trimPreviewDuration = p.duration
                     clipItem.trimPreviewIn = p.inPoint
@@ -1940,10 +2582,15 @@ Item {
                     // geometry bindings are reading the project again by the time it lands.
                     clipItem.trimPreviewActive = false
                     panel.clearTrimFollow()
+                    EditorState.endTrimEdge() // VEDIT
                     // One call, so the edit, the undo push and finishEdit announce the timeline
                     // once between them rather than three times.
                     EditorState.commitTrim(clipItem.trackIndex, clipItem.clipIndex,
                                            1, lastTrimSeconds)
+                }
+                if (selectOnRelease) { // VEDIT
+                    selectOnRelease = false
+                    EditorState.selectClip(clipItem.trackIndex, clipItem.clipIndex)
                 }
             }
             onCanceled: {
@@ -1952,10 +2599,593 @@ Item {
                     trimming = false
                     clipItem.trimPreviewActive = false
                     panel.clearTrimFollow()
+                    EditorState.endTrimEdge() // VEDIT
                     EditorState.endTrimGesture()
                     EditorState.cancelPreviewDrag()
                 }
+                selectOnRelease = false // VEDIT
             }
+        }
+    }
+
+    // VEDIT: 둥근 네 귀퉁이 — the film strip and waveform are square and cover the rounded
+    // background, so the corners are cut back to the track colour on top of everything. Two clips
+    // side by side then show a small notch where they meet (CapCut). Cheap: four tiny canvases.
+    readonly property color cornerBackdrop: Qt.tint(Theme.panelBackground,
+                                                    Qt.rgba(Theme.panelAccent.r, Theme.panelAccent.g,
+                                                            Theme.panelAccent.b, 0.22))
+    Repeater {
+        model: clipItem.width >= Theme.clipCornerRadius * 3 ? 4 : 0
+        delegate: Canvas {
+            required property int index
+            readonly property real r: Theme.clipCornerRadius
+            readonly property bool atRight: index === 1 || index === 3 // not "right": Item's anchor line
+            readonly property bool atBottom: index >= 2
+            width: r
+            height: r
+            x: atRight ? clipItem.width - r : 0
+            y: atBottom ? clipItem.height - r : 0
+            z: 60
+            onPaint: {
+                const ctx = getContext("2d")
+                ctx.reset()
+                ctx.fillStyle = clipItem.cornerBackdrop
+                ctx.fillRect(0, 0, width, height)
+                ctx.globalCompositeOperation = "destination-out"
+                ctx.beginPath()
+                ctx.arc(atRight ? 0 : r, atBottom ? 0 : r, r, 0, Math.PI * 2)
+                ctx.fill()
+            }
+            Component.onCompleted: requestPaint()
+            Connections {
+                target: clipItem
+                function onCornerBackdropChanged() { requestPaint() }
+            }
+        }
+    }
+
+    // VEDIT (조박사님, CapCut keyframes on the clip). KEY at the foot of a picture clip shows a red
+    // line through the middle; each ◆ on it holds every value at that moment (position, size,
+    // rotation, opacity, adjustments). It lights up by itself once the clip has keyframes, and
+    // turns the line off and on. Double-click the line: a ◆ there. Click a ◆: pick it (the
+    // playhead goes there, so the panel edits it). Drag: move it. Delete: take it out.
+    readonly property bool keyCapable: trackType !== "audio" && clipData.kind !== "adjustment"
+                                       && clipData.kind !== "audio"
+    readonly property var keyMarks: {
+        void EditorState.tracksRevision
+        void clipData.start
+        void clipData.duration
+        return keyCapable ? EditorState.clipKeyframeMarks(trackIndex, clipIndex) : []
+    }
+    readonly property bool hasKeys: keyMarks.length > 0
+    // VEDIT (조박사님): a keyframe made or picked on this clip turns KEY on and shows the ◆ line,
+    // even if KEY had been switched off.
+    property int seenKeyCount: -1
+    onKeyMarksChanged: {
+        if (seenKeyCount >= 0 && keyMarks.length > seenKeyCount && panel.keyLineState[clipData.id] === false)
+            panel.setKeyLine(clipData.id, true)
+        seenKeyCount = keyMarks.length
+    }
+    Connections {
+        target: EditorState
+        enabled: clipItem.keyCapable
+        function onSelectedVolumeKeyChanged() {
+            if (EditorState.selectedVolumeKey.clipId === clipItem.clipData.id && !clipItem.keyLineOn)
+                panel.setKeyLine(clipItem.clipData.id, true)
+        }
+    }
+    readonly property bool keyLineOn: {
+        const st = panel.keyLineState ? panel.keyLineState[clipData.id] : undefined
+        return keyCapable && (st === undefined ? hasKeys : st === true)
+    }
+
+    // VEDIT (조박사님): the fade (or 들어오기 / 나가기 movement) lengths in seconds, in the same box
+    // the crossfades show, at the middle of each edge's ramp.
+    Repeater {
+        model: [{ "side": "in" }, { "side": "out" }]
+        delegate: Rectangle {
+            required property var modelData
+            readonly property real len: modelData.side === "in" ? clipItem.edgeInLength : clipItem.edgeOutLength
+            readonly property real lenPx: len * panel.pxPerSecond
+            visible: len > 0.001 && clipItem.width > width + 8 && clipItem.height > 24
+            width: edgeLenText.implicitWidth + 8
+            height: edgeLenText.implicitHeight + 2
+            radius: 3
+            z: 47
+            x: modelData.side === "in"
+               ? Math.max(2, Math.min(clipItem.width - width - 2, lenPx / 2 - width / 2))
+               : Math.max(2, Math.min(clipItem.width - width - 2, clipItem.width - lenPx / 2 - width / 2))
+            y: Math.round(clipItem.height / 2 - height / 2)
+            color: Qt.rgba(0.12, 0.12, 0.12, 0.85)
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.75)
+            Text {
+                id: edgeLenText
+                anchors.centerIn: parent
+                text: panel.overlapLengthLabel(parent.len)
+                color: "#ffffff"
+                font.family: Theme.monoFontFamily
+                font.pixelSize: 11
+            }
+        }
+    }
+
+    Rectangle { // KEY
+        visible: clipItem.keyCapable && clipItem.width > 40 && clipItem.height > 30
+        x: 4
+        y: clipItem.height - height - 4
+        z: 48
+        width: 24
+        height: 13
+        radius: 2
+        color: clipItem.keyLineOn ? "#ff3b30" : Qt.rgba(0, 0, 0, 0.55)
+        border.width: 1
+        border.color: clipItem.keyLineOn || clipItem.hasKeys ? "#ff3b30" : Qt.rgba(1, 1, 1, 0.6)
+        Text {
+            anchors.centerIn: parent
+            text: "KEY"
+            color: "#ffffff"
+            font.pixelSize: 8
+            font.bold: true
+            font.family: Theme.fontFamily
+        }
+        HoverHandler { id: keyBtnHover }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: panel.setKeyLine(clipItem.clipData.id, !clipItem.keyLineOn)
+        }
+        ThemedToolTip {
+            visible: keyBtnHover.hovered
+            text: qsTr("Keyframe line — double-click it to add a keyframe")
+        }
+    }
+
+    Item {
+        id: keyLine
+        visible: clipItem.keyLineOn
+        anchors.fill: parent
+        z: 46
+        readonly property real midY: Math.round(height / 2)
+        function xOf(sec) { return (sec - (Number(clipItem.clipData.start) || 0)) * panel.pxPerSecond }
+        function secOf(x) { return (Number(clipItem.clipData.start) || 0) + x / panel.pxPerSecond }
+
+        Rectangle {
+            x: 0
+            y: keyLine.midY - 1
+            width: parent.width
+            height: 2
+            color: "#ff3b30"
+        }
+        MouseArea { // the line: double-click adds a ◆
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            cursorShape: Qt.PointingHandCursor
+            onPressed: (mouse) => {
+                if (Math.abs(mouse.y - keyLine.midY) > 7)
+                    mouse.accepted = false // not the line: the clip takes it
+            }
+            onDoubleClicked: (mouse) => {
+                EditorState.selectClip(clipItem.trackIndex, clipItem.clipIndex)
+                EditorState.addClipKeyframesAt(clipItem.trackIndex, clipItem.clipIndex, keyLine.secOf(mouse.x))
+            }
+        }
+        Repeater {
+            model: clipItem.keyMarks
+            delegate: Item {
+                id: keyMark
+                required property var modelData
+                readonly property real markSeconds: Number(modelData)
+                property real dragDx: 0
+                // VEDIT (조박사님): picked, or — on the selected clip — the one under the playhead, which
+                // is where a keyframe made from the panel (◇) lands: it is yellow and draggable at once.
+                readonly property bool picked: (EditorState.selectedVolumeKey.clipId === clipItem.clipData.id
+                    && Math.abs(Number(EditorState.selectedVolumeKey.seconds) - markSeconds) < 0.002)
+                    || (clipItem.selected && EditorState.selectedVolumeKey.clipId === undefined
+                        && Math.abs(EditorState.playheadSeconds - markSeconds) < 0.02)
+                width: 18
+                height: 18
+                x: keyLine.xOf(markSeconds) - width / 2 + dragDx
+                y: keyLine.midY - height / 2
+                z: 2
+                visible: x > -width && x < clipItem.width
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 10
+                    height: 10
+                    rotation: 45
+                    color: keyMark.picked || keyMarkMouse.pressed ? Theme.primary : "#ffffff"
+                    border.width: 1
+                    border.color: "#000000"
+                }
+                MouseArea {
+                    id: keyMarkMouse
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    hoverEnabled: true
+                    preventStealing: true // VEDIT: the clip's own drag must not take the ◆ away
+                    cursorShape: pressed ? Qt.ClosedHandCursor : Qt.SizeHorCursor
+                    property real pressX: 0
+                    property bool moved: false
+                    onPressed: (mouse) => {
+                        pressX = mapToItem(clipItem, mouse.x, 0).x
+                        moved = false
+                        EditorState.selectClip(clipItem.trackIndex, clipItem.clipIndex)
+                        EditorState.selectVolumeKey(clipItem.trackIndex, clipItem.clipIndex, keyMark.markSeconds)
+                        if (mouse.button === Qt.RightButton)
+                            keyMarkMenu.popup()
+                    }
+                    onPositionChanged: (mouse) => {
+                        if (!pressed || mouse.buttons !== Qt.LeftButton)
+                            return
+                        const dx = mapToItem(clipItem, mouse.x, 0).x - pressX
+                        if (Math.abs(dx) > 3)
+                            moved = true
+                        if (moved)
+                            keyMark.dragDx = Math.max(-keyLine.xOf(keyMark.markSeconds),
+                                                      Math.min(clipItem.width - keyLine.xOf(keyMark.markSeconds), dx))
+                    }
+                    onReleased: {
+                        if (!moved)
+                            return
+                        const to = keyMark.markSeconds + keyMark.dragDx / panel.pxPerSecond
+                        keyMark.dragDx = 0
+                        moved = false
+                        EditorState.moveClipKeyframesAt(clipItem.trackIndex, clipItem.clipIndex,
+                                                         keyMark.markSeconds, to)
+                        EditorState.selectVolumeKey(clipItem.trackIndex, clipItem.clipIndex, to)
+                    }
+                    onCanceled: {
+                        keyMark.dragDx = 0
+                        moved = false
+                    }
+                }
+                ThemedContextMenu {
+                    id: keyMarkMenu
+                    ThemedMenuItem {
+                        text: qsTr("Delete")
+                        icon.name: Theme.icons.trash
+                        onTriggered: EditorState.deleteSelectedVolumeKey()
+                    }
+                }
+            }
+        }
+    }
+
+    // VEDIT (조박사님, Vegas volume envelope). VL at the foot of a sound clip shows a white volume
+    // line: middle = 0 dB, top = +12 dB (400 %), bottom = silence. Double-click the line: a point
+    // (selected, yellow). Click a point: select it. Drag it: left/right moves it in time, up/down
+    // sets the volume. Delete (key or right-click menu) removes it. Picking a point moves the
+    // playhead there, so the audio panel's volume edits that point.
+    readonly property bool envelopeOn: trackType === "audio" && panel.envelopeClips[clipData.id] === true
+    // The line's own scale (also AudioMixer's envelopeNorm): 0.5 = 0 dB, 1 = +12 dB, 0 = -48 dB.
+    function envNorm(g) {
+        if (g <= 0.0001)
+            return 0
+        const db = 20 * Math.log(g) / Math.LN10
+        return db >= 0 ? 0.5 + 0.5 * Math.min(1, db / 12) : 0.5 * Math.max(0, 1 + db / 48)
+    }
+    function envGainOfNorm(n) {
+        n = Math.max(0, Math.min(1, n))
+        if (n <= 0.0005)
+            return 0
+        const db = n >= 0.5 ? (n - 0.5) / 0.5 * 12 : (n / 0.5 - 1) * 48
+        return Math.pow(10, db / 20)
+    }
+    function envGainToY(g) {
+        const h = Math.max(1, height - 6)
+        let n = 0
+        if (g > 0.0001) {
+            const db = 20 * Math.log(g) / Math.LN10
+            n = db >= 0 ? 0.5 + 0.5 * Math.min(1, db / 12) : 0.5 * Math.max(0, 1 + db / 48)
+        }
+        return 3 + h * (1 - n)
+    }
+    function envYToGain(y) {
+        const h = Math.max(1, height - 6)
+        const n = Math.max(0, Math.min(1, 1 - (y - 3) / h))
+        if (n <= 0.0005)
+            return 0
+        const db = n >= 0.5 ? (n - 0.5) / 0.5 * 12 : (n / 0.5 - 1) * 48
+        return Math.pow(10, db / 20)
+    }
+    function envDbText(g) {
+        if (g <= 0.0001)
+            return "-inf dB"
+        const db = 20 * Math.log(g) / Math.LN10
+        return (db > 0 ? "+" : "") + db.toFixed(1) + " dB"
+    }
+    property int envDragIndex: -1
+    property real envDragSec: 0
+    property real envDragGain: 1
+    readonly property var envKeys: {
+        void EditorState.tracksRevision
+        void clipData.start
+        void clipData.duration
+        if (!envelopeOn)
+            return []
+        const keys = EditorState.clipKeyframes(trackIndex, clipIndex, "volume")
+        const out = []
+        for (let i = 0; i < keys.length; ++i)
+            out.push({ "seconds": keys[i].seconds, "value": keys[i].value })
+        if (envDragIndex >= 0 && envDragIndex < out.length)
+            out[envDragIndex] = { "seconds": envDragSec, "value": envDragGain }
+        out.sort((a, b) => a.seconds - b.seconds)
+        return out
+    }
+    function envGainAt(sec) {
+        const k = envKeys
+        if (k.length === 0)
+            return 1
+        if (sec <= k[0].seconds)
+            return k[0].value
+        for (let i = 1; i < k.length; ++i)
+            if (sec <= k[i].seconds) {
+                const t = (sec - k[i - 1].seconds) / Math.max(1e-9, k[i].seconds - k[i - 1].seconds)
+                const st = t * t * (3 - 2 * t) // VEDIT: the same S-curve the sound follows,
+                const n0 = clipItem.envNorm(k[i - 1].value) // on the line's own (dB) scale
+                const n1 = clipItem.envNorm(k[i].value)
+                return clipItem.envGainOfNorm(n0 + (n1 - n0) * st)
+            }
+        return k[k.length - 1].value
+    }
+    function envXOf(sec) { return (sec - (Number(clipData.start) || 0)) * panel.pxPerSecond }
+    function envSecOf(x) { return (Number(clipData.start) || 0) + x / panel.pxPerSecond }
+
+    Rectangle { // VL
+        visible: clipItem.trackType === "audio" && clipItem.width > 40 && clipItem.height > 30
+        x: 4
+        y: clipItem.height - height - 4
+        z: 48
+        width: 24 // VEDIT (조박사님): 30 % smaller, room for "VOL"
+        height: 13
+        radius: 2
+        color: clipItem.envelopeOn ? Theme.primary : Qt.rgba(0, 0, 0, 0.55)
+        border.width: 1
+        border.color: clipItem.envelopeOn ? Theme.primary : Qt.rgba(1, 1, 1, 0.6)
+        Text {
+            anchors.centerIn: parent
+            text: "VOL" // VEDIT (조박사님)
+            color: clipItem.envelopeOn ? "#000000" : "#ffffff"
+            font.pixelSize: 8
+            font.bold: true
+            font.family: Theme.fontFamily
+        }
+        HoverHandler { id: vlHover }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: panel.toggleEnvelope(clipItem.clipData.id)
+        }
+        ThemedToolTip {
+            visible: vlHover.hovered
+            text: qsTr("Volume line — double-click it to add a point")
+        }
+    }
+
+    Item {
+        id: envelope
+        visible: clipItem.envelopeOn
+        anchors.fill: parent
+        z: 47
+        Canvas {
+            id: envCanvas
+            anchors.fill: parent
+            onPaint: {
+                const ctx = getContext("2d")
+                ctx.reset()
+                const k = clipItem.envKeys
+                ctx.strokeStyle = "#ff3b30" // VEDIT (조박사님): the volume line in red
+                ctx.lineWidth = 1.5
+                ctx.beginPath()
+                if (k.length === 0) {
+                    const y = clipItem.envGainToY(1)
+                    ctx.moveTo(0, y)
+                    ctx.lineTo(width, y)
+                } else {
+                    ctx.moveTo(0, clipItem.envGainToY(k[0].value))
+                    ctx.lineTo(clipItem.envXOf(k[0].seconds), clipItem.envGainToY(k[0].value))
+                    // Smooth S-curves between points (조박사님), sampled every few pixels.
+                    for (let i = 1; i < k.length; ++i) {
+                        const x0 = clipItem.envXOf(k[i - 1].seconds)
+                        const x1 = clipItem.envXOf(k[i].seconds)
+                        const steps = Math.max(2, Math.ceil((x1 - x0) / 3))
+                        for (let j = 1; j <= steps; ++j) {
+                            const t = j / steps
+                            const st = t * t * (3 - 2 * t)
+                            const n0 = clipItem.envNorm(k[i - 1].value)
+                            const n1 = clipItem.envNorm(k[i].value)
+                            const n = n0 + (n1 - n0) * st
+                            ctx.lineTo(x0 + (x1 - x0) * t, 3 + Math.max(1, height - 6) * (1 - n))
+                        }
+                    }
+                    ctx.lineTo(width, clipItem.envGainToY(k[k.length - 1].value))
+                }
+                ctx.stroke()
+            }
+            Connections {
+                target: clipItem
+                function onEnvKeysChanged() { envCanvas.requestPaint() }
+                function onWidthChanged() { envCanvas.requestPaint() }
+                function onHeightChanged() { envCanvas.requestPaint() }
+                function onEnvelopeOnChanged() { envCanvas.requestPaint() }
+            }
+        }
+        Repeater {
+            model: clipItem.envKeys
+            delegate: Rectangle {
+                required property var modelData
+                required property int index
+                readonly property bool picked: (EditorState.selectedVolumeKey.clipId === clipItem.clipData.id
+                    && Math.abs(Number(EditorState.selectedVolumeKey.seconds) - modelData.seconds) < 0.002)
+                    || clipItem.envDragIndex === index
+                x: clipItem.envXOf(modelData.seconds) - width / 2
+                y: clipItem.envGainToY(modelData.value) - height / 2
+                width: 9
+                height: 9
+                color: picked ? Theme.primary : "#ffffff"
+                border.width: 1
+                border.color: "#000000"
+            }
+        }
+        Rectangle { // the value while dragging a point
+            visible: clipItem.envDragIndex >= 0
+            x: Math.min(parent.width - width, Math.max(0, clipItem.envXOf(clipItem.envDragSec) + 8))
+            y: Math.max(0, clipItem.envGainToY(clipItem.envDragGain) - height - 6)
+            width: envDragText.implicitWidth + 8
+            height: envDragText.implicitHeight + 4
+            radius: 3
+            color: Qt.rgba(0.1, 0.1, 0.1, 0.9)
+            Text {
+                id: envDragText
+                anchors.centerIn: parent
+                text: clipItem.envDbText(clipItem.envDragGain)
+                color: "#ffffff"
+                font.pixelSize: 12
+                font.family: Theme.monoFontFamily
+            }
+        }
+        MouseArea {
+            id: envMouse
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            hoverEnabled: true
+            property int hitIndex: -1
+            property real pressX: 0
+            property real pressY: 0
+            property real fromSec: 0
+            property bool moved: false
+            function keyAt(mx, my) {
+                const k = clipItem.envKeys
+                for (let i = 0; i < k.length; ++i) {
+                    const dx = clipItem.envXOf(k[i].seconds) - mx
+                    const dy = clipItem.envGainToY(k[i].value) - my
+                    if (dx * dx + dy * dy <= 64)
+                        return i
+                }
+                return -1
+            }
+            function nearLine(mx, my) {
+                return Math.abs(clipItem.envGainToY(clipItem.envGainAt(clipItem.envSecOf(mx))) - my) <= 7
+            }
+            cursorShape: containsMouse && keyAt(mouseX, mouseY) >= 0 ? Qt.SizeAllCursor
+                       : (containsMouse && nearLine(mouseX, mouseY) ? Qt.PointingHandCursor : Qt.ArrowCursor)
+            onPressed: (mouse) => {
+                hitIndex = keyAt(mouse.x, mouse.y)
+                if (hitIndex < 0 && !nearLine(mouse.x, mouse.y)) {
+                    mouse.accepted = false // not the envelope: the clip takes it
+                    return
+                }
+                moved = false
+                pressX = mouse.x
+                pressY = mouse.y
+                if (hitIndex >= 0) {
+                    const key = clipItem.envKeys[hitIndex]
+                    fromSec = key.seconds
+                    EditorState.selectClip(clipItem.trackIndex, clipItem.clipIndex)
+                    EditorState.selectVolumeKey(clipItem.trackIndex, clipItem.clipIndex, key.seconds)
+                    if (mouse.button === Qt.RightButton)
+                        envMenu.popup()
+                }
+            }
+            onPositionChanged: (mouse) => {
+                if (!pressed || hitIndex < 0 || mouse.buttons !== Qt.LeftButton)
+                    return
+                if (!moved && Math.abs(mouse.x - pressX) + Math.abs(mouse.y - pressY) < 3)
+                    return
+                if (!moved) {
+                    moved = true
+                    EditorState.beginPreviewDrag(qsTr("Volume point"))
+                }
+                const k = clipItem.envKeys
+                const start = Number(clipItem.clipData.start) || 0
+                const lo = hitIndex > 0 ? k[hitIndex - 1].seconds + 0.01 : start
+                const hi = hitIndex < k.length - 1 ? k[hitIndex + 1].seconds - 0.01
+                                                   : start + (Number(clipItem.clipData.duration) || 0)
+                const sec = Math.max(lo, Math.min(hi, clipItem.envSecOf(mouse.x)))
+                const gain = Math.min(4, clipItem.envYToGain(mouse.y))
+                EditorState.previewMoveClipKeyframe(clipItem.trackIndex, clipItem.clipIndex, "volume",
+                                                    clipItem.envDragIndex >= 0 ? clipItem.envDragSec : fromSec,
+                                                    sec, gain)
+                clipItem.envDragIndex = hitIndex
+                clipItem.envDragSec = sec
+                clipItem.envDragGain = gain
+            }
+            onReleased: {
+                if (moved) {
+                    const sec = clipItem.envDragSec
+                    EditorState.commitPreviewDrag()
+                    clipItem.envDragIndex = -1
+                    EditorState.selectVolumeKey(clipItem.trackIndex, clipItem.clipIndex, sec)
+                }
+                moved = false
+            }
+            onCanceled: {
+                if (moved)
+                    EditorState.cancelPreviewDrag()
+                clipItem.envDragIndex = -1
+                moved = false
+            }
+            onDoubleClicked: (mouse) => {
+                // VEDIT (조박사님): double-click a point → back to 0 dB.
+                const onKey = keyAt(mouse.x, mouse.y)
+                if (onKey >= 0) {
+                    const key = clipItem.envKeys[onKey]
+                    EditorState.setClipKeyframe(clipItem.trackIndex, clipItem.clipIndex, "volume", key.seconds, 1.0)
+                    EditorState.selectVolumeKey(clipItem.trackIndex, clipItem.clipIndex, key.seconds)
+                    return
+                }
+                const sec = clipItem.envSecOf(mouse.x)
+                EditorState.selectClip(clipItem.trackIndex, clipItem.clipIndex)
+                EditorState.addVolumeKey(clipItem.trackIndex, clipItem.clipIndex, sec, clipItem.envGainAt(sec))
+            }
+        }
+        ThemedContextMenu {
+            id: envMenu
+            ThemedMenuItem {
+                text: qsTr("Delete")
+                icon.name: Theme.icons.trash
+                onTriggered: EditorState.deleteSelectedVolumeKey()
+            }
+        }
+    }
+
+    // VEDIT (조박사님): a 1 px black line where this clip meets the one before it.
+    readonly property bool meetsPrevious: {
+        const track = panel.tracks && panel.tracks[trackIndex]
+        if (!track || !track.clips)
+            return false
+        const start = Number(clipData.start) || 0
+        for (let i = 0; i < track.clips.length; ++i) {
+            const c = track.clips[i]
+            if (c.id !== clipData.id && Math.abs(c.start + c.duration - start) < 0.0005)
+                return true
+        }
+        return false
+    }
+    Rectangle {
+        visible: clipItem.meetsPrevious
+        x: 0
+        width: 1
+        height: parent.height
+        color: "#000000"
+        z: 55
+    }
+
+    // VEDIT: a locked clip reads as held in place — dimmed, with a small lock in the corner.
+    Rectangle {
+        anchors.fill: parent
+        visible: clipItem.trackLocked
+        radius: Theme.clipCornerRadius // VEDIT: rounded so the meeting point of two clips shows
+        color: Qt.rgba(0, 0, 0, 0.35)
+        z: 50
+        IconGlyph {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 4
+            glyph: Theme.icons.lock
+            iconSize: 14
+            iconColor: "#ffffff"
         }
     }
 }

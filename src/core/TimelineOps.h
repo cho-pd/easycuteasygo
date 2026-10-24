@@ -29,8 +29,18 @@ struct SnapTargets {
     bool isEmpty() const { return sorted.empty(); }
 };
 
-// Nearest target within kSnapThresholdUs, else `time` unchanged. O(log n).
+// VEDIT (조박사님): picture tracks always sit above sound tracks. Where a new track of `type`
+// may go when `wanted` is asked: a picture track no lower than the first sound track, a sound
+// track no higher than just below the last picture track.
+int orderedTrackInsertIndex(const Project &project, TrackType type, int wanted);
+
+// Nearest target within snapThresholdUs(), else `time` unchanged. O(log n).
 TimeUs snapTimeTo(const SnapTargets &targets, TimeUs time, bool snapEnabled);
+
+// VEDIT: CapCut snaps by distance on screen, not by a fixed time — the timeline sets the reach
+// from its zoom (about 12 px). kSnapThresholdUs until it does (tests, no timeline).
+TimeUs snapThresholdUs();
+void setSnapThresholdUs(TimeUs reach);
 
 // `extraTargets` are additional snap positions supplied by the caller — currently the
 // detected beat grid, which is analysis state rather than something the project stores.
@@ -157,6 +167,12 @@ void liftAdjustmentClipsToOwnTracks(Project &project);
 
 int ensureTrackForClipType(Project &project, ClipType type, bool insertAtTop = false);
 
+// VEDIT: whether a sound split off a video has drifted out of sync with it. In sync while some
+// video of `videos` (those sharing its syncId) overlaps it in time and plays the same source
+// moment at the same timeline moment, within a frame or so. With no such video left at all it
+// cannot be judged, and counts as in sync.
+bool soundOutOfSync(const Clip &sound, const QList<const Clip *> &videos);
+
 // Picks a track of the right type whose span at [startUs, startUs+durationUs) is free, creating one
 // when every candidate is busy. Use this for clips that share a track type with other kinds —
 // graphics all land on the shape lane — so a second one at the same time stacks instead of being
@@ -261,6 +277,9 @@ QList<MulticamInterval> multicamIntervals(const QList<MulticamCut> &cuts, TimeUs
 // own start, so a clip that keeps its material but starts somewhere else has to carry its curves
 // with it. Keys pushed before the start are dropped.
 void shiftClipKeyframes(Clip &clip, TimeUs delta);
+// VEDIT: stretches every clip-relative curve (transform, effects, mask, text, shape) by `factor`,
+// for a speed change that changes the clip's length.
+void scaleClipKeyframes(Clip &clip, double factor);
 
 // Carry a split tail's curves back onto its own start, keeping the value they held at the cut so
 // the animation continues rather than restarting.

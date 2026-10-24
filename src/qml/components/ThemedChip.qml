@@ -17,6 +17,7 @@ AbstractButton {
     property bool selected: false
     property string variant: "primary"
     property real chipHeight: Theme.controlHeightSm
+    property real labelSize: Theme.fontSizeXs // VEDIT: 16 px+ where seniors read it
     property string tooltip: ""
     // Selected fill/border for the "primary" variant. Override to tint a chip to
     // the series it stands for (e.g. keyframe curve colors).
@@ -111,7 +112,7 @@ AbstractButton {
         color: root._fg
         opacity: root.enabled ? 1 : 0.6
         font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeXs
+        font.pixelSize: root.labelSize
         font.weight: root.selected ? Font.Medium : Font.Normal
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter

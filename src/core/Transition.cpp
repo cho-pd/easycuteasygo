@@ -2,6 +2,8 @@
 
 #include "Track.h"
 
+#include <cmath>
+
 namespace drift {
 
 TransitionAudioGains transitionAudioGains(const QString &curve, double progress)
@@ -16,9 +18,17 @@ TransitionAudioGains transitionAudioGains(const QString &curve, double progress)
         // Fully out by the midpoint, then in — matches the visual dip through black/white.
         gains.outgoing = p < 0.5 ? 1.0 - p * 2.0 : 0.0;
         gains.incoming = p >= 0.5 ? (p - 0.5) * 2.0 : 0.0;
-    } else { // "crossfade"
+    } else if (curve == QLatin1String("linear")) {
+        // Straight X: sums to 1 in amplitude, so the mix sags about 3 dB at the midpoint.
         gains.outgoing = 1.0 - p;
         gains.incoming = p;
+    } else { // "crossfade"
+        // VEDIT: equal-power, the curved crossfade Vegas draws by default. The incoming side rises
+        // fast and the outgoing side falls slow, so the two cross above the midpoint (~0.707) and
+        // the loudness holds steady through the overlap instead of dipping.
+        constexpr double kHalfPi = 1.5707963267948966;
+        gains.outgoing = std::cos(p * kHalfPi);
+        gains.incoming = std::sin(p * kHalfPi);
     }
     return gains;
 }
@@ -155,6 +165,12 @@ double transitionProgress(const Transition &transition, TimeUs timelineUs, TimeU
                           TimeUs windowEndUs)
 {
     const double linear = transitionProgress(timelineUs, windowStartUs, windowEndUs);
+    if (transition.splitCurves) {
+        // VEDIT: the picture mixes in the two fade gains' proportion.
+        const double gin = shapedProgress(linear, transition.inCurve, transition.easingShape);
+        const double gout = shapedProgress(1.0 - linear, transition.outCurve, transition.easingShape);
+        return gin + gout > 1e-9 ? gin / (gin + gout) : linear;
+    }
     return shapedProgress(linear, transition.easingCurve, transition.easingShape);
 }
 

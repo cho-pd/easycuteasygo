@@ -88,6 +88,7 @@ Column {
 
             ThemedSlider {
                 id: scalarSlider
+                defaultValue: slotRow.spec["default"] // VEDIT
                 lockWhilePlaying: true
                 visible: slotRow.ranged
                 width: parent.width

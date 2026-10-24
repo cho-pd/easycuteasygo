@@ -61,7 +61,7 @@ Item {
                 spacing: 2
 
                 Text {
-                    text: "Drift"
+                    text: "Easy Cut, Easy Go!" // VEDIT
                     color: Theme.foreground
                     font.family: Theme.fontFamily
                     font.pixelSize: 22

@@ -145,6 +145,13 @@ Item {
                     const nw = baseWidth * cropZoom * next
                     const nh = baseHeight * cropZoom * next
                     userZoom = next
+                    // VEDIT (조박사님): at or below the fitted size the picture sits in the middle of
+                    // the canvas — zooming out about the pointer left it stranded off to one side.
+                    if (next <= 1.0) {
+                        panX = 0
+                        panY = 0
+                        return
+                    }
                     panX = (mx - fx * nw) - (width - nw) / 2
                     panY = (my - fy * nh) - (height - nh) / 2
                 }

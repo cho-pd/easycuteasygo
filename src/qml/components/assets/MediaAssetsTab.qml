@@ -103,6 +103,26 @@ Item {
     // isn't, it replaces the selection with just that card first, matching how the timeline's
     // clip selection already treats a right-click (TimelineClipItem.qml).
     property var selectedAssetIds: []
+    // VEDIT (조박사님): the bin had the last word — an item was picked here after anything on the
+    // timeline — so Delete removes the picked items. Picking a clip hands Delete back.
+    property bool binActive: false
+    onSelectedAssetIdsChanged: {
+        if (selectedAssetIds.length > 0)
+            Qt.callLater(function () { root.binActive = root.selectedAssetIds.length > 0 })
+        else
+            binActive = false
+    }
+    Connections {
+        target: EditorState
+        function onSelectionChanged() {
+            if (EditorState.selectedClip >= 0 || EditorState.selectedTrackRow >= 0)
+                root.binActive = false
+        }
+        function onSelectedTrackRowChanged() {
+            if (EditorState.selectedTrackRow >= 0)
+                root.binActive = false
+        }
+    }
 
     // What a badge binding names so it re-reads: the AssetLibrary badge queries are function calls
     // QML can't track, and proxy "ready" also depends on the proxy size setting.
@@ -112,6 +132,11 @@ Item {
     function proxyStateOf(assetId) {
         void root._badgeRevision
         return AssetLibrary.proxyState(assetId)
+    }
+    // VEDIT (조박사님): the item is on the timeline — a 사용 중 mark on its card.
+    function usedOnTimeline(assetIndex) {
+        void EditorState.tracksRevision
+        return assetIndex >= 0 && EditorState.clipCountForAsset(assetIndex) > 0
     }
     function editFriendlyOf(assetId) {
         void root._badgeRevision
@@ -609,6 +634,46 @@ Item {
                     }
                 }
 
+                // VEDIT: CapCut-style hover scrub — sweep the mouse across a video card to flip through its
+                // filmstrip (8 frames of 120x68, side by side) without opening a preview.
+                Image {
+                    anchors.fill: parent
+                    visible: !cardRoot.isFolder && cardRoot.kind === "video" && cardHover.hovered
+                             && cardRoot.filmstripPath.length > 0 && status === Image.Ready
+                    source: !cardRoot.isFolder && cardRoot.kind === "video" && cardRoot.filmstripPath.length > 0
+                            ? EditorState.imageUrl(cardRoot.filmstripPath) : ""
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    readonly property int frame: Math.max(0, Math.min(7, Math.floor(
+                        cardHover.point.position.x / Math.max(1, parent.width) * 8)))
+                    sourceClipRect: Qt.rect(frame * 120, 0, 120, 68)
+                }
+
+                // VEDIT: CapCut's quick add — one click puts the clip on the timeline at the playhead.
+                Rectangle {
+                    visible: !cardRoot.isFolder && cardHover.hovered
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.margins: 4
+                    width: 28
+                    height: 28
+                    radius: 14
+                    color: Theme.primary
+                    IconGlyph {
+                        anchors.centerIn: parent
+                        glyph: Theme.icons.plus
+                        iconSize: 16
+                        iconColor: Theme.appBackground
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.addToTimelineRequested([cardRoot.assetId])
+                    }
+                    ThemedToolTip { text: "편집 줄에 넣기"; visible: parent.visible && addHover.hovered }
+                    HoverHandler { id: addHover }
+                }
+
                 IconGlyph {
                     anchors.centerIn: parent
                     // Also covers Image.Error, so a missing
@@ -684,6 +749,26 @@ Item {
                     value: AssetLibrary.proxyProgress
                 }
 
+                Rectangle { // VEDIT (조박사님): 사용 중
+                    visible: !cardRoot.isFolder && root.usedOnTimeline(assetIndex)
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.margins: Theme.spacingSm
+                    color: Theme.primary
+                    radius: Theme.radiusXs
+                    width: usedLabel.implicitWidth + Theme.spacingLg
+                    height: usedLabel.implicitHeight + Theme.spacingSm
+                    z: 5
+                    Text {
+                        id: usedLabel
+                        anchors.centerIn: parent
+                        text: qsTr("In use")
+                        color: "#000000"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeTiny
+                        font.weight: Font.Bold
+                    }
+                }
                 Rectangle {
                     visible: !cardRoot.isFolder && duration.length > 0
                     anchors.right: parent.right
@@ -777,6 +862,10 @@ Item {
                     onActiveChanged: {
                         if (active) {
                             EditorState.draggingAssetIndex = assetIndex
+                            // VEDIT: grabbing one of several picked cards carries them all.
+                            EditorState.setDraggingAssetGroup(
+                                root.isAssetSelected(assetId) && root.selectedAssetIds.length > 1
+                                    ? root.selectedAssetIds : [])
                         } else {
                             Qt.callLater(function() {
                                 if (!assetDrag.active)
@@ -850,6 +939,19 @@ Item {
                               : qsTr("Add to timeline")
                         icon.name: Theme.icons.plus
                         onTriggered: root.addToTimelineRequested(root.selectedAssetIds)
+                    }
+                    // VEDIT: the grid (the default view) offers what the list view does.
+                    ThemedMenuItem {
+                        text: qsTr("Add only its sound")
+                        icon.name: Theme.icons.music
+                        visible: kind === "video" && root.selectedAssetIds.length <= 1
+                        onTriggered: EditorState.addSoundFromVideo(assetId)
+                    }
+                    ThemedMenuItem {
+                        text: qsTr("Make a photo slideshow")
+                        icon.name: Theme.icons.film
+                        visible: root.selectedAssetIds.length > 1
+                        onTriggered: EditorState.makeSlideshow(root.selectedAssetIds, 3.0)
                     }
                     ThemedMenuItem {
                         text: qsTr("Preview and edit…")
@@ -1239,6 +1341,10 @@ Item {
                     onActiveChanged: {
                         if (active) {
                             EditorState.draggingAssetIndex = assetIndex
+                            // VEDIT: grabbing one of several picked cards carries them all.
+                            EditorState.setDraggingAssetGroup(
+                                root.isAssetSelected(assetId) && root.selectedAssetIds.length > 1
+                                    ? root.selectedAssetIds : [])
                         } else {
                             Qt.callLater(function() {
                                 if (!rowDrag.active)
@@ -1315,6 +1421,20 @@ Item {
                           : qsTr("Add to timeline")
                     icon.name: Theme.icons.plus
                     onTriggered: root.addToTimelineRequested(root.selectedAssetIds)
+                }
+                // VEDIT: 소리만 넣기 — a video's sound alone, as background music.
+                ThemedMenuItem {
+                    text: qsTr("Add only its sound")
+                    icon.name: Theme.icons.music
+                    visible: kind === "video" && root.selectedAssetIds.length <= 1
+                    onTriggered: EditorState.addSoundFromVideo(assetId)
+                }
+                // VEDIT: 사진 슬라이드쇼 — several photos picked: lay them out with dissolves and motion.
+                ThemedMenuItem {
+                    text: qsTr("Make a photo slideshow")
+                    icon.name: Theme.icons.film
+                    visible: root.selectedAssetIds.length > 1
+                    onTriggered: EditorState.makeSlideshow(root.selectedAssetIds, 3.0)
                 }
                 ThemedMenuItem {
                     text: qsTr("Preview and edit…")
@@ -1815,6 +1935,111 @@ Item {
 
         model: root.combinedItems
         delegate: gridDelegate
+
+        // VEDIT (조박사님): drag a box over empty space to pick every card it touches, as in
+        // Explorer and CapCut. Under the cards (z -1), so a press on a card still drags that card
+        // to the timeline; Ctrl or Shift adds to what is already picked. A plain click on empty
+        // space picks nothing.
+        property bool marqueeActive: false
+        property bool marqueeAdditive: false
+        property real marqueeX0: 0
+        property real marqueeY0: 0
+        property real marqueeX1: 0
+        property real marqueeY1: 0
+        property var marqueeBase: []
+
+        function marqueePick() {
+            const left = Math.min(marqueeX0, marqueeX1), right = Math.max(marqueeX0, marqueeX1)
+            const top = Math.min(marqueeY0, marqueeY1), bottom = Math.max(marqueeY0, marqueeY1)
+            const cols = Math.max(1, Math.floor(grid.width / grid.cellWidth))
+            const cardW = grid.cellWidth - Theme.assetCardGap
+            const cardH = grid.cellHeight - Theme.assetCardGap
+            const picked = marqueeAdditive ? marqueeBase.slice() : []
+            for (let i = 0; i < root.combinedItems.length; ++i) {
+                const item = root.combinedItems[i]
+                if (item.isFolder)
+                    continue
+                const x = (i % cols) * grid.cellWidth
+                const y = Math.floor(i / cols) * grid.cellHeight
+                if (x < right && x + cardW > left && y < bottom && y + cardH > top
+                        && picked.indexOf(item.assetId) < 0)
+                    picked.push(item.assetId)
+            }
+            root.selectedAssetIds = picked
+            if (picked.length > 0 && root.selectionAnchorId.length === 0)
+                root.selectionAnchorId = picked[0]
+        }
+
+        Rectangle {
+            z: 10
+            visible: grid.marqueeActive && (width > 3 || height > 3)
+            x: Math.min(grid.marqueeX0, grid.marqueeX1)
+            y: Math.min(grid.marqueeY0, grid.marqueeY1)
+            width: Math.abs(grid.marqueeX1 - grid.marqueeX0)
+            height: Math.abs(grid.marqueeY1 - grid.marqueeY0)
+            color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
+            border.width: 1
+            border.color: Theme.primary
+        }
+    }
+
+    // VEDIT: the drag-a-box area sits over the grid (the grid, a Flickable, would otherwise take
+    // a press on empty space for itself). A press on a card is handed straight through to the card,
+    // so dragging a card to the timeline, its menu and double-click are untouched.
+    MouseArea {
+        anchors.fill: grid
+        visible: grid.visible
+        z: grid.z + 1
+        acceptedButtons: Qt.LeftButton
+        preventStealing: true
+        enabled: !Theme.touchUi
+        function onCard(cx, cy) {
+            const cols = Math.max(1, Math.floor(grid.width / grid.cellWidth))
+            const col = Math.floor(cx / grid.cellWidth)
+            const row = Math.floor(cy / grid.cellHeight)
+            if (col < 0 || col >= cols || row < 0)
+                return false
+            const index = row * cols + col
+            if (index >= root.combinedItems.length)
+                return false
+            return cx - col * grid.cellWidth < grid.cellWidth - Theme.assetCardGap
+                && cy - row * grid.cellHeight < grid.cellHeight - Theme.assetCardGap
+        }
+        onPressed: (mouse) => {
+            const cx = mouse.x + grid.contentX
+            const cy = mouse.y + grid.contentY
+            if (onCard(cx, cy)) {
+                mouse.accepted = false
+                return
+            }
+            grid.marqueeAdditive = (mouse.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) !== 0
+            grid.marqueeBase = root.selectedAssetIds.slice()
+            grid.marqueeX0 = grid.marqueeX1 = cx
+            grid.marqueeY0 = grid.marqueeY1 = cy
+            grid.marqueeActive = true
+        }
+        onPositionChanged: (mouse) => {
+            if (!grid.marqueeActive)
+                return
+            // Near the top or bottom edge, scroll so the box can reach cards out of view.
+            const edge = 24
+            const maxY = Math.max(0, grid.contentHeight - grid.height)
+            if (mouse.y > height - edge)
+                grid.contentY = Math.min(maxY, grid.contentY + 12)
+            else if (mouse.y < edge)
+                grid.contentY = Math.max(0, grid.contentY - 12)
+            grid.marqueeX1 = Math.max(0, Math.min(grid.width, mouse.x)) + grid.contentX
+            grid.marqueeY1 = Math.max(0, mouse.y + grid.contentY)
+            grid.marqueePick()
+        }
+        onReleased: {
+            const moved = Math.abs(grid.marqueeX1 - grid.marqueeX0) > 3
+                          || Math.abs(grid.marqueeY1 - grid.marqueeY0) > 3
+            if (!moved && !grid.marqueeAdditive)
+                root.clearAssetSelection()
+            grid.marqueeActive = false
+        }
+        onCanceled: grid.marqueeActive = false
     }
 
     ListView {

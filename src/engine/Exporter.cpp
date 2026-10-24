@@ -1,5 +1,17 @@
 #include "Exporter.h"
 
+#ifdef Q_OS_WIN
+// VEDIT: COM apartment for Media Foundation encoders.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <objbase.h>
+#pragma comment(lib, "ole32.lib")
+#endif
+
 #include "AudioMixer.h"
 #include "ClipReaderPool.h"
 #include "FrameCompositor.h"
@@ -224,6 +236,10 @@ const char *const kDnxhd[] = {"dnxhd", nullptr};
 const char *const kProres[] = {"prores_ks", "prores", nullptr};
 const char *const kLibtheora[] = {"libtheora", nullptr};
 
+// VEDIT: Windows' own Media Foundation encoders — the H.264/AAC licence comes with the OS, so
+// the default export does not ship a patented encoder (x264 is also GPL-only).
+const char *const kH264Mf[] = {"h264_mf", nullptr};
+const char *const kHevcMf[] = {"hevc_mf", nullptr};
 const char *const kH264Nvenc[] = {"h264_nvenc", nullptr};
 const char *const kHevcNvenc[] = {"hevc_nvenc", nullptr};
 const char *const kAv1Nvenc[] = {"av1_nvenc", nullptr};
@@ -263,6 +279,9 @@ const VideoCodecDef kVideoCodecs[] = {
      "mkv"},
     {"ffv1", "FFV1", kFfv1, AV_PIX_FMT_YUV444P, RateMode::Lossless, false, nullptr, nullptr, 0, "mkv"},
     {"h264", "H.264 (x264)", kLibx264, AV_PIX_FMT_YUV420P, RateMode::Crf, true, kX264Presets, "medium", 18, "mp4"},
+    // VEDIT: Media Foundation picks the GPU's encoder itself when there is one.
+    {"h264_mf", "H.264 (Windows)", kH264Mf, AV_PIX_FMT_NV12, RateMode::Bitrate, false, nullptr, nullptr, 0, "mp4"},
+    {"h265_mf", "H.265 (Windows)", kHevcMf, AV_PIX_FMT_NV12, RateMode::Bitrate, false, nullptr, nullptr, 0, "mp4"},
     {"h264_nvenc", "H.264 (NVIDIA)", kH264Nvenc, AV_PIX_FMT_NV12, RateMode::Crf, true, kNvencPresets, "p4", 23, "mp4",
      HwBackend::Nvenc},
     {"h264_qsv", "H.264 (Intel)", kH264Qsv, AV_PIX_FMT_NV12, RateMode::Crf, true, kQsvPresets, "medium", 23, "mp4",
@@ -314,6 +333,7 @@ const VideoCodecDef kVideoCodecs[] = {
 };
 
 const char *const kAacEnc[] = {"aac", nullptr};
+const char *const kAacMfEnc[] = {"aac_mf", nullptr}; // VEDIT: Windows' AAC encoder
 const char *const kOpusEnc[] = {"libopus", "opus", nullptr};
 const char *const kMp3Enc[] = {"libmp3lame", "mp3", nullptr};
 const char *const kAc3Enc[] = {"ac3", nullptr};
@@ -321,6 +341,7 @@ const char *const kFlacEnc[] = {"flac", nullptr};
 
 const AudioCodecDef kAudioCodecs[] = {
     {"aac", "AAC", kAacEnc, false, "mp4"},
+    {"aac_mf", "AAC (Windows)", kAacMfEnc, false, "mp4"}, // VEDIT
     {"opus", "Opus", kOpusEnc, false, "webm"},
     {"mp3", "MP3", kMp3Enc, false, "mp4"},
     {"ac3", "AC3", kAc3Enc, false, "mp4"},
@@ -587,8 +608,15 @@ void evenDims(int &w, int &h)
 
 void scaleSize(int projW, int projH, int targetH, int &outW, int &outH)
 {
-    outH = targetH > 0 ? targetH : projH;
-    outW = static_cast<int>(std::llround(static_cast<double>(projW) * outH / projH));
+    // VEDIT: CapCut-style — "1080p" means the *short* side is 1080, so a vertical phone video
+    // exports at 1080x1920 rather than shrinking to 608x1080.
+    if (targetH > 0 && projW < projH) {
+        outW = targetH;
+        outH = static_cast<int>(std::llround(static_cast<double>(projH) * outW / projW));
+    } else {
+        outH = targetH > 0 ? targetH : projH;
+        outW = static_cast<int>(std::llround(static_cast<double>(projW) * outH / projH));
+    }
     evenDims(outW, outH);
 }
 
@@ -1611,8 +1639,11 @@ void Exporter::BackgroundHold::setPercent(int percent)
 const QList<ExportScalePreset> &Exporter::scalePresets()
 {
     static const QList<ExportScalePreset> kPresets = {
-        {QStringLiteral("source"), QStringLiteral("Same as project"), 0, 16000},
-        {QStringLiteral("1080p"), QStringLiteral("1080p"), 1080, 12000},
+        // VEDIT: Korean labels, plus CapCut's 2K / 4K (upscaling allowed for those two).
+        {QStringLiteral("source"), QStringLiteral("원본 크기"), 0, 16000},
+        {QStringLiteral("2160p"), QStringLiteral("4K"), 2160, 40000},
+        {QStringLiteral("1440p"), QStringLiteral("2K"), 1440, 24000},
+        {QStringLiteral("1080p"), QStringLiteral("1080p (추천)"), 1080, 12000},
         {QStringLiteral("720p"), QStringLiteral("720p"), 720, 8000},
         {QStringLiteral("480p"), QStringLiteral("480p"), 480, 4000},
     };
@@ -1769,8 +1800,9 @@ QVariantList Exporter::scaleOptions(int projectWidth, int projectHeight)
         return out;
 
     for (const ExportScalePreset &preset : scalePresets()) {
-        // Skip downscale targets that would upscale.
-        if (preset.targetHeight > 0 && projectHeight <= preset.targetHeight)
+        // Skip downscale targets that would upscale — except VEDIT's 2K/4K, which exist to.
+        const int shortSide = qMin(projectWidth, projectHeight);
+        if (preset.targetHeight > 0 && preset.targetHeight < 1440 && shortSide <= preset.targetHeight)
             continue;
 
         int outW = 0;
@@ -1796,7 +1828,7 @@ QVariantList Exporter::scaleOptions(int projectWidth, int projectHeight)
         scaleSize(projectWidth, projectHeight, 0, outW, outH);
         out.append(QVariantMap{
             {QStringLiteral("id"), QStringLiteral("source")},
-            {QStringLiteral("label"), QStringLiteral("Same as project · %1×%2").arg(outW).arg(outH)},
+            {QStringLiteral("label"), QStringLiteral("원본 크기 · %1×%2").arg(outW).arg(outH)},
             {QStringLiteral("targetHeight"), 0},
             {QStringLiteral("width"), outW},
             {QStringLiteral("height"), outH},
@@ -1837,7 +1869,7 @@ QVariantList Exporter::frameRateOptions(int projectFps)
     // project-setup changes instead of pinning the rate at dialog time.
     out.append(QVariantMap{
         {QStringLiteral("id"), QStringLiteral("project")},
-        {QStringLiteral("label"), QStringLiteral("Same as project (%1 fps)").arg(qMax(1, projectFps))},
+        {QStringLiteral("label"), QStringLiteral("프로젝트와 같게 (%1 fps)").arg(qMax(1, projectFps))},
         {QStringLiteral("fpsNum"), 0},
         {QStringLiteral("fpsDen"), 1},
     });
@@ -1860,6 +1892,17 @@ bool Exporter::gifAvailable()
 ExportSettings Exporter::defaultSettings()
 {
     ExportSettings s;
+#ifdef Q_OS_WIN
+    // VEDIT: Windows' own H.264/AAC first (OS-licensed, hardware when the GPU has it).
+    if (videoCodecById(QStringLiteral("h264_mf")).value(QStringLiteral("available")).toBool()
+        && audioCodecById(QStringLiteral("aac_mf")).value(QStringLiteral("available")).toBool()) {
+        s.videoCodecId = QStringLiteral("h264_mf");
+        s.audioCodecId = QStringLiteral("aac_mf");
+        s.rateControl = QStringLiteral("bitrate");
+        s.videoBitrateKbps = 16000;
+        return s;
+    }
+#endif
     // Prefer first available CRF codec starting at h264.
     const QStringList prefer = {QStringLiteral("h264"), QStringLiteral("h265"), QStringLiteral("vp9"),
                                 QStringLiteral("av1_svt")};
@@ -1940,9 +1983,54 @@ ExportSettings Exporter::settingsFromMap(const QVariantMap &map)
     return s;
 }
 
-bool Exporter::run(const drift::Project &project, const ExportSettings &settings, const QString &outputPath,
+#ifdef Q_OS_WIN
+namespace {
+// VEDIT: FFmpeg's Media Foundation encoders refuse to open on a COM single-threaded apartment
+// ("COM must not be in STA mode"). The app exports on a worker thread, where this succeeds;
+// should a caller ever run on an STA thread anyway (the GUI thread), export with the encoders
+// FFmpeg ships instead of failing outright.
+struct ComMta
+{
+    bool ok = false;
+    bool uninit = false;
+    ComMta()
+    {
+        const HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        ok = SUCCEEDED(hr);          // S_OK, or S_FALSE when this thread was already MTA
+        uninit = SUCCEEDED(hr);      // balance every successful call
+    }
+    ~ComMta()
+    {
+        if (uninit)
+            CoUninitialize();
+    }
+};
+
+bool usesMediaFoundation(const ExportSettings &settings)
+{
+    return settings.videoCodecId.endsWith(QLatin1String("_mf"))
+           || settings.audioCodecId.endsWith(QLatin1String("_mf"));
+}
+} // namespace
+#endif
+
+bool Exporter::run(const drift::Project &project, const ExportSettings &settingsIn, const QString &outputPath,
                    QString *errorOut, const ProgressFn &onProgress)
 {
+    ExportSettings settings = settingsIn;
+#ifdef Q_OS_WIN
+    ComMta com;
+    if (usesMediaFoundation(settings) && !com.ok) {
+        if (settings.videoCodecId.endsWith(QLatin1String("_mf"))) {
+            settings.videoCodecId = QStringLiteral("h264");
+            settings.rateControl = QStringLiteral("crf");
+            settings.crf = 18;
+            settings.videoPreset = QStringLiteral("medium");
+        }
+        if (settings.audioCodecId.endsWith(QLatin1String("_mf")))
+            settings.audioCodecId = QStringLiteral("aac");
+    }
+#endif
 #ifdef Q_OS_ANDROID
     if (const QUrl target(outputPath); AndroidUri::isContentUri(target))
         return runToDocument(project, settings, target, errorOut, onProgress);

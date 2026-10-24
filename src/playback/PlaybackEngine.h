@@ -133,8 +133,12 @@ public:
 
     // Empty id follows the system default. Applied to the sink immediately.
     void setAudioDeviceId(const QByteArray &id) { m_audio.setDeviceId(id); }
+    void setOutputMuted(bool muted) { m_audio.setMuted(muted); } // VEDIT
 
 signals:
+    // VEDIT (Codex 검토 5): the preroll is over; the playhead starts moving `delayUs` from now
+    // (the silence still queued in the device). Voice-over recording starts its file then.
+    void pictureStarted(qint64 delayUs);
     // Playback cannot produce sound; carries a message meant for the user.
     void audioError(const QString &message);
     // A reader hit a driver failure and went sticky-software. `backendName` is the
@@ -187,6 +191,20 @@ private:
     AudioMixer m_mixer;
     AudioOutputChannel m_audio;
     QTimer m_playheadTimer;
+    // VEDIT (조박사님: "꿀렁 멈칫 하고 출발"): play waits for its first frame — decoders reopened for
+    // playback, two layers or the 임시 렌더링 file — before sound and clock set off together.
+    bool m_prerolling = false;
+    // VEDIT (temporary diagnosis, 조박사님: "재생하면 가다 끊기고"): once a second while playing,
+    // what the screen got — written to %TEMP%/vedit-play-trace.log.
+    QTimer m_traceTimer;
+    qint64 m_traceLastFrameNs = 0;
+    double m_traceMaxGapMs = 0.0;
+    int m_traceFrames = 0;
+    int m_traceDroppedAtStart = 0;
+    void writePlayTrace();
+    bool m_prerollFrameSeen = false;
+    QTimer m_prerollTimer;
+    void finishPreroll();
     QTimer m_compositeTimer;
     QTimer m_editRefreshTimer;
     QTimer m_gpuProbeTimer;

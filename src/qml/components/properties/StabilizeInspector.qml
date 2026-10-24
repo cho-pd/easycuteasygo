@@ -102,6 +102,7 @@ Item {
 
             ThemedSlider {
                 id: stabilizeSmoothingSlider
+                defaultValue: 15 // VEDIT
                 label: qsTr("Smoothing")
                 width: parent.width
                 from: 2

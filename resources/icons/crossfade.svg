@@ -1,0 +1,16 @@
+<!-- VEDIT: 클립 겹치기 허용 — two S-curves crossing like an X, the same shape the timeline draws
+     for a dissolve (one picture fading out while the next fades in). -->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M2 5C10 5 14 19 22 19" />
+  <path d="M2 19C10 19 14 5 22 5" />
+</svg>

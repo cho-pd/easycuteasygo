@@ -33,6 +33,9 @@ public:
         // Reuse converted video frames across composites. Only the paused preview sets it: an
         // edit there re-renders the same source frames, where playback never repeats one.
         bool cacheVideoSources = false;
+        // VEDIT: show 임시 렌더링 (RenderCache) where a stretch has one. Only live playback sets
+        // it: export and every other caller must composite the real thing.
+        bool useRenderCache = false;
     };
 
     void setProject(const drift::Project *project) { m_project = project; }

@@ -1,0 +1,138 @@
+{
+  "id": "adjust.tone",
+  "displayName": "Light and Shadow",
+  "category": "color",
+  "order": 45,
+  "parameters": [
+    {
+      "identifier": "exposure",
+      "displayName": "Exposure",
+      "type": "float",
+      "minValue": -2,
+      "maxValue": 2,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "highlights",
+      "displayName": "Highlights",
+      "type": "float",
+      "minValue": -1,
+      "maxValue": 1,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "shadows",
+      "displayName": "Shadows",
+      "type": "float",
+      "minValue": -1,
+      "maxValue": 1,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "vignette",
+      "displayName": "Dark edges",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "whites",
+      "displayName": "Whites",
+      "type": "float",
+      "minValue": -1,
+      "maxValue": 1,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "blacks",
+      "displayName": "Blacks",
+      "type": "float",
+      "minValue": -1,
+      "maxValue": 1,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "brilliance",
+      "displayName": "Brilliance",
+      "type": "float",
+      "minValue": -1,
+      "maxValue": 1,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "tint",
+      "displayName": "Tint",
+      "type": "float",
+      "minValue": -1,
+      "maxValue": 1,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "clarity",
+      "displayName": "Clarity",
+      "type": "float",
+      "minValue": -1,
+      "maxValue": 1,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "grain",
+      "displayName": "Grain",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "fade",
+      "displayName": "Fade",
+      "type": "float",
+      "minValue": 0,
+      "maxValue": 1,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "balance_r",
+      "displayName": "Red balance",
+      "type": "float",
+      "minValue": -0.5,
+      "maxValue": 0.5,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "balance_g",
+      "displayName": "Green balance",
+      "type": "float",
+      "minValue": -0.5,
+      "maxValue": 0.5,
+      "defaultValue": 0
+    },
+    {
+      "identifier": "balance_b",
+      "displayName": "Blue balance",
+      "type": "float",
+      "minValue": -0.5,
+      "maxValue": 0.5,
+      "defaultValue": 0
+    }
+  ],
+  "backend": "gpu",
+  "pipeline": {
+    "intermediateBuffers": [],
+    "passes": [
+      {
+        "passIndex": 0,
+        "fragmentShader": "main.frag",
+        "inputs": [
+          {
+            "type": "source_texture"
+          }
+        ],
+        "output": {
+          "type": "canvas"
+        }
+      }
+    ]
+  }
+}

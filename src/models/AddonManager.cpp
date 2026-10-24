@@ -595,7 +595,7 @@ void AddonManager::cancel(const QString &id)
 void AddonManager::uninstall(const QString &id)
 {
     const InstalledAddon *installed = installedAddon(id);
-    if (!installed)
+    if (!installed || installed->bundled) // VEDIT: shipped with the app, not removable here
         return;
 
     QStringList kinds;

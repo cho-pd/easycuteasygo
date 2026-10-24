@@ -905,6 +905,7 @@ Item {
                                         key: paramRow.paramData.prop || "",
                                         label: paramRow.paramData.label,
                                         def: paramRow.paramData.value,
+                                        reset: paramRow.paramData["default"], // VEDIT
                                         decimals: Math.abs(paramRow.paramData.max
                                                            - paramRow.paramData.min) >= 10 ? 1 : 2
                                     })

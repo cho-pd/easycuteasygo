@@ -172,6 +172,26 @@ private:
 
 // aecho=in_gain:out_gain:delay:decay. A single tap off the input, with no regeneration — that is
 // what avfilter's aecho does with one delay, so one repeat, not a repeating tail.
+// VEDIT: room / hall / church ambience — CapCut's 공간감. JUCE's Freeverb-style reverb.
+class ReverbProcessor final : public AudioEffectProcessor
+{
+public:
+    void setRoomSize(float size);  // 0..1
+    void setWet(float wet);        // 0..1
+    void setDamping(float damping); // 0..1, higher = darker tail
+
+    void prepare(const juce::dsp::ProcessSpec &spec) override;
+    void process(juce::dsp::AudioBlock<float> &block) override;
+    void reset() override;
+
+    int latencySamples() const override { return 0; }
+
+private:
+    void apply();
+    juce::dsp::Reverb m_reverb;
+    juce::Reverb::Parameters m_params;
+};
+
 class EchoProcessor final : public AudioEffectProcessor
 {
 public:

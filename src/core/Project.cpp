@@ -156,6 +156,12 @@ QJsonObject transitionToJson(const Transition &t)
             o.insert(QStringLiteral("easingShape"), t.easingShape.toJson());
         }
     }
+    if (t.autoOverlap)
+        o.insert(QStringLiteral("autoOverlap"), true);
+    if (t.splitCurves) { // VEDIT
+        o.insert(QStringLiteral("outCurve"), fadeCurveToString(t.outCurve));
+        o.insert(QStringLiteral("inCurve"), fadeCurveToString(t.inCurve));
+    }
     return o;
 }
 
@@ -177,6 +183,12 @@ Transition transitionFromJson(const QJsonObject &o)
     if (o.contains(QStringLiteral("easingCurve")))
         t.easingCurve = fadeCurveFromString(o.value(QStringLiteral("easingCurve")).toString());
     t.easingShape = FadeShape::fromJson(o.value(QStringLiteral("easingShape")));
+    t.autoOverlap = o.value(QStringLiteral("autoOverlap")).toBool(false);
+    if (o.contains(QStringLiteral("outCurve")) || o.contains(QStringLiteral("inCurve"))) { // VEDIT
+        t.splitCurves = true;
+        t.outCurve = fadeCurveFromString(o.value(QStringLiteral("outCurve")).toString());
+        t.inCurve = fadeCurveFromString(o.value(QStringLiteral("inCurve")).toString());
+    }
     return t;
 }
 
@@ -234,6 +246,7 @@ QJsonObject clipToJson(const Clip &clip)
         {QStringLiteral("id"), clip.id},
         {QStringLiteral("assetId"), clip.assetId},
         {QStringLiteral("linkId"), clip.linkId},
+        {QStringLiteral("syncId"), clip.syncId}, // VEDIT
         {QStringLiteral("suppressEmbeddedAudio"), clip.suppressEmbeddedAudio},
         {QStringLiteral("audioStreamIndex"), clip.audioStreamIndex},
         {QStringLiteral("type"), clipTypeToString(clip.type)},
@@ -277,6 +290,12 @@ QJsonObject clipToJson(const Clip &clip)
         {QStringLiteral("fadeShape"), clip.fadeShape.toJson()},
         {QStringLiteral("animIn"), clipAnimationToJson(clip.animIn)},
         {QStringLiteral("animOut"), clipAnimationToJson(clip.animOut)},
+        {QStringLiteral("animCombo"), clip.animCombo}, // VEDIT
+        {QStringLiteral("level"), clip.level}, // VEDIT
+        {QStringLiteral("channelMode"), clip.channelMode}, // VEDIT
+        {QStringLiteral("fadeOutCurve"), clip.fadeOutCurveSet ? fadeCurveToString(clip.fadeOutCurve) : QString()}, // VEDIT
+        {QStringLiteral("animComboOriginUs"), static_cast<qint64>(clip.animComboOriginUs)}, // VEDIT
+        {QStringLiteral("animComboSpanUs"), static_cast<qint64>(clip.animComboSpanUs)},     // VEDIT
         {QStringLiteral("timelineStartUs"), static_cast<double>(clip.timelineStart)},
         {QStringLiteral("timelineDurationUs"), static_cast<double>(clip.timelineDuration)},
         {QStringLiteral("srcInUs"), static_cast<double>(clip.srcIn)},
@@ -304,6 +323,22 @@ QJsonObject clipToJson(const Clip &clip)
         json.insert(QStringLiteral("model3d"), clip.model3d.toJson());
     if (!clip.sequenceId.isEmpty())
         json.insert(QStringLiteral("sequenceId"), clip.sequenceId);
+    if (!clip.speedPreset.isEmpty()) // VEDIT: only written when set, so old files round-trip
+        json.insert(QStringLiteral("speedPreset"), clip.speedPreset);
+    if (!clip.motionPreset.isEmpty()) { // VEDIT
+        json.insert(QStringLiteral("motion"),
+                    QJsonObject{{QStringLiteral("preset"), clip.motionPreset},
+                                {QStringLiteral("x"), clip.motionBaseX},
+                                {QStringLiteral("y"), clip.motionBaseY},
+                                {QStringLiteral("w"), clip.motionBaseW},
+                                {QStringLiteral("h"), clip.motionBaseH}});
+    }
+    if (clip.hasCrop()) { // VEDIT
+        json.insert(QStringLiteral("crop"), QJsonObject{{QStringLiteral("l"), clip.cropL},
+                                                        {QStringLiteral("t"), clip.cropT},
+                                                        {QStringLiteral("r"), clip.cropR},
+                                                        {QStringLiteral("b"), clip.cropB}});
+    }
     return json;
 }
 
@@ -347,6 +382,7 @@ Clip clipFromJsonV2(const QJsonObject &object, int canvasW = 1920, int canvasH =
     clip.id = object.value(QStringLiteral("id")).toString(QUuid::createUuid().toString(QUuid::WithoutBraces));
     clip.assetId = object.value(QStringLiteral("assetId")).toString();
     clip.linkId = object.value(QStringLiteral("linkId")).toString();
+    clip.syncId = object.value(QStringLiteral("syncId")).toString(); // VEDIT
     clip.suppressEmbeddedAudio = object.value(QStringLiteral("suppressEmbeddedAudio")).toBool(false);
     clip.audioStreamIndex = object.value(QStringLiteral("audioStreamIndex")).toInt(0);
     clip.type = clipTypeFromString(object.value(QStringLiteral("type")).toString());
@@ -368,6 +404,22 @@ Clip clipFromJsonV2(const QJsonObject &object, int canvasW = 1920, int canvasH =
     clip.blendMode = blendModeFromString(object.value(QStringLiteral("blendMode")).toString());
     clip.speed = object.value(QStringLiteral("speed")).toDouble(1.0);
     clip.speedCurve = SpeedCurve::fromJson(object.value(QStringLiteral("speedCurve")).toArray());
+    clip.speedPreset = object.value(QStringLiteral("speedPreset")).toString(); // VEDIT
+    {
+        const QJsonObject motion = object.value(QStringLiteral("motion")).toObject(); // VEDIT
+        clip.motionPreset = motion.value(QStringLiteral("preset")).toString();
+        clip.motionBaseX = motion.value(QStringLiteral("x")).toDouble();
+        clip.motionBaseY = motion.value(QStringLiteral("y")).toDouble();
+        clip.motionBaseW = motion.value(QStringLiteral("w")).toDouble();
+        clip.motionBaseH = motion.value(QStringLiteral("h")).toDouble();
+    }
+    {
+        const QJsonObject crop = object.value(QStringLiteral("crop")).toObject(); // VEDIT
+        clip.cropL = crop.value(QStringLiteral("l")).toDouble(0.0);
+        clip.cropT = crop.value(QStringLiteral("t")).toDouble(0.0);
+        clip.cropR = crop.value(QStringLiteral("r")).toDouble(0.0);
+        clip.cropB = crop.value(QStringLiteral("b")).toDouble(0.0);
+    }
     clip.reverse = object.value(QStringLiteral("reverse")).toBool(false);
     clip.flipH = object.value(QStringLiteral("flipH")).toBool(false);
     clip.flipV = object.value(QStringLiteral("flipV")).toBool(false);
@@ -406,6 +458,15 @@ Clip clipFromJsonV2(const QJsonObject &object, int canvasW = 1920, int canvasH =
     clip.fadeShape = FadeShape::fromJson(object.value(QStringLiteral("fadeShape")));
     clip.animIn = clipAnimationFromJson(object.value(QStringLiteral("animIn")).toObject());
     clip.animOut = clipAnimationFromJson(object.value(QStringLiteral("animOut")).toObject());
+    clip.animCombo = object.value(QStringLiteral("animCombo")).toString(); // VEDIT
+    clip.level = qBound(0.0, object.value(QStringLiteral("level")).toDouble(1.0), 1.0); // VEDIT
+    clip.channelMode = qBound(0, object.value(QStringLiteral("channelMode")).toInt(0), 4); // VEDIT
+    if (const QString foc = object.value(QStringLiteral("fadeOutCurve")).toString(); !foc.isEmpty()) { // VEDIT
+        clip.fadeOutCurveSet = true;
+        clip.fadeOutCurve = fadeCurveFromString(foc);
+    }
+    clip.animComboOriginUs = object.value(QStringLiteral("animComboOriginUs")).toInteger(0); // VEDIT
+    clip.animComboSpanUs = object.value(QStringLiteral("animComboSpanUs")).toInteger(0);     // VEDIT
     clip.timelineStart = static_cast<TimeUs>(object.value(QStringLiteral("timelineStartUs")).toDouble());
     clip.timelineDuration = static_cast<TimeUs>(object.value(QStringLiteral("timelineDurationUs")).toDouble());
     clip.srcIn = static_cast<TimeUs>(object.value(QStringLiteral("srcInUs")).toDouble());
@@ -881,6 +942,7 @@ Project Project::fromJson(const QJsonObject &object, QString *errorOut)
     Project project;
 
     project.setName(object.value(QStringLiteral("projectName")).toString(QStringLiteral("Untitled Project")));
+    project.setVeditLayoutVersion(object.value(QStringLiteral("veditLayoutVersion")).toInt(0)); // VEDIT
     project.setFps(object.value(QStringLiteral("fps")).toInt(30));
     project.setResolution(object.value(QStringLiteral("width")).toInt(1920),
                           object.value(QStringLiteral("height")).toInt(1080));
@@ -927,6 +989,8 @@ Project Project::fromJson(const QJsonObject &object, QString *errorOut)
             track.muted = trackObject.value(QStringLiteral("muted")).toBool(false);
             track.hidden = trackObject.value(QStringLiteral("hidden")).toBool(false);
             track.locked = trackObject.value(QStringLiteral("locked")).toBool(false);
+            track.magnet = trackObject.value(QStringLiteral("magnet")).toBool(false); // VEDIT
+            track.channelMode = qBound(0, trackObject.value(QStringLiteral("channelMode")).toInt(0), 4); // VEDIT
             // Projects before clipDisplay only had a waveform-instead-of-filmstrip flag.
             if (trackObject.contains(QStringLiteral("clipDisplay")))
                 track.clipDisplay = static_cast<Track::ClipDisplay>(
@@ -1094,6 +1158,8 @@ QJsonObject Project::toJson(bool includeTranscripts) const
                 {QStringLiteral("muted"), track.muted},
                 {QStringLiteral("hidden"), track.hidden},
                 {QStringLiteral("locked"), track.locked},
+                {QStringLiteral("magnet"), track.magnet}, // VEDIT
+                {QStringLiteral("channelMode"), track.channelMode}, // VEDIT
                 {QStringLiteral("clipDisplay"), static_cast<int>(track.clipDisplay)},
                 {QStringLiteral("showChannelWaveforms"), track.showChannelWaveforms},
                 {QStringLiteral("heightScale"), track.heightScale},
@@ -1127,6 +1193,7 @@ QJsonObject Project::toJson(bool includeTranscripts) const
     QJsonObject root{
         {QStringLiteral("version"), kCurrentVersion},
         {QStringLiteral("projectName"), m_name},
+        {QStringLiteral("veditLayoutVersion"), m_veditLayoutVersion}, // VEDIT
         {QStringLiteral("id"), m_id},
         {QStringLiteral("author"), m_author},
         {QStringLiteral("description"), m_description},

@@ -130,6 +130,10 @@ public:
 
     QString name() const { return m_name; }
     void setName(const QString &name) { m_name = name; }
+    // VEDIT: which one-time layout tidy-ups this project has had (1 = photos centred). New
+    // projects start current; a file without the key is older and gets them on open.
+    int veditLayoutVersion() const { return m_veditLayoutVersion; }
+    void setVeditLayoutVersion(int v) { m_veditLayoutVersion = v; }
 
     // Stable across saves; names the extraction directory a packaged project unpacks into, so it
     // must survive a round-trip rather than being reminted per save.
@@ -284,6 +288,7 @@ public:
 
 private:
     QString m_name = QStringLiteral("Untitled Project");
+    int m_veditLayoutVersion = 1; // VEDIT
     QString m_id;
     QString m_author;
     QString m_description;

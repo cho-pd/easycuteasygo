@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "id": "vedit-zoom-blur-word",
+  "label": "Zoom blur by word",
+  "category": "word",
+  "sampleText": "Zoom in",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 335,
+  "defaults": {
+    "unit": "word",
+    "stagger": 0.12,
+    "duration": 0.45,
+    "ease": "easeOut"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "scale": 300,
+        "blur": 14,
+        "opacity": 0
+      }
+    }
+  ]
+}

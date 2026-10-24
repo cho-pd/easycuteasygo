@@ -587,9 +587,14 @@ Item {
 
                         const shift = (modifiers & Qt.ShiftModifier) !== 0
                         const locked = grip.isCorner && (grip.lockByDefault !== shift)
+                        // VEDIT (조박사님, CapCut): a corner scales about the box's centre —
+                        // top, bottom, left and right move alike — so the size changes by twice
+                        // the pointer's travel. Alt keeps the old "opposite corner stays put".
+                        const centred = grip.isCorner && (modifiers & Qt.AltModifier) === 0
+                        const k = centred ? 2 : 1
 
-                        let w = Math.max(1, handle.dragStartW + lx * dxSign)
-                        let h = Math.max(1, handle.dragStartH + ly * dySign)
+                        let w = Math.max(1, handle.dragStartW + k * lx * dxSign)
+                        let h = Math.max(1, handle.dragStartH + k * ly * dySign)
                         if (locked) {
                             // Take the scale from whichever axis the pointer moved
                             // further along, measured as the bigger departure from
@@ -606,10 +611,14 @@ Item {
                         let guideX = -1
                         let guideY = -1
                         if (handle.canSnap && !(modifiers & Qt.ControlModifier)) {
-                            const anchorX = dxSign < 0 ? handle.dragStartX + handle.dragStartW
-                                                       : handle.dragStartX
-                            const anchorY = dySign < 0 ? handle.dragStartY + handle.dragStartH
-                                                       : handle.dragStartY
+                            // Centred: the moving edge sits half the size from the centre.
+                            const anchorX = centred ? handle.dragStartX + handle.dragStartW / 2 - dxSign * w / 2
+                                          : (dxSign < 0 ? handle.dragStartX + handle.dragStartW
+                                                        : handle.dragStartX)
+                            const anchorY = centred ? handle.dragStartY + handle.dragStartH / 2 - dySign * h / 2
+                                          : (dySign < 0 ? handle.dragStartY + handle.dragStartH
+                                                        : handle.dragStartY)
+                            const reach = centred ? 0.5 : 1 // edge travel per unit of size
                             const snapX = dxSign === 0
                                     ? { delta: 0, guide: -1 }
                                     : root.snapAxis([anchorX + dxSign * w],
@@ -624,11 +633,15 @@ Item {
                                 const rx = snapX.guide >= 0 ? Math.abs(snapX.delta) : Infinity
                                 const ry = snapY.guide >= 0 ? Math.abs(snapY.delta) : Infinity
                                 let s = -1
+                                const cX = handle.dragStartX + handle.dragStartW / 2
+                                const cY = handle.dragStartY + handle.dragStartH / 2
                                 if (rx <= ry && snapX.guide >= 0) {
-                                    s = Math.abs(snapX.guide - anchorX) / handle.dragStartW
+                                    s = centred ? Math.abs(snapX.guide - cX) * 2 / handle.dragStartW
+                                                : Math.abs(snapX.guide - anchorX) / handle.dragStartW
                                     guideX = snapX.guide
                                 } else if (ry < Infinity) {
-                                    s = Math.abs(snapY.guide - anchorY) / handle.dragStartH
+                                    s = centred ? Math.abs(snapY.guide - cY) * 2 / handle.dragStartH
+                                                : Math.abs(snapY.guide - anchorY) / handle.dragStartH
                                     guideY = snapY.guide
                                 }
                                 if (s > 0) {
@@ -637,11 +650,11 @@ Item {
                                 }
                             } else {
                                 if (snapX.guide >= 0) {
-                                    w = Math.max(1, w + snapX.delta * dxSign)
+                                    w = Math.max(1, w + snapX.delta * dxSign / reach)
                                     guideX = snapX.guide
                                 }
                                 if (snapY.guide >= 0) {
-                                    h = Math.max(1, h + snapY.delta * dySign)
+                                    h = Math.max(1, h + snapY.delta * dySign / reach)
                                     guideY = snapY.guide
                                 }
                             }
@@ -650,8 +663,8 @@ Item {
 
                         // Keeping the anchor still means the centre moves by half
                         // the size change, toward the grip, in box axes.
-                        const shiftX = (w - handle.dragStartW) / 2 * dxSign
-                        const shiftY = (h - handle.dragStartH) / 2 * dySign
+                        const shiftX = centred ? 0 : (w - handle.dragStartW) / 2 * dxSign
+                        const shiftY = centred ? 0 : (h - handle.dragStartH) / 2 * dySign
                         const cx = handle.dragStartX + handle.dragStartW / 2
                                    + shiftX * Math.cos(a) - shiftY * Math.sin(a)
                         const cy = handle.dragStartY + handle.dragStartH / 2

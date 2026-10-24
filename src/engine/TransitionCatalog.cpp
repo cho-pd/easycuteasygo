@@ -31,6 +31,9 @@ void rebuildLocked(const QStringList &packageRoots)
 
     static const QHash<QString, const char *> kCategoryLabels = {
         {QStringLiteral("basic"), QT_TRANSLATE_NOOP("TransitionCatalog", "Basic")},
+        // VEDIT: CapCut's Camera and Light Effect groups
+        {QStringLiteral("camera"), QT_TRANSLATE_NOOP("TransitionCatalog", "Camera")},
+        {QStringLiteral("light"), QT_TRANSLATE_NOOP("TransitionCatalog", "Light")},
         {QStringLiteral("geometric"), QT_TRANSLATE_NOOP("TransitionCatalog", "Grid & Geometric")},
         {QStringLiteral("liquid"), QT_TRANSLATE_NOOP("TransitionCatalog", "Particle & Liquid")},
         {QStringLiteral("glitch"), QT_TRANSLATE_NOOP("TransitionCatalog", "Glitch & Digital")},

@@ -173,6 +173,14 @@ public:
     Q_INVOKABLE bool isVariableFrameRate(const QString &assetId);
     Q_INVOKABLE bool isEditFriendly(const QString &assetId) const;
     Q_INVOKABLE void createProxies(const QStringList &assetIds);
+    // VEDIT: a light preview copy is made in the background for every video bigger than the
+    // proxy size, without asking (setting "preview/autoProxies", on by default). Returns how many
+    // were queued.
+    int autoProxyMissing();
+    static bool autoProxiesEnabled();
+    static inline bool s_autoProxyDefault = true; // tests switch it off
+    QSet<QString> m_autoProxySkip; // VEDIT: failed/cancelled this session — not retried by itself
+    static void setAutoProxiesEnabled(bool on);
     // Drops queued jobs and deletes built proxies. Not undoable, and doesn't need to be: a
     // proxy is a cache, not project content.
     Q_INVOKABLE void removeProxies(const QStringList &assetIds);

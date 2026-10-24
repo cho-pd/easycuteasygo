@@ -1484,6 +1484,126 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Swing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shake</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spin and grow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fly in big</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flip sideways</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flip over</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Jelly</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open sideways</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open up and down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shoot up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whirl</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spring</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Diagonal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whoosh from left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whoosh from right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blink</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D turn in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D tilt in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Glow in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Glitch in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wipe in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blur in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Squeeze</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Roll in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D spin in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D flip up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom blur in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flash</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Linear</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1504,6 +1624,66 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Basic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dynamic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Light &amp; glitch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rock</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom in and out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slide through</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bounce in and out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spin zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pendulum</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Squash and stretch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flip through</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Float through</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Not available</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1520,11 +1700,59 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Pick how the clip enters and leaves. Fade is one option — same style controls as slide or zoom.</source>
+        <source>Fade in</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Clear</source>
+        <source>Fade out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep moving — slow motion for the whole clip, lovely on photos</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slowly closer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slowly farther</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left to right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right to left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Heartbeat</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sway</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Float</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slow spin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shiver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hold still</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Give every photo this movement</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1533,6 +1761,34 @@
     </message>
     <message>
         <source>Out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Combo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Combo moves the clip from its start to its end — it takes the place of In and Out.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How the clip comes in. Point at a picture to see it move.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How the clip goes out. Point at a picture to see it move.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Length</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Animation length</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> s</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2098,10 +2354,6 @@
     </message>
     <message>
         <source>%1 decoding failed on this clip; using software decoding instead.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Copy effects from clip</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2851,6 +3103,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Stopped lining up by sound</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Composite</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3035,6 +3291,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>No overlap here — drag one clip over the other; the transition goes in the overlap</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Keep ranges</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3051,7 +3311,353 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Copy attributes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fit the whole video in view</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <comment>duration</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 min %2 s</source>
+        <comment>duration</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 min</source>
+        <comment>duration</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 h %2 min</source>
+        <comment>duration</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File size %1 · took %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>About %1 left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Working out the time left…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 · %2 so far</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close gaps on</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close gaps off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>That track is locked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a clip to cut first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transition length</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clips copied</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clip inserted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Congratulations!</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Happy birthday</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Thank you</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>I love you</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Our day today</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Family trip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>See you again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The End</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Default text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There is no talking on the timeline to caption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sound channels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clip volume</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clip opacity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No shot changes to cut at</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut at every scene</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Cut into %n scene(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Caption position</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Every caption line is already short</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Split long captions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Split long captions into %n more line(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>No photos to change</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photo length</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n photo(s) set to the same length</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>No effect</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White, black outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black, white outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow, black outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red, white outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Orange, black outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue, white outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green, black outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White on grey</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black on yellow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White on purple</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black on white</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White on black</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow on black</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White on red</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White on green</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White, blue glow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pink glow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gold glow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White, soft shadow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow, soft shadow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stage gold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No bubble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Speech bubble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Word art</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Audio restored</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set this composite back to normal speed first, then undo it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There is nothing inside this composite to bring back</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Composite undone</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The clips are back on the timeline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The clips changed while they were being compared; try again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The sounds are too different to line up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lined up by sound</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Lined up %n clip(s) by sound; %1 did not match</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Lined up %n clip(s) by sound</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Combo animation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Transition added</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There are no cuts on this track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transition at every cut</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Transition added at %n cut(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>No overlaps on this track — drag clips over each other first</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3119,6 +3725,18 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Keyframe moved</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete keyframe</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keyframe deleted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Keyframe easing changed</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3144,6 +3762,14 @@
     </message>
     <message>
         <source>Keyframe interpolates</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear all attributes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All attributes cleared</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3374,6 +4000,14 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Track locked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Track unlocked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Track visibility</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3462,6 +4096,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Attributes copied — right-click another clip and choose Paste attributes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Paste</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3471,6 +4109,25 @@
             <numerusform></numerusform>
             <numerusform></numerusform>
         </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n photo(s) now change on the beat</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>No photos to fit to the beat</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Listening for the beat…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fit photos to the beat</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Saved a copy</source>
@@ -3482,6 +4139,10 @@
     </message>
     <message>
         <source>Project JSON saved</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stop the recording first</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3557,6 +4218,21 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Today %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yesterday</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
         <source>Exporting…</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3581,6 +4257,182 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Recording — press Stop when you are done</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nothing was recorded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Your voice was added (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recording cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reading the captions aloud…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>These captions have no words to read</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Read captions aloud</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Read %n caption line(s) aloud — the voice stopped before the end</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Read %n caption line(s) aloud on a new sound track</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Type some words first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reading the words aloud…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file is missing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Created</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Modified</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Original length</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Picture size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>portrait</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 frames a second</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video format</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recorded turned</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>mono</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>stereo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 channels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sound</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Data rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This computer has no voice to read with</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The words are read aloud on a new sound track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Looking for the quiet parts…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This clip has no sound to look at</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No quiet parts to cut</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Cut %n quiet part(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>No talking found on the other tracks under this clip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Listening for talking…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Music lowered in %n place(s) while someone talks</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Measuring the sound…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This clip has no sound to measure</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sound level matched (%1 dB)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Add layer</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3598,6 +4450,246 @@
     </message>
     <message>
         <source>Edit layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adjust</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The voice is already made clearer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make the voice clearer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The voice is clearer — less boom, quiet words brought up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There is no video for the music to fit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fit music to the video</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The music now ends with the video, fading out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The music is shorter than the video; its end now fades out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This video has no sound</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add the sound of a video</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added only the sound of this video</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pick some photos first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photo slideshow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Made a slideshow of %n photo(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Auto adjust works on videos and photos</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not look at this clip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Auto adjust</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brightened and cleared up the picture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This picture already looks good — nothing to change</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keyframe</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colour matching works on videos and photos</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There is no other scene to match the colour to</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Match colour</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Matched the colour to the scene before</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset adjustments</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep only people works on video clips</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The people cut-out part is not installed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only photos and videos can be replaced</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This clip&apos;s sound was separated — replace works on clips with their sound inside</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pick a photo or a video</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Replace clip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Replaced — the effects and animation stay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This clip is already first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This clip is already last</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change the order</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move to the track above</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move to the track below</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There are no other photos or videos</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter on every picture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Put this filter on %n other photo(s) and video(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Adjustments on every picture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Put these adjustments on %n other photo(s) and video(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>There are no other photos</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Motion on every photo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Gave %n other photo(s) the same movement</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>There is no picture here to save</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not save the picture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saved this picture to Pictures › Easy Cut, Easy Go!</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>That colour is too grey to key out — pick a coloured background</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>That colour is now see-through</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click the background in the preview to pick the colour to remove</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Place on screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This movement is for clips up to 10 minutes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Motion</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Speed curve</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4018,10 +5110,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Audio FX</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Shortcuts</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4055,6 +5143,10 @@
     </message>
     <message>
         <source>Import Folder…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 — click to put it on the join nearest the playhead, or drag it onto a join</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4111,10 +5203,6 @@
     </message>
     <message>
         <source>Pick another category.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 — drag onto an overlap between two clips</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4231,6 +5319,368 @@
     </message>
 </context>
 <context>
+    <name>AudioEffectNames</name>
+    <message>
+        <source>Auto-Pan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Chorus</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Echo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flanger</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Phaser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slapback</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tremolo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stereo Widen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bitcrush</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crystalize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>8-Bit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tape Saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vinyl</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Megaphone</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Muffled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Telephone</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Underwater</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Walkie-Talkie</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Compressor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>De-esser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>EQ</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Noise Gate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Voice Leveler</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Limiter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alien</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Chipmunk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deep Voice</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Robot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dark Lord</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wobble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Small room</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Concert hall</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Church</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>AudioEffectParams</name>
+    <message>
+        <source>Rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Amount</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Input Level</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Output Level</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Input</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Output</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delay (ms)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Decay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Speed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Depth</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wet Mix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Modulation Rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stereo Phase</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Feedback</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invert Phase</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dry Mix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crossfeed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bits</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sample Rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intensity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ratio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Threshold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Attack (ms)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Release (ms)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flutter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rumble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cutoff</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wobble Rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Center Freq</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Band Width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distortion</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gain</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>High-Pass</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Low-Pass</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Motion</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Grit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Threshold (dB)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Makeup Gain</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Max Reduction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frequency</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Strength</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Target Peak</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ceiling</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pitch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Echo Delay (ms)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Echo Decay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Room size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Darkness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Chorus</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>AudioEffectsInspector</name>
     <message>
         <source>No audio</source>
@@ -4328,6 +5778,82 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Mute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Measuring the sound…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Match sound level</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Makes this clip neither too quiet nor too loud</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut the quiet parts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Finds the pauses where nobody talks, cuts them out and closes the gaps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make the voice clearer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Less boom, more presence, and quiet words brought up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fit the music to the video</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ends the music where the video ends, fading out over the last two seconds</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Listening for the beat…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change photos on the beat</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Finds the beat of this music and makes each photo end on a beat</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lower music while talking</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turns this music down wherever a clip on another track has someone talking</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Pan</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4420,6 +5946,21 @@
     </message>
     <message>
         <source>The audio device does not support playback of this project.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>AudioSyncProgressDialog</name>
+    <message>
+        <source>Lining up by sound</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Listening to the clips and lining them up… Long recordings take a little while.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stop</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4543,6 +6084,33 @@
     </message>
     <message>
         <source>Apply</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>CrossfadeCurveGrid</name>
+    <message>
+        <source>Fast</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Linear</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smooth</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sharp</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Out: %1 · In: %2</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4945,6 +6513,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Build %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Projects — click to switch or start new</source>
         <translation type="unfinished"></translation>
     </message>
@@ -5187,6 +6759,1272 @@
     </message>
 </context>
 <context>
+    <name>EffectNames</name>
+    <message>
+        <source>Brightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contrast</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Temperature</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Beat Shake</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bling</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Block Glitch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bloom / Glow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bokeh Dream</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Chroma Key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cinematic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Depth Fog</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Behind Subject</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Depth of Field</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D Relight</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Depth View</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Digital Glitch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Infinite Zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duotone</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edge Glow / Neon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alien Head</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Big Eyes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fat / Slim Face</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Face Fisheye</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D Face Mesh</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Face Swap</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Face Swirl</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wide Mouth</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Film Burn / Light Leak</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gaussian Blur (GPU)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Halation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Comic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Kaleidoscope</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lens Flare</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Light Leak</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lightning Sky</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Motion Trail</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Oil Paint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RGB Split</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ripple / Water</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanline Glitch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shockwave / Pulse</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pencil Sketch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spin Blur</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Star Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Strobe</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bloom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pixelate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ripple</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sharpen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VHS</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vignette</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Super 8</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Time Echo / Trail</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VHS / CRT</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wave Warp</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom Punch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Light and Shadow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>HSL</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Curves</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colour wheels</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>EffectParams</name>
+    <message>
+        <source>Aim left / right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Aim up / down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ambient</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Amount</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Amplitude</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Animated</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Axis</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bar Count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bar Width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bleed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Block height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Block shift</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Block size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Block width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blockiness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blur Amount</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blur Strength</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bokeh highlights</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bubble Density</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bubble Size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cell Density</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Center X</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Center Y</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Centre X</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Centre Y</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Channel Split</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Chroma Bleed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Chroma shift</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color bleed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color shift</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colour</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colour Swap</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colour map</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Columns</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contrast</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Coverage</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Decay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Degrees</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Desaturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Detail</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Diffraction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Direction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dissolve Spread</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distortion</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dot Size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downward Melt</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edge Feather</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edge Shading</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edge Softness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edge Width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edge softness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ember Intensity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Existing light</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Face</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Face photo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill Opacity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flash</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flicker</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Focus distance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Focus point left / right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Focus point up / down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Follow focus point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Foreground blur</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frames</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frequency</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gate Weave</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ghosts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Glyph Brightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Grain</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Heighten</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Highlight</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Highlights First</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hold Frames</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ink Darkness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intensity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Jitter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep Eyes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep Mouth</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Kelvin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Key Colour</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left / right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Length</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Levels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Light Intensity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Light Pitch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Light Yaw</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Low-lying</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Match Lighting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Melt Strength</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Motion Blur</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Narrow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Near / far</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Noise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Noise Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Offset X</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Offset Y</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Offset Z</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Orange Skin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Points</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Punch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Push Distance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RGB split</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Radial Stretch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Radius</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reach</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refraction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Relief</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rest mesh</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Roll Speed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate X</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate Y</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate Z</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Samples</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanlines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scene depth</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scratches</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Seed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Segments</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shadow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shadows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shard Count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sharp range</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shine tightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Snap to edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Softness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Specular</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Speed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spill Removal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spot angle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spread</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stagger</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starts at</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Static</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Streak</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Streak Width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Strength</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stretch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Swirl</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Teal Shadows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tear Amount</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tear Bands</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Threshold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tolerance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Trail Length</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tunnel Zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turbulence</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turns</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Twinkle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Twist</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Up / down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use cutout edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vignette</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warmth</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wave Width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White Noise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Widen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wind Strength</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wire Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wire Width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wireframe</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exposure</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Highlights</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dark edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brilliance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clarity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red lightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Orange hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Orange saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Orange lightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow lightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green lightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cyan hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cyan saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cyan lightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue lightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Purple hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Purple saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Purple lightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Magenta hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Magenta saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Magenta lightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RGB curve 0%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RGB curve 25%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RGB curve 50%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RGB curve 75%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RGB curve 100%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red curve 0%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red curve 25%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red curve 50%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red curve 75%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red curve 100%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green curve 0%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green curve 25%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green curve 50%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green curve 75%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green curve 100%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue curve 0%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue curve 25%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue curve 50%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue curve 75%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue curve 100%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shadows colour across</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shadows colour up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shadows brightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Midtones colour across</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Midtones colour up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Midtones brightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Highlights colour across</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Highlights colour up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Highlights brightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Offset colour across</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Offset colour up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Offset brightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red balance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green balance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue balance</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>EffectStacksSection</name>
     <message>
         <source>Drift effect stack (*.drifteffects)</source>
@@ -5332,6 +8170,101 @@
     </message>
     <message>
         <source>Other</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>EffectTemplateNames</name>
+    <message>
+        <source>Anime Punch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Beat Drop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bling Drop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blur Behind</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bubble World</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cinematic Open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Comic Pop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dream Fade</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Echo Drop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flash Storm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ghost Walk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Glitch Cut</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Kaleido Chaos</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manga Intro</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neon Cutout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neon Night</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Retro Tape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RGB Rave</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shadow Legion</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slowmo Drop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Snap Transition</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storm Drop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sunset Leak</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -5776,6 +8709,44 @@
     </message>
 </context>
 <context>
+    <name>FadeCurvePicker</name>
+    <message>
+        <source>Fast</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Linear</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smooth</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sharp</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>FadeCurvePopup</name>
+    <message>
+        <source>Fade type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade out</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>FadeCurveWindow</name>
     <message>
         <source>Custom curve</source>
@@ -5946,11 +8917,27 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>%1 s</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Give every photo this length</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>From</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>To</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File information</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open its folder</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5971,10 +8958,6 @@
     </message>
     <message>
         <source>Seconds into the file where this clip ends</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>File</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -6203,6 +9186,17 @@
     </message>
     <message>
         <source>Edit keyframe curve</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>KeyframeToggle</name>
+    <message>
+        <source>Remove the keyframe here</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a keyframe here</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -6439,6 +9433,26 @@
     </message>
     <message>
         <source>Imported from the marketplace.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Listening to the sound… please wait</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Get ready to speak</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7012,6 +10026,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>In use</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Open composite</source>
         <translation type="unfinished"></translation>
     </message>
@@ -7075,6 +10093,14 @@
     </message>
     <message>
         <source>Move to folder…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add only its sound</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make a photo slideshow</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7743,6 +10769,54 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Video</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Position &amp; size (motion, rotation, opacity, mask)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Animation (in, out, combo)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Effects &amp; adjustments</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sound</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Volume</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sound effects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sound channels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Basic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade in / fade out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Level</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Speed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Clip</source>
         <translation type="unfinished"></translation>
     </message>
@@ -7754,80 +10828,19 @@
         </translation>
     </message>
     <message>
-        <source>Video Attributes</source>
+        <source>Fit to length</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Transform (motion, position, scale, opacity)</source>
+        <source>Keyframes and animation stretch to the target clip&apos;s length. Fades keep their seconds.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>, reverse</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>, speed curve</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Speed / Retime (%1x%2%3)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Speed / Retime</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>Video Effects (%n effect(s))</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Video Effects (none)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Audio Attributes</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Volume &amp; Fades (volume keyframes, in/out ramps)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>Audio Effects (%n effect(s))</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Audio Effects (none)</source>
+        <source>Keyframes and animation keep their original times. Fades keep their seconds.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Transitions</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>Transitions (%n transition(s))</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Replace existing effects (instead of appending)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Select All</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Select None</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7944,6 +10957,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Click the background colour to remove</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Seek</source>
         <translation type="unfinished"></translation>
     </message>
@@ -7991,7 +11008,39 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Save this picture as a photo (Pictures › Easy Cut, Easy Go!)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Preview zoom — Ctrl+scroll over the preview to zoom, middle-drag to pan. Click to reset to 100%.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wide 16:9</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Phone 9:16</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Square 1:1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TV 4:3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tall 3:4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Picture shape (ratio)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preview options</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -8369,6 +11418,10 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Click a clip on the timeline to edit its properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -8869,6 +11922,14 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Cut at every scene</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut the clip wherever the shot changes, so each scene is its own clip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Clear</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9219,6 +12280,22 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>App</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make light preview copies automatically</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Big videos get a smaller copy in the background so playback is smooth. The finished video always uses the original.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save automatically</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keeps your work saved without asking. A new project gets a file in Documents › Easy Cut, Easy Go!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -9998,6 +13075,10 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>More</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Custom speed</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10139,16 +13220,16 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Length %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>This file has been moved or deleted:
 %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Remove from recents</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Create polished videos fast</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -10161,6 +13242,14 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Recent Projects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>List</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -10417,11 +13506,15 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Caption the whole video</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Create captions from the selected clips&apos; speech — several clips become one caption clip</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Select a video or audio clip first</source>
+        <source>Turns all the talking in the video into captions</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -10469,6 +13562,468 @@ If playback stutters, try another.</source>
     </message>
 </context>
 <context>
+    <name>TextAnimationNames</name>
+    <message>
+        <source>Blur by word</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bounce</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Breathe</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colour wave</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colour pulse</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Converge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade away</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fall</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flicker on</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flicker</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Float</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Glitch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Jitter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Karaoke bounce</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Karaoke pop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pulse</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Raining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove by word</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shrink</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Skew slide</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slide Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slide Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slide Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slide Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slow zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Snap together</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Squash &amp; stretch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rubber stamp</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sway</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Swing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tracking drift</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Type-on blur</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Typewriter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wave</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wipe</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pop by letter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom blur by word</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cascade</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pen writing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Writing with cursor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rise from a line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Speed in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flash by letter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blur by letter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slide by letter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stamp by word</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shake in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wave by letter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Grow by letter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drop by letter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wave in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Appear at random</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colour pop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spring by word</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flip by word</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slide by word</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn by word</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Soft zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open sideways</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slam</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spread away</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rock by letter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blink</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Beat by word</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>TextAnimationParams</name>
+    <message>
+        <source>Amount</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Arrive colour</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blink</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Caret</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Caret lead</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colour A</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colour B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Decay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Direction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>From</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hold after</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intensity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lift</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Offset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Re-centre as it types</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Softness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Speed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spread</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stretch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tilt</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>To</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wavelength</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stagger</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>By</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Order</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ease</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>TextAssetsTab</name>
     <message>
         <source>Drift text style (*.drifttextstyle)</source>
@@ -10484,6 +14039,22 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Click a style to add text at the playhead. Double-click it on the preview to edit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Default text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add words, then type them on the right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ready-made words</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add these words at the playhead</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -10532,6 +14103,205 @@ If playback stutters, try another.</source>
     </message>
 </context>
 <context>
+    <name>TextBasicsPanel</name>
+    <message>
+        <source>Choose any colour</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Font</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Font size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pattern</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Italic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Letter case</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All capitals</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All small letters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Capital first letters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colour</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Letter spacing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Line spacing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alignment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align centre</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align top</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align middle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align bottom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preset styles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transform</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Side padding</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top and bottom padding</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bend (one line only)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This text moves over time, so its place is set with keyframes on the Transform tab.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Centre</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Middle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Thickness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Background</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Round corners</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Glow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Strength</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shadow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Curve</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>TextEffects</name>
     <message>
         <source>Shine sweep</source>
@@ -10555,6 +14325,17 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Dissolve</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>TextGalleryPanel</name>
+    <message>
+        <source>Press a bubble to put the words in it. The words keep their font and size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Press a look to dress the words. The words keep their font and size.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -10690,10 +14471,6 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Boxes and rules drawn around the text rather than on it</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Animate</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -10841,10 +14618,6 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Padding</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Space between the text and the edge of its background box</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10861,7 +14634,23 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Basic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Speech bubble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Word art</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Animation</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -10874,6 +14663,46 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Apply the text to this clip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Extra large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sky blue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dark box behind the words</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -10897,6 +14726,10 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Advanced style (layers)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Preset</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10913,6 +14746,54 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Caption position</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Middle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Split long captions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Breaks every caption longer than one short line into shorter ones</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Read the words aloud</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Read the captions aloud</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A computer voice reads this text; the sound goes where the text starts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Apply to all text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy this look to every other text clip on this track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy this look to every text clip in the project</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Effect</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10926,6 +14807,14 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>No layers. Pick an effect above or add a fill to start.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Side padding</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top and bottom padding</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11238,7 +15127,367 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Box padding (top and bottom)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Bend</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Big title</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Big title sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom caption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom caption sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>News caption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>News caption sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Handwriting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Handwriting sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush writing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush writing sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cute sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Elegant</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Elegant sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Poster</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Poster sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Greeting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Greeting sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Celebrate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Celebrate sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Title</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subtitle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lower third</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Caption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quote</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Impact</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Handwritten</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hormozi</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One word colour</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Word background</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sentence background</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Karaoke pop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Karaoke highlight</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mirage</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bulky</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Word outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Chrome</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Retro 3D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Glitch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Comic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White speech bubble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow speech bubble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black speech bubble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mint speech bubble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Thought bubble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pink thought bubble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue cloud</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White cloud</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shout (yellow)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shout (red)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Round bubble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow round bubble</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dark pill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pink pill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red ribbon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Navy ribbon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green tag</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Signboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Silver metal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rainbow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sunset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ocean</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fire</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ice</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pink neon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue neon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green neon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D red</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D yellow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D blue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hollow white</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hollow yellow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Retro</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Echo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hologram</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shining gold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crown gold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Candy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sticker</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rainbow wave</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cinematic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shimmer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sketch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Editorial</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -11325,6 +15574,18 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Speed curve</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open effects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Separate effect lane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Proxy</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11345,6 +15606,46 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Opacity %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide keyframe track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show keyframe track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sound channels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>As the track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left on both sides (L → R)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right on both sides (R → L)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mix left and right (L/R mix)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Swap left and right (L ↔ R)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade type…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Properties</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11357,6 +15658,14 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Line up by sound</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undo composite</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Flatten composite</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11365,11 +15674,39 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Move earlier</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move later</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move to the track above</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move to the track below</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Replace with another photo or video…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Replace with…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Split at current time</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Separate audio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore audio</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11401,6 +15738,14 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Copy attributes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear all attributes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Paste attributes…</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11410,14 +15755,6 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Rename…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Copy effects</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Paste effects</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11461,6 +15798,18 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Keyframe line — double-click it to add a keyframe</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Volume line — double-click it to add a point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Volume point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Split item at current time</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11473,6 +15822,45 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Add new track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>S</source>
+        <comment>clip size small</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>clip size medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>L</source>
+        <comment>clip size large</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clip size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frames (30 per second)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frames (24 per second, film)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frames (25 per second)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frames (60 per second)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hundredths of a second</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11504,7 +15892,31 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>New track here</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete this track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New video track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New text track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New audio track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Importing…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transition length</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11583,6 +15995,14 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Restore audio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore audio — the video plays its own sound again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Trim start</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11640,6 +16060,14 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Clear work area</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Record voice</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Record voice — talk over the video from here</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11851,6 +16279,86 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Sound channels (whole track): %1 — click to change</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>as recorded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>left on both sides</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>right on both sides</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>left and right mixed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>left and right swapped</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>As recorded (L·R)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left on both sides (L → R)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right on both sides (R → L)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mix left and right (L/R mix)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Swap left and right (L ↔ R)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unlock track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lock track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close gaps on this track: on (click to turn off)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close gaps on this track: off (click to turn on)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close gaps on this track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This track&apos;s height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Track height</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12014,6 +16522,50 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Place on screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Top right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Small in the middle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Full screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Empty space around the picture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blurred picture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Reset position &amp; size</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12034,6 +16586,14 @@ If playback stutters, try another.</source>
     <name>TransitionCatalog</name>
     <message>
         <source>Basic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Camera</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Light</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12072,7 +16632,15 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Add crossfade (0.5 s)</source>
+        <source>Drag one clip over the next: where they overlap becomes a crossfade, as long as the overlap.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crossfade at every overlap</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Apply to every overlap</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12093,6 +16661,14 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Duration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>= %1 s %2 frames (timeline %3)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade type</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12133,6 +16709,217 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Remove transition</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>TransitionNames</name>
+    <message>
+        <source>Crossfade</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dip to Black</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dip to White</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Push Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Push Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Push Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Push Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wipe Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wipe Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wipe Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wipe Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom In</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom Out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Circle Open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clock Wipe</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shake</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Doors Open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Honeycomb Hexagon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Voronoi Shatter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pixelate Matrix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Triangle Mosaic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Linear Blinds</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Particle Wind</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Liquid Smudge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plasma Burn</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ink Bleed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bubbling Dissolve</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RGB Displacement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VHS Scanline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Digital Matrix Rain</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Analog Interference</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Radial Zoom Blur</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Luma Fade</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lens Flare Wipe</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Kaleidoscope Spin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cross-Zoom Swirl</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pull In</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pull Out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Axis Rotate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cube Turn</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White Flash</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Glare</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Light Leak</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Film Burn</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Split Open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Heart Open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Squeeze</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vortex</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paint Swirl</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TV Off and On</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -12560,6 +17347,21 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Holographic</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>drift::VoiceRecorder</name>
+    <message>
+        <source>No microphone was found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The microphone uses a format this app cannot record</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The microphone could not be opened — check that Windows lets apps use it</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -25,25 +25,60 @@ Item {
     // True while no font addon is installed, which is the state of a fresh install.
     property bool usingSystemFonts: false
 
+    // VEDIT: search box text; empty shows everything.
+    property string filterText: ""
+    onFilterTextChanged: rebuild()
+
+    // VEDIT: Korean families first, under one "한글" heading — a Hangul name, or a known Korean
+    // family whose catalog name is Latin.
+    function isKorean(name) {
+        return /[가-힣]/.test(name)
+               || ["Pretendard", "Malgun Gothic", "Gulim", "Dotum", "Batang", "Gungsuh",
+                   "NanumGothic", "NanumMyeongjo"].indexOf(name) >= 0
+    }
+    function matches(name) {
+        return root.filterText.length === 0
+               || name.toLowerCase().indexOf(root.filterText.toLowerCase()) >= 0
+    }
+
     function rebuild() {
         familyModel.clear()
         const catalog = EditorState.fontCatalog()
+        const korean = []
+        const other = []
         for (let i = 0; i < catalog.length; ++i) {
-            familyModel.append({
+            const entry = {
                 "name": catalog[i].family,
                 "previewFamily": catalog[i].qtFamily,
                 "group": catalog[i].categoryLabel
-            })
+            }
+            if (isKorean(entry.name)) {
+                entry.group = "한글"
+                korean.push(entry)
+            } else {
+                other.push(entry)
+            }
         }
-        root.usingSystemFonts = familyModel.count === 0
+        // Windows' own Korean faces (맑은 고딕, 굴림…) belong with the bundled ones.
+        const system = Qt.fontFamilies()
+        for (let i = 0; i < system.length; ++i) {
+            if (isKorean(system[i]) && !korean.some(e => e.name === system[i]))
+                korean.push({ "name": system[i], "previewFamily": system[i], "group": "한글" })
+        }
+        for (const e of korean.concat(other)) {
+            if (matches(e.name))
+                familyModel.append(e)
+        }
+        root.usingSystemFonts = catalog.length === 0
         if (!root.usingSystemFonts)
             return
 
         // Fonts are an addon now, so an empty catalog is the normal starting state — fall back to
         // whatever the system has and offer the pack.
-        const system = Qt.fontFamilies()
-        for (let i = 0; i < system.length; ++i)
-            familyModel.append({ "name": system[i], "previewFamily": system[i], "group": "System fonts" })
+        for (let i = 0; i < system.length; ++i) {
+            if (!isKorean(system[i]) && matches(system[i]))
+                familyModel.append({ "name": system[i], "previewFamily": system[i], "group": "컴퓨터 글꼴" })
+        }
     }
 
     Component.onCompleted: root.rebuild()
@@ -175,7 +210,7 @@ Item {
         }
         y: root.height + 2
         width: root.width
-        implicitHeight: 320
+        implicitHeight: 420 // VEDIT: room for the search box
         padding: 1
 
         contentItem: ListView {
@@ -183,7 +218,18 @@ Item {
             clip: true
             model: familyModel
 
-            header: Rectangle {
+            // VEDIT: a search box above the list (the old addon-pack prompt stays below it).
+            header: Column {
+                width: list.width
+
+            ThemedTextField {
+                width: parent.width
+                placeholderText: "글꼴 찾기"
+                text: root.filterText
+                onTextEdited: root.filterText = text
+            }
+
+            Rectangle {
                 width: list.width
                 height: root.usingSystemFonts ? 40 : 0
                 visible: root.usingSystemFonts
@@ -212,6 +258,7 @@ Item {
                         root.Window.window.openAddonManager("fonts")
                     }
                 }
+            }
             }
             currentIndex: -1
             ScrollBar.vertical: AppScrollBar {}

@@ -1,3 +1,4 @@
+#include <QThread> // VEDIT
 #include "ProxyEncoder.h"
 
 #include <QCoreApplication>
@@ -65,6 +66,7 @@ bool ProxyEncoder::open(const QString &path, const AVCodecContext *dec, AVRation
     av_opt_set(m_ctx->priv_data, "preset", options.preset, 0);
     av_opt_set(m_ctx->priv_data, "tune", "fastdecode", 0);
 
+    m_ctx->thread_count = qMax(2, QThread::idealThreadCount() / 4); // VEDIT: see the decoder
     if (avcodec_open2(m_ctx, codec, nullptr) < 0)
         return fail(QCoreApplication::translate("ProxyEncoder", "Could not open the proxy encoder"));
 
@@ -273,7 +275,9 @@ bool ProxySource::open(const QString &path, QString *errorOut)
         return fail(QT_TRANSLATE_NOOP("ProxyEncoder", "Could not allocate the decoder"));
     if (avcodec_parameters_to_context(dec, fmt->streams[stream]->codecpar) < 0)
         return fail(QT_TRANSLATE_NOOP("ProxyEncoder", "Could not configure the decoder"));
-    dec->thread_count = 0; // let libavcodec pick; this is a batch job, not playback
+    // VEDIT: a background job beside an editor that is playing — a quarter of the cores (at least
+    // two), not all of them, so the preview's own decoders are never starved.
+    dec->thread_count = qMax(2, QThread::idealThreadCount() / 4);
     if (avcodec_open2(dec, codec, nullptr) < 0)
         return fail(QT_TRANSLATE_NOOP("ProxyEncoder", "Could not open the decoder"));
     if (dec->width <= 0 || dec->height <= 0)

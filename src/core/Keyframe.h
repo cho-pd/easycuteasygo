@@ -118,6 +118,22 @@ public:
         m_values = moved;
     }
 
+    // VEDIT: stretches the key times by `factor` (a speed change that doubles the clip doubles
+    // where its keys sit, so a move still finishes at the clip's end).
+    void scaleBy(double factor)
+    {
+        if (m_values.isEmpty() || factor <= 0.0 || qFuzzyCompare(factor, 1.0))
+            return;
+        QMap<TimeUs, Keyframe<T>> scaled;
+        for (auto it = m_values.constBegin(); it != m_values.constEnd(); ++it) {
+            Keyframe<T> key = it.value();
+            key.inDx *= factor; // the curve handles are times too
+            key.outDx *= factor;
+            scaled.insert(TimeUs(llround(double(it.key()) * factor)), key);
+        }
+        m_values = scaled;
+    }
+
     const QMap<TimeUs, Keyframe<T>> &keyframes() const { return m_values; }
 
     // Mutable access for the curve editor. Null when there is no key exactly at `time`.

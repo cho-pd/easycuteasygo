@@ -99,18 +99,25 @@ Item {
                 id: captionLanguageBox
                 visible: root.whisperReady
                 width: subtitleColumn.contentWidth
-                enabled: root.captionTargetReady && !EditorState.subtitleGenerating
+                enabled: !EditorState.subtitleGenerating // VEDIT: whole video when nothing is selected
                 textRole: "label"
                 valueRole: "code"
                 model: EditorState.whisperLanguages()
-                Component.onCompleted: currentIndex = 0
+                // VEDIT: Korean first — the people using this speak it; auto-detect stays one pick away.
+                Component.onCompleted: {
+                    const rows = EditorState.whisperLanguages()
+                    let ko = 0
+                    for (let i = 0; i < rows.length; ++i)
+                        if (rows[i].code === "ko") { ko = i; break }
+                    currentIndex = ko
+                }
             }
 
             ThemedComboBox {
                 id: captionWordsBox
                 visible: root.whisperReady
                 width: subtitleColumn.contentWidth
-                enabled: root.captionTargetReady && !EditorState.subtitleGenerating
+                enabled: !EditorState.subtitleGenerating // VEDIT
                 textRole: "label"
                 valueRole: "words"
                 model: root.captionLengthOptions
@@ -130,18 +137,21 @@ Item {
             ThemedButton {
                 visible: root.whisperReady && !EditorState.subtitleGenerating
                 width: subtitleColumn.contentWidth
-                text: qsTr("Add auto caption")
                 variant: "secondary"
                 glyph: Theme.icons.captions
+                // VEDIT: with nothing selected it captions the whole video (CapCut's 자동 자막).
+                text: root.captionTargetReady ? qsTr("Add auto caption") : qsTr("Caption the whole video")
                 tooltip: root.captionTargetReady
                          ? qsTr("Create captions from the selected clips' speech — several clips become one caption clip")
-                         : qsTr("Select a video or audio clip first")
-                enabled: root.captionTargetReady
+                         : qsTr("Turns all the talking in the video into captions")
                 onClicked: {
                     const lang = captionLanguageBox.currentValue !== undefined
                                  ? captionLanguageBox.currentValue
                                  : ""
-                    EditorState.generateSubtitlesForSelection(lang, captionWordsBox.currentValue)
+                    if (root.captionTargetReady)
+                        EditorState.generateSubtitlesForSelection(lang, captionWordsBox.currentValue)
+                    else
+                        EditorState.generateSubtitlesForWholeVideo(lang, captionWordsBox.currentValue)
                 }
             }
 

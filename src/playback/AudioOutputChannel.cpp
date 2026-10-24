@@ -1,7 +1,11 @@
 #include "AudioOutputChannel.h"
 
 #include <QAudioSink>
+#include <cmath> // VEDIT: start ramp
 #include <QDebug>
+#include <QDateTime> // VEDIT: trace
+#include <QDir> // VEDIT: trace
+#include <QFile> // VEDIT: trace
 
 #include <cstring>
 
@@ -123,13 +127,30 @@ qint64 AudioPullDevice::readData(char *data, qint64 maxlen)
     if (frames <= 0)
         return 0;
 
+    // VEDIT: paused — silence keeps the device running (see AudioOutputChannel::pause), but only
+    // a sliver of it (about 20 ms) is ever queued: a full buffer of silence (250 ms) had to play out
+    // before the sound came back, and play started with a hitch (조박사님: "멈칫 하고 출발").
+    if (m_channel->m_paused.load(std::memory_order_acquire)) {
+        const int keepBytes = qMax(bytesPerFrame, m_channel->m_format.bytesForDuration(20000));
+        if (QAudioSink *sink = m_channel->m_sink) {
+            const qint64 queued = qMax<qint64>(0, sink->bufferSize() - sink->bytesFree());
+            if (queued >= keepBytes)
+                return 0;
+        }
+        const int silentFrames = qMin(frames, qMax(1, keepBytes / bytesPerFrame));
+        std::memset(data, 0, static_cast<size_t>(silentFrames) * bytesPerFrame);
+        return static_cast<qint64>(silentFrames) * bytesPerFrame;
+    }
+
     if (m_channel->m_direct) {
         const int filled = m_channel->m_fill(reinterpret_cast<float *>(data), frames);
+        m_channel->applyStartRamp(reinterpret_cast<float *>(data), filled); // VEDIT
         return static_cast<qint64>(filled) * bytesPerFrame;
     }
 
     m_channel->m_scratch.resize(frames * 2);
     const int filled = m_channel->m_fill(m_channel->m_scratch.data(), frames);
+    m_channel->applyStartRamp(m_channel->m_scratch.data(), filled); // VEDIT
     drift::writeInterleaved(m_channel->m_scratch.constData(), filled, m_channel->m_format, data);
     return static_cast<qint64>(filled) * bytesPerFrame;
 }
@@ -199,14 +220,65 @@ void AudioOutputChannel::setDeviceId(const QByteArray &id)
         rebuild();
 }
 
+// VEDIT: a raised-cosine fade over the first 12 ms after start() — inaudible as a fade, but it
+// removes the click a sound starting mid-waveform makes.
+void AudioOutputChannel::applyStartRamp(float *stereo, int frames)
+{
+    if (m_rampRestart.exchange(false, std::memory_order_acq_rel))
+        m_rampPos = 0;
+    const int length = qMax(1, m_sampleRate.load(std::memory_order_acquire) * 12 / 1000);
+    if (!stereo || frames <= 0 || m_rampPos >= length)
+        return;
+    for (int i = 0; i < frames && m_rampPos < length; ++i, ++m_rampPos) {
+        const float t = float(m_rampPos) / float(length);
+        const float g = 0.5f - 0.5f * std::cos(t * 3.14159265f);
+        stereo[i * 2] *= g;
+        stereo[i * 2 + 1] *= g;
+    }
+}
+
 void AudioOutputChannel::start()
 {
     m_recovered = false;
+    m_rampRestart.store(true, std::memory_order_release); // VEDIT: fade in from silence
     m_running.store(true, std::memory_order_release);
 
+    m_resumeQueuedUs.store(0, std::memory_order_release); // VEDIT
     if (!m_haveSink) {
+        m_paused.store(false, std::memory_order_release);
         rebuild(); // builds and, seeing m_running, starts
         return;
+    }
+
+    // VEDIT: a paused device is still running — let the sound back in, and note how much silence
+    // is still queued ahead of it so the playhead waits for it (else the picture runs ahead and
+    // the start of the music seems missing). Blocking, but it only reads the sink's buffer.
+    if (m_paused.load(std::memory_order_acquire)) {
+        bool resumed = false;
+        QMetaObject::invokeMethod(
+            m_pull,
+            [this, &resumed] {
+                if (!m_paused.load(std::memory_order_acquire) || !m_sink || !m_sinkStarted
+                    || m_sink->state() == QAudio::StoppedState)
+                    return;
+                const qint64 queuedBytes = qMax<qint64>(0, m_sink->bufferSize() - m_sink->bytesFree());
+                m_resumeQueuedUs.store(m_sink->format().durationForBytes(int(queuedBytes)),
+                                       std::memory_order_release);
+                // VEDIT (temporary diagnosis: "멈칫" at play): how much silence a resume waits out.
+                if (QFile f(QDir::temp().filePath(QStringLiteral("vedit-audio-trace.log")));
+                    f.open(QIODevice::Append | QIODevice::Text))
+                    f.write(QStringLiteral("%1 resume queued=%2ms buffer=%3ms\n")
+                                .arg(QDateTime::currentDateTime().toString(Qt::ISODateWithMs))
+                                .arg(m_resumeQueuedUs.load() / 1000)
+                                .arg(m_sink->format().durationForBytes(int(m_sink->bufferSize())) / 1000)
+                                .toUtf8());
+                m_paused.store(false, std::memory_order_release);
+                resumed = true;
+                emit m_pull->readyRead(); // VEDIT: a sink gone idle on the short silence pulls again
+            },
+            Qt::BlockingQueuedConnection);
+        if (resumed)
+            return;
     }
 
     // Never block the GUI on sink I/O: start() may pull the first buffer, which opens and seeks
@@ -214,10 +286,48 @@ void AudioOutputChannel::start()
     QMetaObject::invokeMethod(
         m_pull,
         [this] {
-            if (m_sink)
+            // VEDIT: a paused device is still running — just let the sound back in.
+            const bool resume = m_paused.load(std::memory_order_acquire) && m_sink && m_sinkStarted
+                                && m_sink->state() != QAudio::StoppedState;
+            m_paused.store(false, std::memory_order_release);
+            if (resume)
+                return;
+            if (m_sink) {
                 m_sink->start(m_pull);
+                m_sinkStarted = true;
+            }
         },
         Qt::QueuedConnection);
+}
+
+void AudioOutputChannel::setMuted(bool muted)
+{
+    m_muted.store(muted, std::memory_order_release);
+    QMetaObject::invokeMethod(
+        m_pull,
+        [this, muted] {
+            if (m_sink)
+                m_sink->setVolume(muted ? 0.0 : 1.0);
+        },
+        Qt::QueuedConnection);
+}
+
+void AudioOutputChannel::pause()
+{
+    m_running.store(false, std::memory_order_release);
+    if (!m_haveSink)
+        return;
+    // Blocking: the flag is set on the audio thread, so a refill already in progress finishes
+    // before this returns and none starts after it.
+    QMetaObject::invokeMethod(
+        m_pull,
+        [this] {
+            if (m_sink && m_sinkStarted && m_sink->state() != QAudio::StoppedState)
+                m_paused.store(true, std::memory_order_release);
+            else if (m_sink)
+                m_sink->stop();
+        },
+        Qt::BlockingQueuedConnection);
 }
 
 void AudioOutputChannel::stop()
@@ -228,8 +338,10 @@ void AudioOutputChannel::stop()
     QMetaObject::invokeMethod(
         m_pull,
         [this] {
+            m_paused.store(false, std::memory_order_release); // VEDIT
             if (m_sink)
                 m_sink->stop();
+            m_sinkStarted = false; // VEDIT
         },
         Qt::BlockingQueuedConnection);
 }
@@ -289,6 +401,8 @@ void AudioOutputChannel::buildSink(const QAudioDevice &device, const QAudioForma
     m_format = format;
     m_direct = format.sampleFormat() == QAudioFormat::Float && format.channelCount() == 2;
     m_sink = new QAudioSink(device, format);
+    if (m_muted.load(std::memory_order_acquire)) // VEDIT: a rebuilt sink keeps the mute
+        m_sink->setVolume(0.0);
     // Keep the platform default buffer: a too-small buffer starves the pull loop and makes
     // playback run slow. Callers anchor the playhead to processedUSecs(), so buffer depth doesn't
     // affect sync.
@@ -304,8 +418,10 @@ void AudioOutputChannel::buildSink(const QAudioDevice &device, const QAudioForma
             this, [this, message] { handleSinkError(message); }, Qt::QueuedConnection);
     });
 
-    if (m_running.load(std::memory_order_acquire))
+    if (m_running.load(std::memory_order_acquire)) {
         m_sink->start(m_pull);
+        m_sinkStarted = true; // VEDIT
+    }
 }
 
 void AudioOutputChannel::destroySink()
@@ -315,6 +431,7 @@ void AudioOutputChannel::destroySink()
     m_sink->stop();
     delete m_sink;
     m_sink = nullptr;
+    m_sinkStarted = false; // VEDIT
 }
 
 void AudioOutputChannel::onAudioOutputsChanged()

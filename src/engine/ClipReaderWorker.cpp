@@ -20,6 +20,29 @@ void ClipReaderWorker::closePath()
     m_prefetchPending.clear();
 }
 
+// VEDIT (조박사님: "클립이 넘어갈 때 앞 클립 잔상"): the most recently used reader becomes
+// `streamId`'s. Opening a fresh 4K hardware decoder for the next piece of a cut file took from a
+// fifth of a second to seconds, and the previous piece's last frame stayed up meanwhile; this one
+// is already open and only has to seek.
+void ClipReaderWorker::adoptStream(quint64 streamId)
+{
+    QMutexLocker lock(&m_mutex);
+    if (m_lru.empty() || m_readers.count(streamId))
+        return;
+    const quint64 from = m_lru.back();
+    auto it = m_readers.find(from);
+    if (it == m_readers.end())
+        return;
+    std::unique_ptr<ClipReader> reader = std::move(it->second);
+    m_readers.clear();
+    m_lru.clear();
+    m_readers.emplace(streamId, std::move(reader));
+    m_lru.push_back(streamId);
+    m_readers.begin()->second->setPreviewCacheShare(1);
+    QMutexLocker prefetchLock(&m_prefetchMutex);
+    m_prefetchPending.remove(from);
+}
+
 // Runs on the worker thread, so opening and closing readers here never blocks a decode request's
 // caller — the audio callback or the compositor — on an avformat operation.
 ClipReader *ClipReaderWorker::readerFor(quint64 streamId, int audioStreamOrdinal)

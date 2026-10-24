@@ -137,6 +137,15 @@ Item {
             tooltip: Theme.platformShortcutText(qsTr("Jump forward 1s · Shift for 5s · Ctrl for 10s"))
             onClicked: EditorState.jumpSeconds(parent.jumpStep())
         }
+
+        // VEDIT: CapCut's 화면 캡처 — save the picture you are looking at as a photo.
+        IconButton {
+            anchors.verticalCenter: parent.verticalCenter
+            glyph: Theme.icons.camera
+            variant: "text"
+            tooltip: qsTr("Save this picture as a photo (Pictures › Easy Cut, Easy Go!)")
+            onClicked: EditorState.saveFrameAsPhoto()
+        }
     }
 
     Item { Layout.fillWidth: true; Layout.minimumWidth: 0 }
@@ -179,87 +188,153 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
         }
 
+        // VEDIT: CapCut-style player bar — 비율 is what a senior changes here. The preview quality,
+        // speed and decoder pickers are technical, so they move into the gear's popup.
         ThemedComboBox {
-            id: qualityCombo
+            id: aspectCombo
             anchors.verticalCenter: parent.verticalCenter
             implicitHeight: Theme.controlHeightSm
             width: widestContentWidth + leftPadding + rightPadding
             leftPadding: Theme.spacingMd
             rightPadding: Theme.spacing2xl
             font.pixelSize: Theme.fontSizeXs
-            // Display is capitalised; the engine stores the lowercase value.
-            readonly property var values: ["full", "half", "quarter", "auto"]
-            model: [qsTr("Full"), qsTr("Half"), qsTr("Quarter"), qsTr("Auto")]
-            tooltip: qsTr("Preview quality — lower is smoother while editing.\n"
-                          + "Full, Half and Quarter are fixed fractions of the project resolution: "
-                          + "Full composites exactly what an export would.\n"
-                          + "Auto renders only as many pixels as the preview actually shows, and "
-                          + "lowers that further while playback cannot keep up.")
-            currentIndex: Math.max(0, values.indexOf(EditorState.playback.previewQuality))
-            onActivated: EditorState.playback.previewQuality = values[currentIndex]
-        }
-
-        ThemedComboBox {
-            id: speedCombo
-            anchors.verticalCenter: parent.verticalCenter
-            implicitHeight: Theme.controlHeightSm
-            width: widestContentWidth + leftPadding + rightPadding
-            leftPadding: Theme.spacingMd
-            rightPadding: Theme.spacing2xl
-            font.pixelSize: Theme.fontSizeXs
-            readonly property var values: [0.25, 0.5, 1.0, 1.5, 2.0, 4.0]
-            model: ["0.25×", "0.5×", "1×", "1.5×", "2×", "4×"]
-            tooltip: qsTr("Playback speed")
-            currentIndex: Math.max(0, values.indexOf(EditorState.playback.playbackRate))
-            onActivated: EditorState.playback.playbackRate = values[currentIndex]
-        }
-
-        ThemedComboBox {
-            id: decodeCombo
-            anchors.verticalCenter: parent.verticalCenter
-            implicitHeight: Theme.controlHeightSm
-            width: widestContentWidth + leftPadding + rightPadding
-            leftPadding: Theme.spacingMd
-            rightPadding: Theme.spacing2xl
-            font.pixelSize: Theme.fontSizeXs
-            // Populated from the engine: the hardware entries are the backends whose
-            // device actually opens here, so anything listed is something that runs. Rows
-            // carry `warn`/`note` for a backend that decodes on a GPU other than the one
-            // drawing, which the delegate marks and the dialog below explains.
-            readonly property var modes: EditorState.playback.decodeModes
-            readonly property var values: modes.map(function (m) { return m.id })
-            model: modes
-            textRole: "label"
-            tooltip: qsTr("How video is decoded for preview.\n"
-                          + "Auto picks per clip: hardware for high-quality 4K, software otherwise.\n"
-                          + "Software is smoother for most clips. It uses more CPU.\n"
-                          + "Hardware is better for high-quality 4K, and forces one GPU decoder.\n"
-                          + "If playback stutters, try another.")
-            currentIndex: Math.max(0, values.indexOf(EditorState.playback.decodeMode))
+            readonly property var ratios: [[16, 9], [9, 16], [1, 1], [4, 3], [3, 4]]
+            // projectWidth/Height are calls, not properties; a canvas change arrives with the
+            // tracks refresh, so read them again whenever that fires.
+            readonly property int canvasW: { void EditorState.tracks; return EditorState.projectWidth() }
+            readonly property int canvasH: { void EditorState.tracks; return EditorState.projectHeight() }
+            model: [qsTr("Wide 16:9"), qsTr("Phone 9:16"), qsTr("Square 1:1"), qsTr("TV 4:3"), qsTr("Tall 3:4")]
+            tooltip: qsTr("Picture shape (ratio)")
+            currentIndex: {
+                const w = canvasW, h = canvasH
+                for (let i = 0; i < ratios.length; ++i)
+                    if (Math.abs(w * ratios[i][1] - h * ratios[i][0]) <= Math.max(w, h) * 0.01)
+                        return i
+                return -1
+            }
+            displayText: currentIndex >= 0 ? currentText
+                                           : (canvasW + "×" + canvasH)
             onActivated: {
-                const mode = modes[currentIndex]
-                if (mode && mode.warn)
-                    decodeGpuDialog.confirm(mode)
-                else
-                    EditorState.playback.decodeMode = mode.id
+                // Keep the short side (1080 stays 1080, 4K stays 4K); the long side follows.
+                const shortSide = Math.min(canvasW, canvasH)
+                const r = ratios[currentIndex]
+                const even = function (v) { return Math.round(v / 2) * 2 }
+                const w = r[0] >= r[1] ? even(shortSide * r[0] / r[1]) : shortSide
+                const h = r[0] >= r[1] ? shortSide : even(shortSide * r[1] / r[0])
+                EditorState.setProjectResolution(w, h)
+                // Picking wrote currentIndex and broke its binding; restore it so undo or another
+                // project shows its own ratio again.
+                currentIndex = Qt.binding(function () {
+                    const cw = canvasW, ch = canvasH
+                    for (let i = 0; i < ratios.length; ++i)
+                        if (Math.abs(cw * ratios[i][1] - ch * ratios[i][0]) <= Math.max(cw, ch) * 0.01)
+                            return i
+                    return -1
+                })
             }
         }
 
-        // The popup is shut most of the time, so the chosen row's warning needs somewhere to
-        // live on the closed control too.
-        IconGlyph {
-            id: decodeWarnGlyph
+        IconButton {
+            id: playbackOptionsButton
+            glyph: Theme.icons.settings
+            variant: "text"
+            tooltip: qsTr("Preview options")
             anchors.verticalCenter: parent.verticalCenter
-            glyph: Theme.icons.warning
-            iconSize: Theme.iconSizeSm
-            iconColor: Theme.warning
-            readonly property var mode: decodeCombo.modes[decodeCombo.currentIndex]
-            visible: mode !== undefined && mode.warn === true
+            onClicked: playbackOptionsPopup.open()
 
-            HoverHandler { id: decodeWarnHover }
-            ThemedToolTip {
-                text: decodeWarnGlyph.mode ? decodeWarnGlyph.mode.note : ""
-                visible: decodeWarnGlyph.visible && decodeWarnHover.hovered
+            Popup {
+                id: playbackOptionsPopup
+                y: -implicitHeight - 6
+                padding: Theme.spacingLg
+                background: Rectangle {
+                    color: Theme.panelBackground
+                    radius: Theme.radiusMd
+                    border.width: Theme.borderWidth
+                    border.color: Theme.panelBorder
+                }
+                contentItem: Column {
+                    spacing: Theme.spacingSm
+                ThemedComboBox {
+                    id: qualityCombo
+                    implicitHeight: Theme.controlHeightSm
+                    width: widestContentWidth + leftPadding + rightPadding
+                    leftPadding: Theme.spacingMd
+                    rightPadding: Theme.spacing2xl
+                    font.pixelSize: Theme.fontSizeXs
+                    // Display is capitalised; the engine stores the lowercase value.
+                    readonly property var values: ["full", "half", "quarter", "auto"]
+                    model: [qsTr("Full"), qsTr("Half"), qsTr("Quarter"), qsTr("Auto")]
+                    tooltip: qsTr("Preview quality — lower is smoother while editing.\n"
+                                  + "Full, Half and Quarter are fixed fractions of the project resolution: "
+                                  + "Full composites exactly what an export would.\n"
+                                  + "Auto renders only as many pixels as the preview actually shows, and "
+                                  + "lowers that further while playback cannot keep up.")
+                    currentIndex: Math.max(0, values.indexOf(EditorState.playback.previewQuality))
+                    onActivated: EditorState.playback.previewQuality = values[currentIndex]
+                }
+
+                ThemedComboBox {
+                    id: speedCombo
+                    implicitHeight: Theme.controlHeightSm
+                    width: widestContentWidth + leftPadding + rightPadding
+                    leftPadding: Theme.spacingMd
+                    rightPadding: Theme.spacing2xl
+                    font.pixelSize: Theme.fontSizeXs
+                    readonly property var values: [0.25, 0.5, 1.0, 1.5, 2.0, 4.0]
+                    model: ["0.25×", "0.5×", "1×", "1.5×", "2×", "4×"]
+                    tooltip: qsTr("Playback speed")
+                    currentIndex: Math.max(0, values.indexOf(EditorState.playback.playbackRate))
+                    onActivated: EditorState.playback.playbackRate = values[currentIndex]
+                }
+
+                ThemedComboBox {
+                    id: decodeCombo
+                    implicitHeight: Theme.controlHeightSm
+                    width: widestContentWidth + leftPadding + rightPadding
+                    leftPadding: Theme.spacingMd
+                    rightPadding: Theme.spacing2xl
+                    font.pixelSize: Theme.fontSizeXs
+                    // Populated from the engine: the hardware entries are the backends whose
+                    // device actually opens here, so anything listed is something that runs. Rows
+                    // carry `warn`/`note` for a backend that decodes on a GPU other than the one
+                    // drawing, which the delegate marks and the dialog below explains.
+                    readonly property var modes: EditorState.playback.decodeModes
+                    readonly property var values: modes.map(function (m) { return m.id })
+                    model: modes
+                    textRole: "label"
+                    tooltip: qsTr("How video is decoded for preview.\n"
+                                  + "Auto picks per clip: hardware for high-quality 4K, software otherwise.\n"
+                                  + "Software is smoother for most clips. It uses more CPU.\n"
+                                  + "Hardware is better for high-quality 4K, and forces one GPU decoder.\n"
+                                  + "If playback stutters, try another.")
+                    currentIndex: Math.max(0, values.indexOf(EditorState.playback.decodeMode))
+                    onActivated: {
+                        const mode = modes[currentIndex]
+                        if (mode && mode.warn)
+                            decodeGpuDialog.confirm(mode)
+                        else
+                            EditorState.playback.decodeMode = mode.id
+                    }
+                }
+
+                // The popup is shut most of the time, so the chosen row's warning needs somewhere to
+                // live on the closed control too.
+                IconGlyph {
+                    id: decodeWarnGlyph
+                    glyph: Theme.icons.warning
+                    iconSize: Theme.iconSizeSm
+                    iconColor: Theme.warning
+                    readonly property var mode: decodeCombo.modes[decodeCombo.currentIndex]
+                    visible: mode !== undefined && mode.warn === true
+
+                    HoverHandler { id: decodeWarnHover }
+                    ThemedToolTip {
+                        text: decodeWarnGlyph.mode ? decodeWarnGlyph.mode.note : ""
+                        visible: decodeWarnGlyph.visible && decodeWarnHover.hovered
+                    }
+                }
+
+                }
             }
         }
 
@@ -280,6 +355,7 @@ Item {
         }
 
         IconButton {
+            visible: false // VEDIT: mask handles are a pro tool; the mask inspector still has them
             glyph: Theme.icons.mask
             variant: "text"
             tooltip: qsTr("Keep mask handles on the preview while another clip is selected")

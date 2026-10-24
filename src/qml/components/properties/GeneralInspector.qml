@@ -169,6 +169,30 @@ Item {
             }
         }
 
+        // VEDIT: 드래그 없이 길이 정하기 — one press for the usual lengths of a photo, title or shape.
+        Flow {
+            visible: root.clipKind === "image" || root.clipKind === "text" || root.clipKind === "shape"
+            width: root.width
+            spacing: 6
+            Repeater {
+                model: [2, 3, 5, 10]
+                delegate: ThemedChip {
+                    required property int modelData
+                    text: qsTr("%1 s").arg(modelData)
+                    selected: Math.abs(Number(root.clipData.duration || 0) - modelData) < 0.05
+                    onClicked: EditorState.setClipDuration(EditorState.selectedTrack, EditorState.selectedClip, modelData)
+                }
+            }
+        }
+
+        // VEDIT: CapCut's 사진 길이 한 번에 — for slideshows, every photo gets this one's length.
+        ThemedButton {
+            visible: root.clipKind === "image"
+            width: root.width
+            text: qsTr("Give every photo this length")
+            onClicked: EditorState.setAllPhotoDurations(durationField.value)
+        }
+
         Column {
             width: root.width
             spacing: 8
@@ -201,6 +225,7 @@ Item {
                     }
                     ThemedNumberField {
                         id: inPointField
+                        clockFormat: true // VEDIT: 분:초
                         to: 86400
                         unit: "s"
                         width: parent.width
@@ -224,6 +249,7 @@ Item {
                     }
                     ThemedNumberField {
                         id: outPointField
+                        clockFormat: true // VEDIT: 분:초
                         to: 86400
                         unit: "s"
                         width: parent.width
@@ -236,37 +262,56 @@ Item {
             }
         }
 
+        // VEDIT (조박사님): the file in detail — name, folder, size, dates, picture size, frame
+        // rate, formats, sound — and a button to open its folder.
         Column {
             width: root.width
-            spacing: 4
+            spacing: 6
             visible: root.clipData.path !== undefined && root.clipData.path.length > 0
 
-            Text {
-                text: qsTr("File")
-                color: Theme.mutedForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+            readonly property var details: {
+                void root.clipData.path
+                return EditorState.clipFileDetails(EditorState.selectedTrack, EditorState.selectedClip)
             }
 
             Text {
-                id: clipPathLabel
-                text: root.clipData.path || "—"
+                text: qsTr("File information")
                 color: Theme.panelForeground
-                font.family: Theme.monoFontFamily
+                font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSm
-                width: parent.width
-                wrapMode: Text.WrapAnywhere
-                // Capped: a deep path used to wrap unbounded and
-                // dominate the whole General tab.
-                maximumLineCount: 3
-                elide: Text.ElideRight
+                font.weight: Font.Medium
+            }
 
-                HoverHandler { id: pathHover }
-
-                ThemedToolTip {
-                    text: root.clipData.path || ""
-                    visible: pathHover.hovered && (root.clipData.path || "").length > 0
+            Repeater {
+                model: parent.details
+                delegate: Row {
+                    required property var modelData
+                    width: root.width
+                    spacing: 8
+                    Text {
+                        width: 96
+                        text: modelData.label
+                        color: Theme.mutedForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeXs
+                        wrapMode: Text.WordWrap
+                    }
+                    Text {
+                        width: parent.width - 96 - parent.spacing
+                        text: modelData.value
+                        color: Theme.panelForeground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSm
+                        wrapMode: Text.WrapAnywhere
+                        maximumLineCount: 3
+                        elide: Text.ElideRight
+                    }
                 }
+            }
+
+            ThemedButton {
+                text: qsTr("Open its folder")
+                onClicked: EditorState.revealClipFile(EditorState.selectedTrack, EditorState.selectedClip)
             }
         }
     }

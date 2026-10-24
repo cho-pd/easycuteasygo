@@ -1,5 +1,6 @@
 #include "AddonRegistry.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -9,6 +10,8 @@
 #include <QMutexLocker>
 #include <QSaveFile>
 #include <QStandardPaths>
+
+#include <algorithm>
 
 namespace drift::addon {
 namespace {
@@ -24,7 +27,7 @@ QString registryFilePath()
     return QDir(addonsDir()).filePath(QStringLiteral("installed.json"));
 }
 
-InstalledAddon parseEntry(const QJsonObject &object)
+InstalledAddon parseEntry(const QJsonObject &object, const QString &baseDir = {})
 {
     InstalledAddon addon;
     addon.id = object.value(QStringLiteral("id")).toString();
@@ -34,7 +37,7 @@ InstalledAddon parseEntry(const QJsonObject &object)
         QDateTime::fromString(object.value(QStringLiteral("installedAt")).toString(), Qt::ISODate);
     addon.sizeBytes = quint64(object.value(QStringLiteral("sizeBytes")).toDouble());
 
-    const QDir installDir(addonInstallDir(addon.id));
+    const QDir installDir(baseDir.isEmpty() ? addonInstallDir(addon.id) : baseDir);
     const QJsonArray provides = object.value(QStringLiteral("provides")).toArray();
     for (const QJsonValue &value : provides) {
         const QJsonObject entry = value.toObject();
@@ -68,11 +71,8 @@ QJsonObject serializeEntry(const InstalledAddon &addon)
     };
 }
 
-void rebuildLocked()
+void readInstalledLocked()
 {
-    g_addons.clear();
-    g_initialized = true;
-
     QFile file(registryFilePath());
     if (!file.open(QIODevice::ReadOnly))
         return; // no addons installed yet — a normal state
@@ -90,6 +90,42 @@ void rebuildLocked()
     }
 }
 
+// VEDIT: the product is offline, so the content Drift downloads (ONNX Runtime, Whisper, noise
+// removal, fonts...) ships beside the executable as bundled-addons/<id>/addon.json — the same
+// id/provides shape as a package. A user-installed copy of the same id wins.
+void readBundledLocked()
+{
+    const QString base = bundledAddonsDir();
+    if (base.isEmpty())
+        return;
+    const QDir dir(base);
+    const QStringList ids = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QString &sub : ids) {
+        QFile manifest(dir.filePath(sub + QStringLiteral("/addon.json")));
+        if (!manifest.open(QIODevice::ReadOnly))
+            continue;
+        const QString installDir = dir.filePath(sub);
+        InstalledAddon addon = parseEntry(QJsonDocument::fromJson(manifest.readAll()).object(), installDir);
+        if (addon.id.isEmpty())
+            continue;
+        const bool userCopy = std::any_of(g_addons.cbegin(), g_addons.cend(),
+                                          [&](const InstalledAddon &a) { return a.id == addon.id; });
+        if (userCopy)
+            continue;
+        addon.bundled = true;
+        addon.installDir = installDir;
+        g_addons.append(addon);
+    }
+}
+
+void rebuildLocked()
+{
+    g_addons.clear();
+    g_initialized = true;
+    readInstalledLocked();
+    readBundledLocked();
+}
+
 void ensureLoadedLocked()
 {
     if (!g_initialized)
@@ -105,8 +141,10 @@ bool writeRegistryLocked(QString *error)
     }
 
     QJsonArray addons;
-    for (const InstalledAddon &addon : std::as_const(g_addons))
-        addons.append(serializeEntry(addon));
+    for (const InstalledAddon &addon : std::as_const(g_addons)) {
+        if (!addon.bundled) // VEDIT: bundled content is found again on every start
+            addons.append(serializeEntry(addon));
+    }
 
     const QJsonDocument doc(QJsonObject{
         {QStringLiteral("schema"), kRegistrySchema},
@@ -134,6 +172,16 @@ QString addonsDir()
 QString addonInstallDir(const QString &id)
 {
     return QDir(addonsDir()).filePath(id);
+}
+
+QString bundledAddonsDir()
+{
+    const QString override = qEnvironmentVariable("VEDIT_BUNDLED_ADDONS_DIR");
+    if (!override.isEmpty())
+        return override;
+    if (!QCoreApplication::instance())
+        return {};
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("bundled-addons"));
 }
 
 QString addonDownloadCacheDir()
@@ -184,7 +232,8 @@ const InstalledAddon *addonForPath(const QString &path)
     QMutexLocker lock(&g_mutex);
     ensureLoadedLocked();
     for (const InstalledAddon &addon : std::as_const(g_addons)) {
-        const QString root = QDir::cleanPath(addonInstallDir(addon.id));
+        const QString root = QDir::cleanPath(addon.installDir.isEmpty() ? addonInstallDir(addon.id)
+                                                                        : addon.installDir);
         if (clean == root || clean.startsWith(root + QLatin1Char('/')))
             return &addon;
     }

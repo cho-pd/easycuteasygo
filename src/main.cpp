@@ -52,6 +52,37 @@
 #include <QtQml/qqml.h>
 #include <QFile>
 #include <QUrl>
+#include <QCryptographicHash> // VEDIT: single instance
+#include <QQmlContext>
+#include <QElapsedTimer>
+#include <QScreen>
+#include <QRasterWindow>
+#include <QTimer>
+#include <QPixmap>
+#include <QPainter>
+#include <QPainterPath> // VEDIT: the scissors
+#include <atomic>
+#include <cmath>
+#include <thread>
+#include <cstdio>
+#if __has_include("vedit_build_number.h")
+#include "vedit_build_number.h" // VEDIT: written by the build script
+#endif
+#ifndef VEDIT_BUILD_NUMBER
+#define VEDIT_BUILD_NUMBER 0
+#endif
+#include <QLocalServer>
+#include <QLocalSocket>
+#include <QWindow>
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 #ifdef Q_OS_ANDROID
 #include "core/Project.h"
@@ -77,6 +108,34 @@ __declspec(dllexport) unsigned long NvOptimusEnablement = 0;
 __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 0;
 }
 #endif
+
+// VEDIT (조박사님): one window at a time. A second launch hands its arguments (a project file
+// double-clicked in Explorer) to the copy already running, which brings its window to the front,
+// and then quits. Keyed by user and install folder, so a developer build and the installed app
+// don't block each other. VEDIT_ALLOW_MULTIPLE=1 turns it off.
+static QString veditInstanceKey()
+{
+    const QByteArray id = (QCoreApplication::applicationDirPath().toLower() + QLatin1Char('|')
+                           + qEnvironmentVariable("USERNAME"))
+                              .toUtf8();
+    return QStringLiteral("EasyCutEasyGo-")
+           + QString::fromLatin1(QCryptographicHash::hash(id, QCryptographicHash::Sha1).toHex().left(16));
+}
+
+static void veditBringToFront()
+{
+    for (QWindow *w : QGuiApplication::topLevelWindows()) {
+        if (!w->isVisible() || w->transientParent() || w->type() != Qt::Window)
+            continue;
+        if (w->windowStates() & Qt::WindowMinimized)
+            w->setWindowStates(w->windowStates() & ~Qt::WindowMinimized);
+        w->raise();
+        w->requestActivate();
+#ifdef Q_OS_WIN
+        SetForegroundWindow(reinterpret_cast<HWND>(w->winId()));
+#endif
+    }
+}
 
 namespace {
 
@@ -372,8 +431,226 @@ void warnIfNoOpenGl()
 
 } // namespace
 
+// VEDIT: the start-up splash. A bare QRasterWindow showing a picture: a QSplashScreen is a widget,
+// and the first widget shown loads the style and the whole font database — a second before it
+// appeared at all.
+class VeditSplash : public QRasterWindow
+{
+public:
+    explicit VeditSplash(const QPixmap &picture) : m_picture(picture)
+    {
+        setFlags(Qt::SplashScreen | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+        const QSize size = (QSizeF(picture.size()) / picture.devicePixelRatio()).toSize();
+        resize(size);
+        if (QScreen *screen = QGuiApplication::primaryScreen())
+            setPosition(screen->availableGeometry().center() - QPoint(size.width() / 2, size.height() / 2));
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.drawPixmap(QRect(QPoint(0, 0), size()), m_picture);
+    }
+
+private:
+    QPixmap m_picture;
+};
+
+#ifdef Q_OS_WIN
+// VEDIT (조박사님): in place of "불러오는 중…", a pair of scissors snips its way along a dotted line
+// under the title, like a cartoon. Startup blocks the GUI thread for seconds (fonts, the whole
+// QML scene), so a Qt window could not move: this one is a plain Win32 window owned by a thread
+// of its own, drawn with QPainter into a QImage (safe off the GUI thread) and blitted.
+class VeditCutSplash
+{
+public:
+    explicit VeditCutSplash(const QImage &picture) : m_picture(picture) {}
+    ~VeditCutSplash() { close(); }
+
+    void show()
+    {
+        m_clock.start();
+        m_thread = std::thread([this] { run(); });
+    }
+
+    void close()
+    {
+        m_closing.store(true);
+        if (HWND hwnd = m_hwnd.load())
+            PostMessageW(hwnd, WM_CLOSE, 0, 0);
+        if (m_thread.joinable())
+            m_thread.join();
+    }
+
+private:
+    static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+    {
+        auto *self = reinterpret_cast<VeditCutSplash *>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+        switch (msg) {
+        case WM_NCCREATE: {
+            auto *cs = reinterpret_cast<CREATESTRUCTW *>(lp);
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(cs->lpCreateParams));
+            break;
+        }
+        case WM_ERASEBKGND:
+            return 1;
+        case WM_TIMER:
+            InvalidateRect(hwnd, nullptr, FALSE);
+            return 0;
+        case WM_PAINT:
+            if (self) {
+                self->renderFrame();
+                PAINTSTRUCT ps;
+                HDC dc = BeginPaint(hwnd, &ps);
+                BITMAPINFO bmi = {};
+                bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+                bmi.bmiHeader.biWidth = self->m_frame.width();
+                bmi.bmiHeader.biHeight = -self->m_frame.height(); // top-down
+                bmi.bmiHeader.biPlanes = 1;
+                bmi.bmiHeader.biBitCount = 32;
+                bmi.bmiHeader.biCompression = BI_RGB;
+                SetDIBitsToDevice(dc, 0, 0, self->m_frame.width(), self->m_frame.height(), 0, 0, 0,
+                                  self->m_frame.height(), self->m_frame.constBits(), &bmi, DIB_RGB_COLORS);
+                EndPaint(hwnd, &ps);
+                return 0;
+            }
+            break;
+        case WM_CLOSE:
+            DestroyWindow(hwnd);
+            return 0;
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+        default:
+            break;
+        }
+        return DefWindowProcW(hwnd, msg, wp, lp);
+    }
+
+    void run()
+    {
+        const double scale = qMax(1.0, GetDpiForSystem() / 96.0);
+        const int w = qRound(560 * scale);
+        const int h = qRound(300 * scale);
+        m_base = m_picture.scaled(w, h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                     .convertToFormat(QImage::Format_RGB32);
+        m_frame = QImage(w, h, QImage::Format_RGB32);
+
+        WNDCLASSW wc = {};
+        wc.lpfnWndProc = windowProc;
+        wc.hInstance = GetModuleHandleW(nullptr);
+        wc.lpszClassName = L"VeditCutSplash";
+        wc.hCursor = LoadCursorW(nullptr, IDC_APPSTARTING);
+        RegisterClassW(&wc);
+        RECT work = {0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)};
+        SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+        const int x = work.left + (work.right - work.left - w) / 2;
+        const int y = work.top + (work.bottom - work.top - h) / 2;
+        HWND hwnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, wc.lpszClassName, L"Easy Cut, Easy Go!",
+                                    WS_POPUP, x, y, w, h, nullptr, nullptr, wc.hInstance, this);
+        if (!hwnd)
+            return;
+        m_hwnd.store(hwnd);
+        if (m_closing.load()) {
+            DestroyWindow(hwnd);
+        } else {
+            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            SetTimer(hwnd, 1, 30, nullptr);
+        }
+        MSG msg;
+        while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+        m_hwnd.store(nullptr);
+        UnregisterClassW(wc.lpszClassName, wc.hInstance);
+    }
+
+    // One frame, drawn in the picture's own 1120 x 600 space.
+    void renderFrame()
+    {
+        const double t = m_clock.elapsed() / 1000.0;
+        QPainter p(&m_frame);
+        p.drawImage(0, 0, m_base);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.scale(m_frame.width() / 1120.0, m_frame.height() / 600.0);
+
+        const double x0 = 322, x1 = 892, lineY = 432;
+        const double period = 2.8; // one trip along the line
+        const double phase = std::fmod(t, period) / period;
+        const double headX = x0 + (x1 - x0) * phase;
+
+        // ahead of the scissors a solid line still to cut; behind them it is cut — dotted
+        p.setPen(QPen(QColor(110, 118, 135), 2.2, Qt::SolidLine, Qt::RoundCap));
+        p.drawLine(QPointF(headX, lineY), QPointF(x1, lineY));
+        QPen dots(QColor(255, 194, 26), 2.4, Qt::CustomDashLine, Qt::RoundCap);
+        dots.setDashPattern({2.5, 3.5});
+        p.setPen(dots);
+        p.drawLine(QPointF(x0, lineY), QPointF(qMax(x0, headX - 8), lineY));
+
+        // the scissors: snip, snip — the blades open and close three times a second
+        const double snip = 0.5 + 0.5 * std::sin(t * 2.0 * 3.14159265358979 * 3.0);
+        const double angle = 4.0 + 22.0 * snip; // degrees each side
+        p.save();
+        p.translate(headX, lineY);
+        p.translate(0, -1.5 * std::sin(t * 2.0 * 3.14159265358979 * 3.0)); // a little bob as it goes
+        auto blade = [&p](double deg, bool upper) {
+            p.save();
+            p.rotate(upper ? -deg : deg);
+            const double s = upper ? -1.0 : 1.0;
+            QPainterPath path;
+            path.moveTo(-2, 0);
+            path.quadTo(26, s * 9, 56, s * 1.2);
+            path.lineTo(56, 0);
+            path.quadTo(26, -s * 1.5, -2, -s * 2.5);
+            path.closeSubpath();
+            p.setPen(QPen(QColor(70, 78, 92), 1.2));
+            p.setBrush(QColor(222, 228, 238));
+            p.drawPath(path);
+            // the handle: an arm back from the pivot and a ring
+            p.setPen(QPen(QColor(255, 194, 26), 5.0, Qt::SolidLine, Qt::RoundCap));
+            p.setBrush(Qt::NoBrush);
+            p.drawLine(QPointF(-2, -s * 1.0), QPointF(-16, -s * 9.0));
+            p.drawEllipse(QPointF(-27, -s * 14.0), 10.5, 8.0);
+            p.restore();
+        };
+        blade(angle, true);
+        blade(angle, false);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(60, 66, 80));
+        p.drawEllipse(QPointF(0, 0), 3.2, 3.2);
+        p.restore();
+    }
+
+    QImage m_picture;
+    QImage m_base;
+    QImage m_frame;
+    std::thread m_thread;
+    std::atomic<HWND> m_hwnd{nullptr};
+    std::atomic<bool> m_closing{false};
+    QElapsedTimer m_clock;
+};
+#endif
+
+// VEDIT: startup timing, printed to stderr when VEDIT_STARTUP_TRACE is set.
+static QElapsedTimer &veditStartupClock()
+{
+    static QElapsedTimer clock;
+    if (!clock.isValid())
+        clock.start();
+    return clock;
+}
+static void veditTrace(const char *label)
+{
+    static const bool on = qEnvironmentVariableIsSet("VEDIT_STARTUP_TRACE");
+    if (on)
+        fprintf(stderr, "[startup] %6lld ms  %s\n", (long long)veditStartupClock().elapsed(), label);
+}
+
 int main(int argc, char *argv[])
 {
+    veditStartupClock(); // VEDIT
     forceStderrLogging();
     applyLogLevel(verboseLoggingRequested(argc, argv));
 
@@ -387,8 +664,8 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; ++i) {
         if (qstrcmp(argv[i], "--mcp-stdio") == 0) {
             QCoreApplication app(argc, argv);
-            QCoreApplication::setApplicationName("CutWire Drift");
-            QCoreApplication::setOrganizationName("CutWire Drift");
+            QCoreApplication::setApplicationName("EasyCutEasyGo") /* VEDIT */;
+            QCoreApplication::setOrganizationName("EasyCutEasyGo") /* VEDIT */;
             return drift::mcp::runStdioAttach();
         }
     }
@@ -440,8 +717,9 @@ int main(int argc, char *argv[])
 
     // Names must be set before reading QSettings for ui/scale, and QT_SCALE_FACTOR
     // must be in the environment before QApplication is constructed.
-    QCoreApplication::setApplicationName("CutWire Drift");
-    QCoreApplication::setOrganizationName("CutWire Drift");
+    QCoreApplication::setApplicationName("EasyCutEasyGo") /* VEDIT */;
+    QCoreApplication::setOrganizationName("EasyCutEasyGo") /* VEDIT */;
+    QGuiApplication::setApplicationDisplayName(QStringLiteral("Easy Cut, Easy Go!")); // VEDIT
     AppController::applyStoredUiScale();
     // Qt's xcb plugin defaults to GLX, so eglGetCurrentDisplay() is null and
     // zero-copy sticky-disables. Only force EGL when the user opted in — default
@@ -458,6 +736,66 @@ int main(int argc, char *argv[])
 #endif
 
     QApplication app(argc, argv);
+    veditTrace("app");
+    veditTrace("qapplication");
+    // VEDIT: single instance (see veditInstanceKey).
+    QLocalServer *instanceServer = nullptr;
+    if (!qEnvironmentVariableIsSet("VEDIT_ALLOW_MULTIPLE")) {
+        const QString key = veditInstanceKey();
+        QLocalSocket probe;
+        probe.connectToServer(key);
+        // VEDIT: a running copy answers at once; waiting long only delays every normal start.
+        if (probe.state() == QLocalSocket::ConnectedState || probe.waitForConnected(120)) {
+#ifdef Q_OS_WIN
+            // This process was just started by the user, so it may hand the foreground on.
+            AllowSetForegroundWindow(ASFW_ANY);
+#endif
+            probe.write(app.arguments().mid(1).join(QLatin1Char(0x0A)).toUtf8());
+            probe.flush();
+            probe.waitForBytesWritten(1000);
+            probe.disconnectFromServer();
+            return 0;
+        }
+        QLocalServer::removeServer(key); // left behind by a crash
+        instanceServer = new QLocalServer(&app);
+        instanceServer->setSocketOptions(QLocalServer::UserAccessOption);
+        if (!instanceServer->listen(key)) {
+            delete instanceServer;
+            instanceServer = nullptr;
+        }
+    }
+    // VEDIT (조박사님: "더블 클릭해도 아무 반응이 없다"): something on screen at once — the rest of
+    // startup (fonts, catalogs, the whole QML scene) takes seconds. Closed on the first real frame.
+    VeditSplash *splash = nullptr;
+#ifdef Q_OS_WIN
+    // VEDIT: the moving one (scissors) — its own thread, so it keeps snipping while QML loads.
+    static VeditCutSplash *cutSplash = nullptr;
+    {
+        // Started minimised (the build's smoke test): no splash over someone's work.
+        STARTUPINFOW si = {};
+        si.cb = sizeof(si);
+        GetStartupInfoW(&si);
+        const bool minimised = (si.dwFlags & STARTF_USESHOWWINDOW)
+                               && (si.wShowWindow == SW_SHOWMINIMIZED || si.wShowWindow == SW_MINIMIZE
+                                   || si.wShowWindow == SW_SHOWMINNOACTIVE);
+        const QImage picture(QStringLiteral(":/app/brand/splash.png"));
+        if (!picture.isNull() && !minimised) {
+            cutSplash = new VeditCutSplash(picture);
+            cutSplash->show();
+        }
+    }
+#else
+    {
+        QPixmap picture(QStringLiteral(":/app/brand/splash.png"));
+        if (!picture.isNull()) {
+            picture.setDevicePixelRatio(2.0);
+            splash = new VeditSplash(picture);
+            splash->show();
+            app.processEvents();
+        }
+    }
+#endif
+    veditTrace("splash");
     // A missing image plugin is silent everywhere else: the reader just returns a null QImage,
     // so the bin card is blank and the clip renders as nothing with no hint why. On a released
     // APK this line is the only way to tell that from a corrupt file, over adb logcat.
@@ -501,16 +839,21 @@ int main(int argc, char *argv[])
     // all. A driver that is merely too old still starts, and the preview explains
     // itself in the panel instead.
     warnIfNoOpenGl();
+    veditTrace("opengl-check");
 #endif
 
     // Registering the bundled fonts needs a QGuiApplication, and must happen before the compositor
     // thread starts touching QFontDatabase.
     reloadFontCatalog();
-    reloadEmojiCatalog();
+    veditTrace("fonts");
+    // VEDIT: not here — it took 1–2 s of every start. The catalog loads itself on first use
+    // (EmojiCatalog's ensureLoadedLocked), i.e. when stickers or an emoji are first needed.
+    veditTrace("emoji");
 
     // Noise-removal A/B snippets are scratch. Anything still here is from a previous session that
     // did not get to clean up after itself.
     drift::sweepDenoisePreviews();
+    veditTrace("denoise-sweep");
 
 #ifdef Q_OS_ANDROID
     // Every content:// write is staged through <cache>/staged and unlinked once the copy into the
@@ -534,15 +877,18 @@ int main(int argc, char *argv[])
     // they are pruned to a budget rather than kept forever the way mattes are.
     drift::ReverseProxyCache::instance().load();
     drift::ReverseProxyCache::instance().sweep(drift::ReverseProxyCache::kDefaultMaxBytes);
+    veditTrace("reverse-proxy");
 
     qmlRegisterType<PreviewItem>("Drift", 1, 0, "PreviewItem");
 
     static AssetLibrary assetLibrary;
     static EditorState editorState(&assetLibrary);
+    veditTrace("editor-state");
     static FileDialogs fileDialogs;
     static AddonManager addonManager;
     static MarketClient marketClient;
     static UpdateChecker updateChecker;
+    veditTrace("statics");
     static LayoutStore layoutStore;
     static drift::Haptics haptics;
     editorState.setAddonManager(&addonManager);
@@ -579,6 +925,7 @@ int main(int argc, char *argv[])
     }
 
     QQmlApplicationEngine engine;
+    veditTrace("qml-engine");
     static CachedNetworkAccessManagerFactory networkFactory;
     engine.setNetworkAccessManagerFactory(&networkFactory);
     QObject::connect(&editorState, &AppController::uiLanguageChanged,
@@ -608,7 +955,61 @@ int main(int argc, char *argv[])
         shellPreference = QStringLiteral("auto");
 
     engine.setInitialProperties({{QStringLiteral("shellPreference"), shellPreference}});
+    engine.rootContext()->setContextProperty(QStringLiteral("veditBuildNumber"), VEDIT_BUILD_NUMBER); // VEDIT
     engine.loadFromModule("Drift", "Shell");
+    veditTrace("qml-loaded");
 
+    // VEDIT: a second launch's arguments arrive here; open its project, show this window.
+    if (instanceServer) {
+        QObject::connect(instanceServer, &QLocalServer::newConnection, &app, [instanceServer, &app] {
+            while (QLocalSocket *socket = instanceServer->nextPendingConnection()) {
+                QObject::connect(socket, &QLocalSocket::disconnected, &app, [socket, &app] {
+                    const QString payload = QString::fromUtf8(socket->readAll());
+                    socket->deleteLater();
+                    QStringList args{app.arguments().constFirst()};
+                    for (const QString &arg : payload.split(QLatin1Char(0x0A), Qt::SkipEmptyParts))
+                        args.append(arg);
+                    const QUrl url = AppController::startupProjectUrlFromArguments(args);
+                    if (url.isValid() && !url.isEmpty())
+                        editorState.queueExternalProject(url);
+                    veditBringToFront();
+                });
+            }
+        });
+    }
+
+    bool watchingFirstFrame = false;
+    for (QObject *root : engine.rootObjects())
+        if (auto *window = qobject_cast<QQuickWindow *>(root)) {
+            watchingFirstFrame = true;
+            QObject::connect(window, &QQuickWindow::frameSwapped, window, [splash] {
+                static bool once = false;
+                if (once)
+                    return;
+                once = true;
+                veditTrace("first-frame");
+                // Queued: closing inside the scene graph's swap signal is not safe.
+                QTimer::singleShot(0, [splash] {
+                    if (splash) {
+                        splash->close();
+                        splash->deleteLater();
+                    }
+#ifdef Q_OS_WIN
+                    delete cutSplash; // VEDIT: closes its window and joins its thread
+                    cutSplash = nullptr;
+#endif
+                });
+            });
+        }
+    if (!watchingFirstFrame && splash) {
+        splash->close();
+        splash->deleteLater();
+    }
+#ifdef Q_OS_WIN
+    if (!watchingFirstFrame) {
+        delete cutSplash;
+        cutSplash = nullptr;
+    }
+#endif
     return app.exec();
 }

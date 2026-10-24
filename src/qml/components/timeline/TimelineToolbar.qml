@@ -40,6 +40,9 @@ Item {
                  tip: qsTr("Cut mode — click a clip to split it"), shortcut: "bladeTool" },
         "separateAudio": { glyph: Theme.icons.audioLines, label: qsTr("Show audio on separate track"),
                            shortcut: "separateAudio" },
+        // VEDIT: CapCut's 오디오 복구 — undoes 소리 분리.
+        "restoreAudio": { glyph: Theme.icons.audioLines, label: qsTr("Restore audio"),
+                          tip: qsTr("Restore audio — the video plays its own sound again") },
         "unlink": { glyph: Theme.icons.unlink, label: qsTr("Unlink video and audio"),
                     shortcut: "unlink" },
         "trimStart": { glyph: Theme.icons.trimStart, label: qsTr("Trim start"),
@@ -64,17 +67,34 @@ Item {
                            shortcut: "clearInOut" },
         "merge": { glyph: Theme.icons.linkTwo, label: qsTr("Merge adjacent clips"), shortcut: "merge" },
         "freeze": { glyph: Theme.icons.snowflake, label: qsTr("Freeze frame at current time") },
-        "adjustmentLayer": { glyph: Theme.icons.wand, label: qsTr("Add adjustment layer") }
+        // VEDIT: CapCut's 녹음 — narrate over the picture from the playhead.
+        "record": { glyph: Theme.icons.mic, label: qsTr("Record voice"),
+                    tip: qsTr("Record voice — talk over the video from here") },
+        "adjustmentLayer": { glyph: Theme.icons.wand, label: qsTr("Add adjustment layer") },
+        // VEDIT: CapCut's one-click edits on the selected clip, at the playhead.
+        "splitHere": { glyph: Theme.icons.razor, label: "자르기",
+                       tip: "재생 위치에서 자르기", shortcut: "split" },
+        "keepRight": { glyph: Theme.icons.trimStart, label: "앞부분 지우기",
+                       tip: "재생 위치 앞부분 지우기", shortcut: "deleteLeft" },
+        "keepLeft": { glyph: Theme.icons.trimEnd, label: "뒷부분 지우기",
+                      tip: "재생 위치 뒷부분 지우기", shortcut: "deleteRight" },
+        "reverse": { glyph: Theme.icons.rewind, label: "거꾸로 재생" },
+        "mirror": { glyph: Theme.icons.foldHorizontal, label: "좌우 반전" },
+        "rotate": { glyph: Theme.icons.refresh, label: "90도 회전" }
     })
 
+    // VEDIT: CapCut's default toolbar — split/trim at the playhead, delete, freeze, reverse,
+    // mirror and rotate are one click away; the blade and trim *modes* move to the More menu.
     readonly property var defaultToolbarItems: [
-        "select", "cut", "separator", "undo", "redo", "delete", "separator",
-        "separateAudio", "unlink"
+        "select", "separator", "undo", "redo", "separator",
+        "splitHere", "keepRight", "keepLeft", "delete", "separator",
+        "freeze", "reverse", "mirror", "rotate", "separator",
+        "separateAudio", "restoreAudio", "unlink", "separator", "record"
     ]
     readonly property var defaultMenuItems: [
-        "trimStart", "trimEnd", "separator", "copy", "paste", "duplicate", "separator",
+        "cut", "trimStart", "trimEnd", "separator", "copy", "paste", "duplicate", "separator",
         "bookmark", "markIn", "markOut", "loop", "clearWorkArea", "separator",
-        "merge", "freeze", "adjustmentLayer"
+        "merge", "adjustmentLayer"
     ]
 
     // The stored layout, cleaned: unknown or repeated ids are dropped and any action missing
@@ -115,6 +135,11 @@ Item {
         case "trimStart": panel.timelineTool = panel.timelineTool === "trimStart" ? "" : "trimStart"; break
         case "trimEnd": panel.timelineTool = panel.timelineTool === "trimEnd" ? "" : "trimEnd"; break
         case "separateAudio": EditorState.separateAudioFromSelection(); break
+        case "restoreAudio": EditorState.restoreAudioFromSelection(); break
+        case "record":
+            if (EditorState.voiceRecording) EditorState.stopVoiceRecording()
+            else EditorState.requestVoiceRecording(3) // VEDIT: 3-2-1 first
+            break
         case "unlink": EditorState.unlinkSelectedClips(); break
         case "undo": EditorState.undo(); break
         case "redo": EditorState.redo(); break
@@ -130,12 +155,31 @@ Item {
         case "merge": EditorState.mergeSelectedClips(); break
         case "freeze": EditorState.freezeFrameAtPlayhead(); break
         case "adjustmentLayer": EditorState.addAdjustmentClip(-1, -1); break
+        case "splitHere": EditorState.splitAtPlayhead(); break
+        case "keepRight": EditorState.splitSelectedClipLeft(); break
+        case "keepLeft": EditorState.splitSelectedClipRight(); break
+        case "reverse":
+            EditorState.requestClipReverse(EditorState.selectedTrack, EditorState.selectedClip); break
+        case "mirror": {
+            const d = EditorState.selectedClipData
+            EditorState.setClipFlip(EditorState.selectedTrack, EditorState.selectedClip,
+                                    !d.flipH, !!d.flipV)
+            break
+        }
+        case "rotate": {
+            const cur = Number(EditorState.selectedClipData.rotationAtPlayhead || 0)
+            let next = Math.round(cur / 90) * 90 + 90
+            if (next > 180) next -= 360
+            EditorState.setClipRotationSnap(EditorState.selectedTrack, EditorState.selectedClip, next)
+            break
+        }
         }
     }
 
     function actionEnabled(id) {
         switch (id) {
         case "separateAudio": return EditorState.separateAudioAvailable
+        case "restoreAudio": return EditorState.restoreAudioAvailable
         case "unlink": return EditorState.unlinkAvailable
         case "undo": return EditorState.undoAvailable
         case "redo": return EditorState.redoAvailable
@@ -143,6 +187,11 @@ Item {
         case "clearWorkArea": return EditorState.workAreaInSeconds >= 0
                                      || EditorState.workAreaOutSeconds >= 0
         case "merge": return EditorState.mergeAvailable
+        case "keepRight":
+        case "keepLeft":
+        case "reverse":
+        case "mirror":
+        case "rotate": return EditorState.selectedClip >= 0
         }
         return true
     }
@@ -156,6 +205,7 @@ Item {
         case "markIn": return EditorState.workAreaInSeconds >= 0
         case "markOut": return EditorState.workAreaOutSeconds >= 0
         case "loop": return EditorState.loopWorkAreaEnabled
+        case "record": return EditorState.voiceRecording
         }
         return false
     }
@@ -167,6 +217,8 @@ Item {
             return true
         if (id === "separateAudio")
             return EditorState.separateAudioAvailable
+        if (id === "restoreAudio")
+            return EditorState.restoreAudioAvailable
         if (id === "unlink")
             return EditorState.unlinkAvailable
         return true
@@ -470,6 +522,7 @@ Item {
         }
         IconButton {
             id: rippleButton
+            visible: false // VEDIT: 빈틈 닫기 is a switch in each track header now
             glyph: Theme.icons.foldHorizontal
             variant: "text"
             tooltip: qsTr("Close gaps when trimming")
@@ -478,7 +531,7 @@ Item {
         }
         IconButton {
             id: overlapButton
-            glyph: Theme.icons.option
+            glyph: "crossfade" // VEDIT: two crossing S-curves, like the dissolve on the timeline
             variant: "text"
             tooltip: qsTr("Allow clip overlap")
             active: EditorState.allowClipOverlap
@@ -548,7 +601,7 @@ Item {
         IconButton {
             glyph: Theme.icons.zoomFit
             variant: "text"
-            tooltip: qsTr("Fit timeline in view")
+            tooltip: qsTr("Fit timeline in view") + " (Shift+Z)" // VEDIT
             onClicked: toolbar.panel.fitZoom()
         }
 

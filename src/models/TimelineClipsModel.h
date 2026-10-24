@@ -47,6 +47,15 @@ public:
         FadeHandlesRole,
         EffectsRole,
         AudioEffectsRole,
+        AnimInRole,    // VEDIT: 들어오기 length in seconds (0 = none or a plain fade)
+        AnimOutRole,   // VEDIT: 나가기 length
+        AnimComboRole, // VEDIT: the 콤보 id, empty for none
+        FadeOutCurveRole, // VEDIT: the fade-out's own curve
+        LevelRole, // VEDIT: event level
+        ChannelModeRole, // VEDIT: stereo sides
+        OutOfSyncRole, // VEDIT: a split-off sound no longer lined up with its video
+        SpeedRole, // VEDIT: playback speed, for the red speed band
+        SpeedCurveRole, // VEDIT: a speed ramp is set
     };
     Q_ENUM(Role)
 
@@ -77,6 +86,15 @@ public:
         QVariantList fadeHandles;
         QVariantList effects;
         QVariantList audioEffects;
+        double animIn = 0.0;  // VEDIT
+        double animOut = 0.0; // VEDIT
+        QString animCombo;    // VEDIT
+        QString fadeOutCurve; // VEDIT
+        double level = 1.0;   // VEDIT
+        int channelMode = 0;  // VEDIT
+        bool outOfSync = false; // VEDIT
+        double speed = 1.0;     // VEDIT
+        bool speedCurve = false; // VEDIT
     };
 
     explicit TimelineClipsModel(QObject *parent = nullptr);

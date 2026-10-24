@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "id": "vedit-stretch",
+  "label": "Open sideways",
+  "category": "kinetic",
+  "sampleText": "Open",
+  "slots": [
+    "in",
+    "out"
+  ],
+  "order": 311,
+  "defaults": {
+    "duration": 0.45,
+    "ease": "back"
+  },
+  "animators": [
+    {
+      "selectors": [
+        "stagger"
+      ],
+      "props": {
+        "scaleX": 0,
+        "opacity": 0
+      }
+    }
+  ]
+}

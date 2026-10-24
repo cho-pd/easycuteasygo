@@ -75,6 +75,19 @@ namespace {
 // made gets the de-click ramp instead of a visual fade.
 void applyEdgeFades(QList<Clip> &segments, const Clip &src, TimeUs declickUs, bool startCut, bool endCut)
 {
+    // VEDIT: a 콤보 runs once across all the pieces, as if they were still one clip.
+    if (!src.animCombo.isEmpty()) {
+        TimeUs total = 0;
+        for (const Clip &seg : std::as_const(segments))
+            total += seg.timelineDuration;
+        TimeUs at = src.animComboOriginUs;
+        const TimeUs span = src.animComboSpanUs > 0 ? src.animComboSpanUs : total;
+        for (Clip &seg : segments) {
+            seg.animComboOriginUs = at;
+            seg.animComboSpanUs = span;
+            at += seg.timelineDuration;
+        }
+    }
     for (int i = 0; i < segments.size(); ++i) {
         Clip &seg = segments[i];
         const bool first = i == 0;
