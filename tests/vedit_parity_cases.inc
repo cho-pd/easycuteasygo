@@ -289,6 +289,313 @@ void EditorStateTest::parity_P21_speedCurvePresetInPlace()
     QVERIFY(nearly(f.startOf(0, QStringLiteral("next")), 4.0));
 }
 
+// VEDIT (조박사님: "속도 곡선이 전혀 안 된다"): the real case — a piece cut out of a long shot,
+// its sound linked on another row, the shot's speed already touched once.
+void EditorStateTest::parity_P21b_speedCurvePresetOnATrimmedLinkedPiece()
+{
+    ParityFixture f(2);
+    f.add(0, QStringLiteral("v"), 10.0, 6.0, drift::ClipType::Video, QStringLiteral("L"));
+    f.add(1, QStringLiteral("a"), 10.0, 6.0, drift::ClipType::Audio, QStringLiteral("L"));
+    for (int t = 0; t < 2; ++t) {
+        drift::Clip &c = f.state.project()->tracks()[t].clips[0];
+        c.srcIn = drift::secondsToUs(60.0);
+        c.srcOut = drift::secondsToUs(66.0);
+        c.path = QStringLiteral("C:/x/DJI.MP4");
+    }
+    f.ready();
+    f.state.selectClip(0, 0);
+    f.state.setClipSpeed(0, 0, 2.0);
+    f.state.setClipSpeed(0, 0, 1.0);
+    for (const QString id : {QStringLiteral("montage"), QStringLiteral("hero"), QStringLiteral("bullet"),
+                             QStringLiteral("jumpcut"), QStringLiteral("flashin"), QStringLiteral("flashout")}) {
+        f.state.applySpeedCurvePreset(f.state.selectedTrack(), f.state.selectedClip(), id);
+        const drift::Clip *v = f.clip(0, QStringLiteral("v"));
+        QVERIFY2(v && v->hasSpeedCurve(), qPrintable(id));
+        QCOMPARE(f.state.clipSpeedCurvePreset(0, f.indexOf(0, QStringLiteral("v"))), id);
+        // It plays at a changing rate: equal stretches of timeline cover unequal stretches of source.
+        const drift::TimeUs a = v->timelineToSourceUs(v->timelineStart + v->timelineDuration / 10)
+            - v->timelineToSourceUs(v->timelineStart);
+        const drift::TimeUs mid = v->timelineToSourceUs(v->timelineStart + v->timelineDuration / 2)
+            - v->timelineToSourceUs(v->timelineStart + v->timelineDuration * 4 / 10);
+        const drift::TimeUs last = v->timelineToSourceUs(v->timelineEnd())
+            - v->timelineToSourceUs(v->timelineStart + v->timelineDuration * 9 / 10);
+        const drift::TimeUs b = qAbs(mid - a) > qAbs(last - a) ? mid : last; // flash-out ramps only at the end
+        QVERIFY2(qAbs(a - b) > 20'000, qPrintable(QStringLiteral("%1: %2 vs %3").arg(id).arg(a).arg(b)));
+    }
+}
+
+// VEDIT (조박사님: "키프레임이 먹지도 않는다"): CapCut's way — ◆ on the first frame, move on, change
+// the value: it animates from the first frame's value to the new one, and ◆ shows keyed both times.
+void EditorStateTest::vedit_keyframeOnFirstFrameAnimates()
+{
+    ParityFixture f;
+    f.add(0, QStringLiteral("v"), 0.0, 4.0, drift::ClipType::Video);
+    f.ready();
+    f.state.selectClip(0, 0);
+    for (const QString prop : {QStringLiteral("opacity"), QStringLiteral("x"), QStringLiteral("rotation")}) {
+        f.state.setPlayheadSeconds(0.0);
+        const double start = f.state.propertyValueAt(0, 0, prop, 0.0, prop == QStringLiteral("opacity") ? 1.0 : 0.0);
+        f.state.toggleClipKeyframeHere(0, 0, prop, start);
+        QVERIFY2(f.state.clipPropsKeyState(0, 0, {prop}).value(QStringLiteral("atPlayhead")).toBool(), qPrintable(prop));
+        f.state.setPlayheadSeconds(2.0);
+        const double target = prop == QStringLiteral("opacity") ? 0.2 : 300.0;
+        f.state.previewSetClipKeyframe(0, 0, prop, 2.0, target);
+        f.state.commitPreviewDrag();
+        QVERIFY2(f.state.clipPropsKeyState(0, 0, {prop}).value(QStringLiteral("atPlayhead")).toBool(), qPrintable(prop));
+        QVERIFY2(nearly(f.state.propertyValueAt(0, 0, prop, 2.0, 0.0), target), qPrintable(prop));
+        QVERIFY2(nearly(f.state.propertyValueAt(0, 0, prop, 0.0, 0.0), start), qPrintable(prop));
+        const double mid = f.state.propertyValueAt(0, 0, prop, 1.0, 0.0);
+        QVERIFY2(qMin(start, target) < mid && mid < qMax(start, target), qPrintable(prop + QStringLiteral(" mid %1").arg(mid)));
+        // ◆ again on the first frame takes the key out; the 2 s one stays.
+        f.state.setPlayheadSeconds(0.0);
+        f.state.toggleClipKeyframeHere(0, 0, prop, start);
+        QVERIFY2(!f.state.clipPropsKeyState(0, 0, {prop}).value(QStringLiteral("atPlayhead")).toBool(), qPrintable(prop));
+    }
+}
+
+// VEDIT (조박사님: CapCut 비트): a mark put at the playhead, kept in the song's own time (so a trim
+// does not move it), saved with the clip, snapped to, and taken off again on a second press.
+void EditorStateTest::vedit_beatMarksByHand()
+{
+    ParityFixture f;
+    f.add(0, QStringLiteral("m"), 0.0, 8.0, drift::ClipType::Audio);
+    f.ready();
+    f.state.setPlayheadSeconds(3.0);
+    f.state.toggleBeatMarkAtPlayhead(0, 0);
+    QCOMPARE(f.state.beatMarkCount(0, 0), 1);
+    const drift::TimeUs src = f.clip(0, QStringLiteral("m"))->beatMarks.first();
+    QVERIFY(qAbs(src - drift::secondsToUs(3.0)) < 2000);
+    // Saved and read back with the clip.
+    const QJsonObject saved = f.state.project()->toJson();
+    const drift::Project back = drift::Project::fromJson(saved);
+    QCOMPARE(back.tracks().first().clips.first().beatMarks.size(), 1);
+    // A second press on it takes it off; undo puts it back.
+    f.state.toggleBeatMarkAtPlayhead(0, 0);
+    QCOMPARE(f.state.beatMarkCount(0, 0), 0);
+    f.state.undo();
+    QCOMPARE(f.state.beatMarkCount(0, 0), 1);
+    f.state.clearBeatMarks(0, 0);
+    QCOMPARE(f.state.beatMarkCount(0, 0), 0);
+}
+
+// VEDIT (조박사님, VEGAS): the crossfade's ends are the clips' own ends — the left end is where
+// the next clip starts, the right end where the one before stops. Dragged to under a frame they
+// simply meet; and the next clip cannot start earlier than its footage allows.
+void EditorStateTest::vedit_crossfadeEdgesTrimAndMeet()
+{
+    ParityFixture f;
+    f.add(0, QStringLiteral("a"), 0.0, 5.0, drift::ClipType::Video);
+    f.add(0, QStringLiteral("b"), 4.0, 5.0, drift::ClipType::Video);
+    f.state.project()->tracks()[0].clips[1].srcIn = drift::secondsToUs(2.0); // 2 s of head room
+    f.state.project()->tracks()[0].clips[1].srcOut = drift::secondsToUs(7.0);
+    f.ready();
+    // Left end earlier: b starts earlier, its far end stays.
+    f.state.previewOverlapEdge(0, 0, 1, -1, 3.0);
+    f.state.commitPreviewDrag();
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("b")), 3.0));
+    QVERIFY(nearly(drift::usToSeconds(f.clip(0, QStringLiteral("b"))->timelineEnd()), 9.0));
+    // Past its footage it stops: only 1 s more of head room was left.
+    f.state.previewOverlapEdge(0, 0, 1, -1, 0.5);
+    f.state.commitPreviewDrag();
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("b")), 2.0));
+    // Left end dragged onto the right end: no overlap, the clips meet where a ends.
+    f.state.previewOverlapEdge(0, 0, 1, -1, 4.99);
+    f.state.commitPreviewDrag();
+    const drift::Clip *a2 = f.clip(0, QStringLiteral("a"));
+    const drift::Clip *b2 = f.clip(0, QStringLiteral("b"));
+    QCOMPARE(b2->timelineStart, a2->timelineEnd());
+    QVERIFY(nearly(drift::usToSeconds(b2->timelineEnd()), 9.0));
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("a")), 0.0)); // the one before never moved
+}
+
+// VEDIT (조박사님: Alt + 끌기): the dissolve slides along at the same length — the clip before's end
+// and the next clip's start move together, the far ends and other clips stay, and it stops where
+// the next clip's footage (srcIn) runs out or it would leave the next clip shorter than a frame.
+void EditorStateTest::vedit_altDragSlidesDissolve()
+{
+    ParityFixture f;
+    f.add(0, QStringLiteral("a"), 0.0, 5.0, drift::ClipType::Video);
+    f.add(0, QStringLiteral("b"), 4.0, 5.0, drift::ClipType::Video); // overlap 4..5
+    f.add(0, QStringLiteral("c"), 9.0, 2.0, drift::ClipType::Video);
+    f.state.project()->tracks()[0].clips[1].srcIn = drift::secondsToUs(1.0);
+    f.state.project()->tracks()[0].clips[1].srcOut = drift::secondsToUs(6.0);
+    {   // a's footage runs 10 s, so it has 5 s past its end
+        drift::MediaAsset asset;
+        asset.id = QStringLiteral("a.mp4");
+        asset.name = asset.id;
+        asset.kind = drift::MediaKind::Video;
+        asset.path = QStringLiteral("/nonexistent/a.mp4");
+        asset.durationUs = drift::secondsToUs(10.0);
+        f.state.project()->addAsset(asset);
+        f.state.project()->tracks()[0].clips[0].assetId = asset.id;
+    }
+    f.ready();
+    const auto overlapOf = [&f]() {
+        return drift::usToSeconds(f.clip(0, QStringLiteral("a"))->timelineEnd()
+                                  - f.clip(0, QStringLiteral("b"))->timelineStart);
+    };
+    // Later by 2 s.
+    f.state.previewSlideOverlap(0, 0, 1, 2.0);
+    f.state.commitPreviewDrag();
+    QVERIFY(nearly(drift::usToSeconds(f.clip(0, QStringLiteral("a"))->timelineEnd()), 7.0));
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("b")), 6.0));
+    QVERIFY(nearly(overlapOf(), 1.0));
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("a")), 0.0));
+    QVERIFY(nearly(drift::usToSeconds(f.clip(0, QStringLiteral("b"))->timelineEnd()), 9.0));
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("c")), 9.0));
+    QVERIFY(nearly(drift::usToSeconds(f.clip(0, QStringLiteral("b"))->srcIn), 3.0));
+    // Far earlier: stops where b's footage runs out (3 s of head room).
+    f.state.previewSlideOverlap(0, 0, 1, -5.0);
+    f.state.commitPreviewDrag();
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("b")), 3.0));
+    QVERIFY(nearly(drift::usToSeconds(f.clip(0, QStringLiteral("a"))->timelineEnd()), 4.0));
+    QVERIFY(nearly(overlapOf(), 1.0));
+    QVERIFY(f.clip(0, QStringLiteral("b"))->srcIn >= 0);
+    // Far later: stops a frame before b's end; b's end and c stay.
+    f.state.previewSlideOverlap(0, 0, 1, 10.0);
+    f.state.commitPreviewDrag();
+    const drift::Clip *a = f.clip(0, QStringLiteral("a"));
+    const drift::Clip *b = f.clip(0, QStringLiteral("b"));
+    QVERIFY(a->timelineEnd() < b->timelineEnd());
+    QVERIFY(b->timelineDuration >= drift::frameDurationUs(30));
+    QVERIFY(nearly(drift::usToSeconds(b->timelineEnd()), 9.0));
+    QVERIFY(nearly(overlapOf(), 1.0));
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("c")), 9.0));
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("a")), 0.0));
+}
+
+// VEDIT (조박사님): a 5 s dissolve; its right end brought in to 2 s from its left, then its left end
+// brought up to the same point — the moment the dissolve vanishes, the clips meet right there.
+void EditorStateTest::vedit_dissolveClosedFromBothEndsMeetsThere()
+{
+    ParityFixture f;
+    f.add(0, QStringLiteral("a"), 0.0, 10.0, drift::ClipType::Video);
+    f.add(0, QStringLiteral("b"), 5.0, 10.0, drift::ClipType::Video); // overlap 5..10
+    f.ready();
+    f.state.previewOverlapEdge(0, 0, 1, +1, 7.0); // right end to 2 s in
+    f.state.commitPreviewDrag();
+    QVERIFY(nearly(drift::usToSeconds(f.clip(0, QStringLiteral("a"))->timelineEnd()), 7.0));
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("b")), 5.0));
+    f.state.previewOverlapEdge(0, 0, 1, -1, 7.0); // left end to the same point
+    f.state.commitPreviewDrag();
+    const drift::Clip *a = f.clip(0, QStringLiteral("a"));
+    const drift::Clip *b = f.clip(0, QStringLiteral("b"));
+    QVERIFY(nearly(drift::usToSeconds(a->timelineEnd()), 7.0));
+    QCOMPARE(b->timelineStart, a->timelineEnd());
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("a")), 0.0));
+    QVERIFY(nearly(drift::usToSeconds(b->timelineEnd()), 15.0));
+}
+
+// VEDIT (조박사님: "크로스 페이드 좌우 끝은 클립의 끝"): a dissolve always spans the clips' overlap —
+// added short, or after a trim changes the overlap, it is the overlap.
+void EditorStateTest::vedit_dissolveSpansTheOverlap()
+{
+    ParityFixture f;
+    f.add(0, QStringLiteral("a"), 0.0, 5.0, drift::ClipType::Video);
+    f.add(0, QStringLiteral("b"), 4.0, 5.0, drift::ClipType::Video); // 1 s overlap
+    f.ready();
+    f.state.addTransition(0, 0, QStringLiteral("crossfade"), 0.1);
+    QVariantMap t = f.state.transitionBetweenClips(0, 0);
+    QVERIFY2(nearly(t.value(QStringLiteral("end")).toDouble() - t.value(QStringLiteral("start")).toDouble(), 1.0),
+             qPrintable(QStringLiteral("%1..%2").arg(t.value(QStringLiteral("start")).toDouble())
+                            .arg(t.value(QStringLiteral("end")).toDouble())));
+    f.state.trimClipRight(0, 0, 4.5); // the one before now stops half a second into the next
+    t = f.state.transitionBetweenClips(0, 0);
+    QVERIFY(nearly(t.value(QStringLiteral("start")).toDouble(), 4.0));
+    QVERIFY(nearly(t.value(QStringLiteral("end")).toDouble(), 4.5));
+}
+
+// VEDIT (조박사님): with overlap switched off, an edit that would put one clip over another moves
+// the later one to a track of its own — nothing is left hidden behind another clip.
+void EditorStateTest::vedit_overlapOffSeparatesTracks()
+{
+    ParityFixture f;
+    f.add(0, QStringLiteral("a"), 0.0, 4.0, drift::ClipType::Video);
+    f.add(0, QStringLiteral("b"), 4.0, 4.0, drift::ClipType::Video);
+    f.add(0, QStringLiteral("c"), 0.0, 1.0, drift::ClipType::Video); // stray: over a from the start
+    f.state.project()->tracks()[0].clips[2].timelineStart = drift::secondsToUs(2.0);
+    f.ready();
+    f.state.setAllowClipOverlap(false);
+    f.state.setRippleEnabled(false);
+    f.state.setPlayheadSeconds(0.5);
+    f.state.toggleBeatMarkAtPlayhead(0, 0); // any edit settles the project
+    const auto &tracks = f.state.project()->tracks();
+    int videoTracks = 0;
+    for (const drift::Track &tr : tracks) {
+        if (tr.type != drift::TrackType::Video)
+            continue;
+        ++videoTracks;
+        for (int i = 0; i < tr.clips.size(); ++i)
+            for (int j = i + 1; j < tr.clips.size(); ++j)
+                QVERIFY2(tr.clips.at(i).timelineEnd() <= tr.clips.at(j).timelineStart
+                             || tr.clips.at(j).timelineEnd() <= tr.clips.at(i).timelineStart,
+                         "two clips still overlap on one track");
+    }
+    QVERIFY(videoTracks >= 2);
+}
+
+// VEDIT (조박사님): the dissolve's right end brought left past its left end stops where the overlap
+// is gone — the clip before ends exactly where the next one starts; nothing moves beyond that.
+void EditorStateTest::vedit_dissolveEndTakenPastTheOther()
+{
+    ParityFixture f;
+    f.add(0, QStringLiteral("a"), 0.0, 10.0, drift::ClipType::Video);
+    f.add(0, QStringLiteral("b"), 5.0, 10.0, drift::ClipType::Video); // overlap 5..10
+    f.add(0, QStringLiteral("c"), 15.0, 2.0, drift::ClipType::Video);
+    f.ready();
+    f.state.previewOverlapEdge(0, 0, 1, +1, 3.0); // asked for past the left end
+    f.state.commitPreviewDrag();
+    const drift::Clip *a = f.clip(0, QStringLiteral("a"));
+    const drift::Clip *b = f.clip(0, QStringLiteral("b"));
+    QVERIFY(nearly(drift::usToSeconds(a->timelineEnd()), 5.0)); // stopped at the meeting point
+    QCOMPARE(b->timelineStart, a->timelineEnd());
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("b")), 5.0));   // the next clip never moved
+    QVERIFY(nearly(f.startOf(0, QStringLiteral("c")), 15.0));
+    QVERIFY(f.state.transitionBetweenClips(0, f.indexOf(0, QStringLiteral("a"))).isEmpty());
+}
+
+// VEDIT (조박사님: "단 1개의 프레임도 겹치기 없어"): two clips overlapping by less than a frame are
+// made to meet; and anything a frame or more is a crossfade — never a clip hidden under another.
+void EditorStateTest::vedit_noOverlapWithoutCrossfade()
+{
+    ParityFixture f;
+    f.add(0, QStringLiteral("a"), 0.0, 5.0, drift::ClipType::Video);
+    f.add(0, QStringLiteral("b"), 4.99, 5.0, drift::ClipType::Video); // 10 ms: under a frame
+    f.add(0, QStringLiteral("c"), 9.0, 3.0, drift::ClipType::Video);  // 0.99 s: a real hand-off
+    f.add(0, QStringLiteral("d"), 10.0, 0.5, drift::ClipType::Video); // wholly inside c
+    f.ready();
+    f.state.setPlayheadSeconds(1.0);
+    f.state.toggleBeatMarkAtPlayhead(0, f.indexOf(0, QStringLiteral("a"))); // any edit settles it
+    // Tracks may have been added above, so look the clips up wherever they are.
+    const auto find = [&f](const QString &id, int *trackOut) -> const drift::Clip * {
+        const auto &tracks = f.state.project()->tracks();
+        for (int ti = 0; ti < tracks.size(); ++ti)
+            for (const drift::Clip &c : tracks.at(ti).clips)
+                if (c.id == id) {
+                    *trackOut = ti;
+                    return &c;
+                }
+        return nullptr;
+    };
+    int ta = -1, tb = -1, tc = -1, td = -1;
+    const drift::Clip *a = find(QStringLiteral("a"), &ta);
+    const drift::Clip *b = find(QStringLiteral("b"), &tb);
+    QVERIFY(a && b && find(QStringLiteral("c"), &tc) && find(QStringLiteral("d"), &td));
+    QCOMPARE(ta, tb);
+    QCOMPARE(a->timelineEnd(), b->timelineStart);
+    QVERIFY(td != tc); // the clip wholly inside c moved to a track of its own
+    for (const drift::Track &tr : f.state.project()->tracks())
+        for (const drift::Clip &x : tr.clips)
+            for (const drift::Clip &y : tr.clips) {
+                if (&x == &y || y.timelineStart <= x.timelineStart || y.timelineStart >= x.timelineEnd())
+                    continue;
+                bool crossfaded = false;
+                for (const drift::Transition &tn : tr.transitions)
+                    crossfaded = crossfaded || (tn.fromClipId == x.id && tn.toClipId == y.id);
+                QVERIFY2(crossfaded, qPrintable(x.id + QStringLiteral(" over ") + y.id + QStringLiteral(" without a crossfade")));
+            }
+}
+
 void EditorStateTest::parity_P25_clipCropPersistsAndUndoes()
 {
     ParityFixture f;
@@ -3940,7 +4247,8 @@ void EditorStateTest::parity_P159_lineUpDoctorChosConcert()
     QCOMPARE(f.state.syncSelectionByAudioNow(), 1);
     const double dji = drift::usToSeconds(clipById(*f.state.project(), QStringLiteral("dji"))->timelineStart);
     qInfo("VEDIT concert: DJI moved to %.3f s (expect ~270.2), %lld ms", dji, timer.elapsed());
-    QVERIFY(nearly(drift::usToSeconds(clipById(*f.state.project(), QStringLiteral("sony"))->timelineStart), 283.184443));
+    // VEDIT: pictures sit on frames now — within half a frame of the sound's match.
+    QVERIFY(qAbs(drift::usToSeconds(clipById(*f.state.project(), QStringLiteral("sony"))->timelineStart) - 283.184443) <= 0.5 / 30.0 + 1e-6);
     QVERIFY2(std::abs(dji - (283.184443 - 13.0)) < 0.1, qPrintable(QString::number(dji, 'f', 3)));
 }
 

@@ -1053,6 +1053,8 @@ public:
     // "flashin", "flashout"; "none" clears), applied to the clip in place. With ripple on, the
     // clips after it on the same track follow the clip's new length.
     Q_INVOKABLE void applySpeedCurvePreset(int trackIndex, int clipIndex, const QString &presetId);
+    void veditPutSpeedCurve(int trackIndex, int clipIndex, const QList<drift::SpeedPoint> &points,
+                            const QString &presetId); // VEDIT: no undo step of its own
     // VEDIT: CapCut-style crop — insets 0..1 from each edge of the source frame.
     Q_INVOKABLE void setClipCrop(int trackIndex, int clipIndex, double l, double t, double r, double b);
     // VEDIT: the music / sound-effect library shipped in bundled-addons (kind "music" or "sfx").
@@ -1078,10 +1080,24 @@ public:
     // side: -1 left end, 1 right end. Inside a preview drag (beginPreviewDrag / commitPreviewDrag).
     Q_INVOKABLE void previewOverlapEdge(int trackIndex, int leftClipIndex, int rightClipIndex, int side,
                                         double seconds);
+    // VEDIT (조박사님: Alt + 끌기): slide the whole dissolve by deltaSeconds (from where the drag began)
+    // without changing its length — the clip before's end and the next clip's start move together.
+    // Both far ends and every other clip stay put; it stops where either clip's footage runs out or
+    // a clip would be left shorter than a frame. Whole frames on picture tracks. Inside a preview drag.
+    Q_INVOKABLE void previewSlideOverlap(int trackIndex, int leftClipIndex, int rightClipIndex,
+                                         double deltaSeconds);
     Q_INVOKABLE void endTrimEdge();
     Q_INVOKABLE void openLastExport();
     Q_INVOKABLE void previewSetClipCrop(int trackIndex, int clipIndex, double l, double t, double r, double b);
     Q_INVOKABLE QString clipSpeedCurvePreset(int trackIndex, int clipIndex) const;
+    // VEDIT (조박사님: "속도 곡선을 시간 그래프로"): what the Speed tab's graph draws — the curve's
+    // points {pos, speed}, `samples` speeds evenly across the clip, and where the playhead is (0..1,
+    // -1 off the clip). A clip with no curve reads as a flat line at its speed with no points.
+    Q_INVOKABLE QVariantMap clipSpeedCurveGraph(int trackIndex, int clipIndex, int samples = 96) const;
+    // Dragging a point on that graph: live while it moves (one undo step, ended by
+    // commitPreviewDrag), the clip's length and what follows it updated as it goes.
+    Q_INVOKABLE void previewSetClipSpeedCurve(int trackIndex, int clipIndex, const QVariantList &points);
+    Q_INVOKABLE void setClipSpeedCurvePoints(int trackIndex, int clipIndex, const QVariantList &points);
 
     // Media-bin preview session. beginAssetPreview auditions the bin row; the page owns the
     // trim and crop values and hands them to saveAssetEdit itself.
@@ -1763,6 +1779,13 @@ public:
     // playhead.
     Q_INVOKABLE QVariantMap clipPropsKeyState(int trackIndex, int clipIndex, const QStringList &props) const;
     Q_INVOKABLE void toggleClipPropsKeyframe(int trackIndex, int clipIndex, const QStringList &props);
+    // VEDIT (조박사님: CapCut 키프레임): the ◇ of one value — a keyframe at the playhead holding
+    // `value` (what the control shows), or, if one is there, taken out. One clip keyframe holds
+    // whatever values were keyed at that time; easing lives in the graph, not here.
+    Q_INVOKABLE void toggleClipKeyframeHere(int trackIndex, int clipIndex, const QString &prop, double value);
+    // VEDIT (조박사님: 텍스트 키프레임, CapCut): the keyframe property behind a text panel value
+    // ("strokeWidth" → that stroke's width…), "" for one that does not animate.
+    Q_INVOKABLE QString textBasicsKeyProp(int trackIndex, int clipIndex, const QString &key) const;
     // Whether a property's keyframes drive it. Switched off, the keys are kept but the property
     // holds its first key's value — the inspector row's label is what toggles this.
     Q_INVOKABLE bool clipPropertyKeyframesEnabled(int trackIndex, int clipIndex,
@@ -2115,6 +2138,16 @@ public:
     // VEDIT: CapCut's 비트 맞추기. Finds the beats of this music clip (in the background), shows
     // them on the ruler, and then cuts the photos on the main track on the beat.
     Q_INVOKABLE void matchPhotosToMusicBeats(int trackIndex, int clipIndex);
+    // VEDIT (조박사님: CapCut 비트): listens to this clip's own sound (in the background) and puts
+    // a beat mark on every beat ("beat") or on every bar's first beat ("bar"), replacing the marks
+    // it had. The marks show on the clip, snap edits, and are saved with it. One undo step.
+    Q_INVOKABLE void autoBeatClip(int trackIndex, int clipIndex, const QString &unit);
+    // A mark at the playhead, or — when one is already there — that one taken off.
+    Q_INVOKABLE void toggleBeatMarkAtPlayhead(int trackIndex, int clipIndex);
+    Q_INVOKABLE void clearBeatMarks(int trackIndex, int clipIndex);
+    Q_INVOKABLE int beatMarkCount(int trackIndex, int clipIndex) const;
+    Q_PROPERTY(bool autoBeatRunning READ autoBeatRunning NOTIFY autoBeatRunningChanged)
+    bool autoBeatRunning() const { return !m_autoBeatClipId.isEmpty(); }
     // The cutting step on its own, from beat times in timeline seconds. Photos run about three
     // seconds, each ending on a beat; what follows on the track moves with them. One undo step.
     // Returns how many photos changed.
@@ -2169,6 +2202,15 @@ public:
     Q_INVOKABLE void clearRecentProjects();
     // Removes one path from the recents list without deleting the file on disk.
     Q_INVOKABLE void removeRecentProject(const QString &path);
+    // VEDIT (조박사님: 시작 화면과 편집 화면에서 제목 바꾸기): a project's name is its file's name, so
+    // renaming renames the file (same folder), and the recents, its start-screen picture and the open
+    // project follow. Returns "" when done, else what to tell the user. An unsaved project only
+    // takes the name, which its first save then uses.
+    Q_INVOKABLE QString renameProject(const QString &path, const QString &newName);
+    // VEDIT (조박사님: 복제): a copy beside it, "<name> 복사본" (then 복사본 2 …), with an id of its
+    // own so the two never share their working folders. The open project is copied as it stands,
+    // unsaved changes included, and stays the one open. Returns "" when done, else the reason.
+    Q_INVOKABLE QString duplicateProject(const QString &path);
     Q_INVOKABLE void restoreAutosave();
     // VEDIT: CapCut keeps every project as a draft without asking. When on (the default), a dirty
     // project is saved to its file quietly every autosave tick; a project that was never saved
@@ -2414,6 +2456,7 @@ signals:
     void filmstripTileReady(const QString &path);
     void subtitleWaveformReady(double startSeconds, double durSeconds, int sampleCount);
     void beatAnalysisChanged();
+    void autoBeatRunningChanged(); // VEDIT
     void guidesChanged();
     void shortcutsChanged();
     void assetFavoritesChanged();
@@ -2865,6 +2908,7 @@ protected:
     // earned an undo step.
     mutable QList<drift::TimeUs> m_extraSnapTargetsCache;
     mutable bool m_extraSnapTargetsValid = false;
+    QString m_autoBeatClipId; // VEDIT: the clip whose beats are being listened for
     // Pinned for the duration of a trim drag. Nothing can add or remove a clip mid-gesture, and
     // the only targets that do move are the dragged clip's own edges.
     drift::SnapTargets m_gestureSnapTargets;

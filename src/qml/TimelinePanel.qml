@@ -581,6 +581,26 @@ PanelFrame {
     // `excludeClipId` is the clip being dragged, if any: it is still parked at its old start in
     // the model, so leaving its edges in the target set pins every short drag back to the origin.
     function snapClipStart(desiredStart, duration, excludeClipId) {
+        const r = snapClipStartRaw(desiredStart, duration, excludeClipId)
+        // VEDIT (조박사님: 비디오는 프레임 단위): a clip on a picture track moves by whole frames —
+        // a snap target between two frames pulls it onto the nearer one. Sound moves freely.
+        if (excludeClipId && clipTrackType(excludeClipId) === "video") {
+            const fps = Math.max(1, EditorState.projectFps())
+            const s = Math.round(r.start * fps) / fps
+            return { "start": s, "guide": r.guide >= 0 ? r.guide + (s - r.start) : -1 }
+        }
+        return r
+    }
+    function clipTrackType(clipId) {
+        for (let t = 0; t < root.tracks.length; ++t) {
+            const clips = root.tracks[t].clips || []
+            for (let i = 0; i < clips.length; ++i)
+                if (clips[i].id === clipId)
+                    return root.tracks[t].type
+        }
+        return ""
+    }
+    function snapClipStartRaw(desiredStart, duration, excludeClipId) {
         const ex = excludeClipId || ""
         const l = EditorState.snapTime(desiredStart, ex)
         const rEdge = EditorState.snapTime(desiredStart + duration, ex)
@@ -2531,8 +2551,15 @@ PanelFrame {
                                         property bool transitionSelected: EditorState.selectedTransitionTrack === trackRow.trackIndex
                                                                           && EditorState.selectedTransitionLeftClip === leftClipIndex
 
+                                        // VEDIT (조박사님): while an end is held the pair stays the pair
+                                        // and the region stays up — the end can be taken past the other
+                                        // one, where the dissolve is gone and the clips just meet.
+                                        property bool edgeHeld: false
+                                        property int heldPartner: -1
                                         // Find partner clip that abuts/overlaps this one.
                                         property int partnerIndex: {
+                                            if (edgeHeld && heldPartner >= 0)
+                                                return heldPartner
                                             const clips = root.tracks[trackRow.trackIndex].clips
                                             const left = leftClip
                                             if (!left)
@@ -2560,22 +2587,28 @@ PanelFrame {
                                             : null
                                         property bool physicallyOverlapping: leftClip && rightClip
                                             && rightClip.start < (leftClip.start + leftClip.duration)
+                                        // VEDIT (조박사님): where the clips overlap, the dissolve's
+                                        // ends ARE the clips' ends — always the whole overlap.
                                         property real regionStart: {
                                             if (!leftClip || !rightClip)
                                                 return 0
-                                            if (hasTransition && transitionData.start !== undefined)
-                                                return transitionData.start
+                                            if (edgeHeld)
+                                                return Math.min(rightClip.start, leftClip.start + leftClip.duration)
                                             if (physicallyOverlapping)
                                                 return rightClip.start
+                                            if (hasTransition && transitionData.start !== undefined)
+                                                return transitionData.start
                                             return 0
                                         }
                                         property real regionEnd: {
                                             if (!leftClip || !rightClip)
                                                 return 0
-                                            if (hasTransition && transitionData.end !== undefined)
-                                                return transitionData.end
+                                            if (edgeHeld)
+                                                return Math.max(rightClip.start, leftClip.start + leftClip.duration)
                                             if (physicallyOverlapping)
                                                 return leftClip.start + leftClip.duration
+                                            if (hasTransition && transitionData.end !== undefined)
+                                                return transitionData.end
                                             return 0
                                         }
                                         property bool showRegion: (trackType === "video"
@@ -2588,7 +2621,7 @@ PanelFrame {
                                                                   // rounding drew an 8 px hatched box between clips that
                                                                   // merely touch, and meant nothing.
                                                                   && (physicallyOverlapping || hasTransition)
-                                                                  && regionEnd - regionStart >= 1 / 30
+                                                                  && regionEnd - regionStart > 1e-4 // VEDIT: every real overlap shows
 
                                         z: 10
                                         // VEDIT: while its clip is being dragged the overlap is drawn live
@@ -2599,14 +2632,21 @@ PanelFrame {
                                             || (root.liveTrimId !== ""
                                                 && ((leftClip && leftClip.id === root.liveTrimId)
                                                     || (rightClip && rightClip.id === root.liveTrimId)))
-                                        visible: showRegion && !draggedAway
+                                        visible: (showRegion || edgeHeld) && !draggedAway
                                         x: regionStart * root.pxPerSecond
-                                        width: Math.max(8, (regionEnd - regionStart) * root.pxPerSecond)
+                                        // VEDIT (조박사님): no overlap, nothing drawn — not an 8 px sliver
+                                        // that reads as a one-frame crossfade.
+                                        width: (physicallyOverlapping || edgeHeld)
+                                               ? Math.max(1, (regionEnd - regionStart) * root.pxPerSecond)
+                                               : Math.max(8, (regionEnd - regionStart) * root.pxPerSecond)
                                         height: parent.height - Theme.clipSelectionRingWidth * 2
                                         y: Theme.clipSelectionRingWidth
 
                                         Rectangle {
                                             anchors.fill: parent
+                                            // VEDIT: held at no overlap: nothing to show (the held edge
+                                            // keeps its grab — opacity 0 on the region would drop it).
+                                            visible: transitionRegion.physicallyOverlapping || !transitionRegion.edgeHeld
                                             radius: Theme.radiusSm
                                             color: transitionRegion.transitionSelected
                                                    ? Qt.rgba(Theme.transitionOverlap.r, Theme.transitionOverlap.g,
@@ -2854,7 +2894,7 @@ PanelFrame {
                                                 id: overlapEdge
                                                 required property var modelData
                                                 readonly property int side: modelData
-                                                width: 10
+                                                width: 18 // VEDIT: easy to catch; the clip's own trim stands aside here
                                                 height: parent.height
                                                 x: side < 0 ? -width / 2 : parent.width - width / 2
                                                 z: 5
@@ -2868,7 +2908,11 @@ PanelFrame {
                                                     height: parent.height
                                                     color: Theme.primary
                                                 }
-                                                onPressed: EditorState.beginPreviewDrag(qsTr("Transition length"))
+                                                onPressed: {
+                                                    transitionRegion.heldPartner = transitionRegion.partnerIndex
+                                                    transitionRegion.edgeHeld = true
+                                                    EditorState.beginPreviewDrag(qsTr("Transition length"))
+                                                }
                                                 onPositionChanged: (mouse) => {
                                                     if (!pressed)
                                                         return
@@ -2878,8 +2922,19 @@ PanelFrame {
                                                                                    transitionRegion.partnerIndex,
                                                                                    side, x / root.pxPerSecond)
                                                 }
-                                                onReleased: EditorState.commitPreviewDrag()
-                                                onCanceled: EditorState.cancelPreviewDrag()
+                                                onReleased: {
+                                                    EditorState.commitPreviewDrag()
+                                                    transitionRegion.edgeHeld = false
+                                                    transitionRegion.heldPartner = -1
+                                                }
+                                                onCanceled: {
+                                                    EditorState.cancelPreviewDrag()
+                                                    transitionRegion.edgeHeld = false
+                                                    transitionRegion.heldPartner = -1
+                                                }
+                                                // VEDIT: dragged to no overlap, the dissolve (and this
+                                                // edge with it) goes mid-drag — the edit is kept.
+                                                Component.onDestruction: if (pressed) EditorState.commitPreviewDrag()
                                             }
                                         }
 
@@ -2887,9 +2942,64 @@ PanelFrame {
                                             id: transitionMouse
                                             anchors.fill: parent
                                             hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
+                                            cursorShape: sliding ? Qt.SizeHorCursor : Qt.PointingHandCursor
                                             acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            preventStealing: sliding
+                                            // VEDIT (조박사님: Alt + 끌기): hold Alt and drag the dissolve to
+                                            // move it along — same length; the clip before's end and the
+                                            // next clip's start go with it, as far as their footage lasts.
+                                            property bool sliding: false
+                                            property bool slid: false
+                                            property real pressTrackX: 0
+                                            onPressed: (mouse) => {
+                                                slid = false
+                                                if (mouse.button !== Qt.LeftButton || !(mouse.modifiers & Qt.AltModifier)
+                                                    || !transitionRegion.physicallyOverlapping)
+                                                    return
+                                                pressTrackX = mapToItem(trackRow, mouse.x, 0).x
+                                                transitionRegion.heldPartner = transitionRegion.partnerIndex
+                                                transitionRegion.edgeHeld = true
+                                                if (transitionRegion.hasTransition)
+                                                    EditorState.selectTransition(trackRow.trackIndex,
+                                                                                 transitionRegion.leftClipIndex)
+                                                EditorState.beginPreviewDrag(qsTr("Move transition"))
+                                                sliding = true
+                                            }
+                                            onPositionChanged: (mouse) => {
+                                                if (!sliding)
+                                                    return
+                                                const dx = mapToItem(trackRow, mouse.x, 0).x - pressTrackX
+                                                if (Math.abs(dx) >= 2)
+                                                    slid = true
+                                                EditorState.previewSlideOverlap(trackRow.trackIndex,
+                                                                                transitionRegion.leftClipIndex,
+                                                                                transitionRegion.partnerIndex,
+                                                                                dx / root.pxPerSecond)
+                                            }
+                                            onReleased: {
+                                                if (!sliding)
+                                                    return
+                                                if (slid)
+                                                    EditorState.commitPreviewDrag()
+                                                else
+                                                    EditorState.cancelPreviewDrag()
+                                                sliding = false
+                                                transitionRegion.edgeHeld = false
+                                                transitionRegion.heldPartner = -1
+                                            }
+                                            onCanceled: {
+                                                if (!sliding)
+                                                    return
+                                                EditorState.cancelPreviewDrag()
+                                                sliding = false
+                                                transitionRegion.edgeHeld = false
+                                                transitionRegion.heldPartner = -1
+                                            }
                                             onClicked: (mouse) => {
+                                                if (slid) { // VEDIT: a slide, not a click
+                                                    slid = false
+                                                    return
+                                                }
                                                 if (mouse.button === Qt.RightButton) {
                                                     if (!transitionRegion.hasTransition)
                                                         EditorState.addTransition(trackRow.trackIndex,

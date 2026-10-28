@@ -314,6 +314,31 @@ Item {
     readonly property bool pinnedToClip: clipData.kind === "adjustment"
                                          && !!clipData.linkedClipId
 
+    // VEDIT (조박사님, VEGAS): an end that sits inside a dissolve with the neighbouring clip is the
+    // dissolve's end. Its own trim strip stands aside there, so the grab lands on the dissolve's
+    // edge (which lengthens or shortens this clip without moving the rest) instead of a rippling
+    // trim that slid the clip and left the pictures overlapping.
+    function veditOverlapsAt(edgeSeconds, wantStart) {
+        const track = panel && panel.tracks ? panel.tracks[clipItem.trackIndex] : null
+        if (!track || !track.clips)
+            return false
+        const mine = Number(clipItem.clipData.start) || 0
+        const myEnd = mine + (Number(clipItem.clipData.duration) || 0)
+        for (let i = 0; i < track.clips.length; ++i) {
+            if (i === clipItem.clipIndex)
+                continue
+            const c = track.clips[i]
+            const s0 = Number(c.start) || 0
+            const s1 = s0 + (Number(c.duration) || 0)
+            if (wantStart ? (s0 < mine - 1e-6 && s1 > mine + 1e-6)
+                          : (s0 > mine + 1e-6 && s0 < myEnd - 1e-6))
+                return true
+        }
+        return false
+    }
+    readonly property bool startInDissolve: veditOverlapsAt(0, true)
+    readonly property bool endInDissolve: veditOverlapsAt(0, false)
+
     // Trim handles stay on whenever selected.
     // Width is floored so the clip never becomes
     // an unusable sliver; at that floor both
@@ -613,9 +638,9 @@ Item {
             const lit = clipMouse.containsMouse || clipItem.lifted
             return lit ? Qt.lighter(base, 1.15) : base
         }
-        border.width: clipItem.effectDropTarget
-                      ? Theme.borderWidthFocus
-                      : (clipItem.selected ? 2 : 0) // VEDIT (조박사님): a 2 px yellow line round a picked clip
+        // VEDIT (조박사님): a picked clip gets its 2 px yellow line along the top and bottom only —
+        // the left and right ends light up when the pointer is on them (the trim handles below).
+        border.width: clipItem.effectDropTarget ? Theme.borderWidthFocus : 0
         border.color: clipItem.effectDropTarget ? Theme.clipEffect : Theme.primary
         clip: true
 
@@ -624,6 +649,25 @@ Item {
         }
         Behavior on border.width {
             NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing }
+        }
+
+        Rectangle { // VEDIT: selection line, top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: 2
+            color: Theme.primary
+            visible: clipItem.selected && !clipItem.effectDropTarget
+            z: 5
+        }
+        Rectangle { // VEDIT: selection line, bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 2
+            color: Theme.primary
+            visible: clipItem.selected && !clipItem.effectDropTarget
+            z: 5
         }
 
         Rectangle {
@@ -1417,7 +1461,8 @@ Item {
     }
     // VEDIT (조박사님): a handle in the middle of the level line, as in Vegas — shown while the
     // pointer is on the clip, or the clip is selected, or the level is down.
-    Rectangle {
+    // VEDIT (조박사님): a trapezoid, wide at the top, black, no outline.
+    Canvas {
         id: levelHandle
         visible: clipItem.levelSupported && !clipItem.touchMode
                  && (clipMouse.containsMouse || levelMouse.containsMouse || levelMouse.pressed
@@ -1425,13 +1470,23 @@ Item {
                  && clipItem.width > 2 * (clipItem.fadeHandleSize + 12) + 24
         z: 26
         width: 24
-        height: 6
-        radius: 0 // 조박사님: square corners
+        height: 7
         x: (clipItem.width - width) / 2
         y: Math.max(0, Math.min(clipItem.height - height, clipItem.levelLineY - height / 2 + 0.5))
-        color: levelMouse.containsMouse || levelMouse.pressed ? "#3a3a3a" : "#000000" // 조박사님: black
-        border.width: 1
-        border.color: "#8a8a8a" // VEDIT (조박사님): grey, not white
+        readonly property color fill: levelMouse.containsMouse || levelMouse.pressed ? "#3a3a3a" : "#000000"
+        onFillChanged: requestPaint()
+        onPaint: {
+            const ctx = getContext("2d")
+            ctx.reset()
+            ctx.fillStyle = fill
+            ctx.beginPath()
+            ctx.moveTo(0, 0)
+            ctx.lineTo(width, 0)
+            ctx.lineTo(width - 6, height)
+            ctx.lineTo(6, height)
+            ctx.closePath()
+            ctx.fill()
+        }
     }
     MouseArea {
         id: levelMouse
@@ -2322,6 +2377,9 @@ Item {
 
         MouseArea {
             id: leftTrimMouse
+            // VEDIT: the dissolve's edge takes this end — but never pulled away mid-drag (dragging
+            // this end into the next clip makes the dissolve under the pointer).
+            visible: !clipItem.startInDissolve || pressed
             property bool selectOnRelease: false // VEDIT
             // VEDIT: a fixed-size hotspot. It used to fill the handle, which thins on hover, so
             // the pointer fell off the shrunken strip, it widened again, caught the pointer,
@@ -2492,6 +2550,7 @@ Item {
 
         MouseArea {
             id: rightTrimMouse
+            visible: !clipItem.endInDissolve || pressed // VEDIT: see leftTrimMouse
             property bool selectOnRelease: false // VEDIT
             // VEDIT: fixed-size hotspot (see leftTrimMouse).
             anchors.right: parent.right
@@ -2741,11 +2800,33 @@ Item {
         }
     }
 
+    // VEDIT (조박사님: CapCut 비트): the beat marks, yellow dots along the clip's foot.
+    Repeater {
+        model: clipItem.clipData.beatMarks || []
+        delegate: Rectangle {
+            required property var modelData
+            readonly property real px: Number(modelData) * panel.pxPerSecond
+            visible: px >= 0 && px <= clipItem.width
+            x: px - width / 2
+            y: clipItem.height - height - 4
+            width: 7
+            height: 7
+            radius: 3.5
+            color: "#ffd23f"
+            border.width: 1
+            border.color: "#5a4300"
+            z: 45
+        }
+    }
+
     Item {
         id: keyLine
         visible: clipItem.keyLineOn
         anchors.fill: parent
         z: 46
+        // VEDIT (조박사님): a ◆ on the clip's first or last frame shows as half a diamond — it
+        // must not spill over the clip next to it.
+        clip: true
         readonly property real midY: Math.round(height / 2)
         function xOf(sec) { return (sec - (Number(clipItem.clipData.start) || 0)) * panel.pxPerSecond }
         function secOf(x) { return (Number(clipItem.clipData.start) || 0) + x / panel.pxPerSecond }

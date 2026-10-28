@@ -19,7 +19,7 @@ Row {
     Item {
         width: 18
         height: parent.height
-        visible: root.animated
+        // VEDIT (CapCut, checked 2026-10-25): ‹ › always there, lit only when there is somewhere to go.
         Text {
             anchors.centerIn: parent
             text: "‹"
@@ -64,7 +64,7 @@ Row {
     Item {
         width: 18
         height: parent.height
-        visible: root.animated
+        // VEDIT (CapCut, checked 2026-10-25): ‹ › always there, lit only when there is somewhere to go.
         Text {
             anchors.centerIn: parent
             text: "›"

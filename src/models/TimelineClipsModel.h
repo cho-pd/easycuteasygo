@@ -56,6 +56,7 @@ public:
         OutOfSyncRole, // VEDIT: a split-off sound no longer lined up with its video
         SpeedRole, // VEDIT: playback speed, for the red speed band
         SpeedCurveRole, // VEDIT: a speed ramp is set
+        BeatMarksRole, // VEDIT: CapCut 비트 — seconds from the clip's start
     };
     Q_ENUM(Role)
 
@@ -95,6 +96,7 @@ public:
         bool outOfSync = false; // VEDIT
         double speed = 1.0;     // VEDIT
         bool speedCurve = false; // VEDIT
+        QVariantList beatMarks;  // VEDIT
     };
 
     explicit TimelineClipsModel(QObject *parent = nullptr);

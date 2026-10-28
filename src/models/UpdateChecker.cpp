@@ -4,6 +4,18 @@
 
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QProcess>
+#include <QStandardPaths>
+#if __has_include("vedit_build_number.h")
+#include "vedit_build_number.h" // VEDIT: the build stamp is the version
+#endif
+#ifndef VEDIT_BUILD_NUMBER
+#define VEDIT_BUILD_NUMBER 0
+#endif
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
@@ -32,8 +44,23 @@ constexpr int kStartupDelayMs = 5000;
 
 constexpr int kTransferTimeoutMs = 15000;
 
-const QString kFeedUrl = QStringLiteral(DRIFT_UPDATE_FEED_URL);
-const QString kCurrentVersion = QStringLiteral(DRIFT_VERSION);
+// VEDIT (조박사님: 배포): releases come from the project's own GitHub repository, and the version
+// is 1.0.<build> so every published build is newer than the last. Asked for only after the user
+// agreed at the first launch (see asked()).
+const QString kFeedUrl = QStringLiteral(DRIFT_UPDATE_FEED_URL).isEmpty()
+    ? QStringLiteral("https://api.github.com/repos/cho-pd/easycuteasygo/releases/latest")
+    : QStringLiteral(DRIFT_UPDATE_FEED_URL);
+const QString kCurrentVersion = VEDIT_BUILD_NUMBER > 0
+    ? QStringLiteral("1.0.%1").arg(VEDIT_BUILD_NUMBER)
+    : QStringLiteral(DRIFT_VERSION);
+// The asset the update downloads; the site's download button points at the same name.
+const QString kInstallerAsset = QStringLiteral("EasyCutEasyGo-Setup-x64.exe");
+
+QString updatesDir()
+{
+    return QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
+        .filePath(QStringLiteral("updates"));
+}
 
 QString settingsKey(const char *name)
 {
@@ -66,7 +93,98 @@ bool UpdateChecker::supported() const
 
 bool UpdateChecker::enabled() const
 {
-    return QSettings().value(settingsKey("enabled"), true).toBool();
+    // VEDIT: off until the user said yes at the first launch.
+    return QSettings().value(settingsKey("enabled"), false).toBool();
+}
+
+bool UpdateChecker::asked() const
+{
+    return QSettings().value(settingsKey("asked"), false).toBool();
+}
+
+void UpdateChecker::answerConsent(bool allow)
+{
+    QSettings().setValue(settingsKey("asked"), true);
+    QSettings().setValue(settingsKey("enabled"), allow);
+    emit enabledChanged();
+    if (allow)
+        QTimer::singleShot(kStartupDelayMs, this, [this] { check(false); });
+}
+
+void UpdateChecker::setDownload(const QString &state, double progress)
+{
+    m_downloadState = state;
+    m_downloadProgress = progress;
+    emit downloadChanged();
+}
+
+void UpdateChecker::downloadUpdate()
+{
+    if (m_installerUrl.isEmpty() || m_downloadState == QLatin1String("downloading"))
+        return;
+    QDir().mkpath(updatesDir());
+    const QString version = m_latestVersion;
+    const QString finalPath = QDir(updatesDir()).filePath(QStringLiteral("EasyCutEasyGo-Setup-%1.exe").arg(version));
+    const QString partPath = finalPath + QStringLiteral(".part");
+    auto *file = new QFile(partPath, this);
+    if (!file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        delete file;
+        setDownload(QStringLiteral("failed"), 0.0);
+        return;
+    }
+    setDownload(QStringLiteral("downloading"), 0.0);
+    QNetworkRequest request{QUrl(m_installerUrl)};
+    request.setHeader(QNetworkRequest::UserAgentHeader, QLatin1String("EasyCutEasyGo/") + kCurrentVersion);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    QNetworkReply *reply = m_network->get(request);
+    connect(reply, &QNetworkReply::readyRead, this, [reply, file] { file->write(reply->readAll()); });
+    connect(reply, &QNetworkReply::downloadProgress, this, [this](qint64 got, qint64 total) {
+        const qint64 all = total > 0 ? total : m_installerSize;
+        if (all > 0)
+            setDownload(QStringLiteral("downloading"), double(got) / double(all));
+    });
+    connect(reply, &QNetworkReply::finished, this, [this, reply, file, partPath, finalPath, version] {
+        reply->deleteLater();
+        file->write(reply->readAll());
+        file->close();
+        const qint64 got = file->size();
+        file->deleteLater();
+        const bool complete = reply->error() == QNetworkReply::NoError
+            && (m_installerSize <= 0 || got == m_installerSize);
+        if (!complete) {
+            QFile::remove(partPath);
+            setDownload(QStringLiteral("failed"), 0.0);
+            return;
+        }
+        QFile::remove(finalPath);
+        if (!QFile::rename(partPath, finalPath)) {
+            setDownload(QStringLiteral("failed"), 0.0);
+            return;
+        }
+        QSettings().setValue(settingsKey("pendingInstaller"), finalPath);
+        QSettings().setValue(settingsKey("pendingVersion"), version);
+        setDownload(QStringLiteral("ready"), 1.0);
+    });
+}
+
+bool UpdateChecker::runPendingInstaller()
+{
+    QSettings settings;
+    const QString path = settings.value(settingsKey("pendingInstaller")).toString();
+    const QString version = settings.value(settingsKey("pendingVersion")).toString();
+    if (path.isEmpty())
+        return false;
+    // Once only, whatever happens next: a failing installer must not keep the app from opening.
+    settings.remove(settingsKey("pendingInstaller"));
+    settings.remove(settingsKey("pendingVersion"));
+    settings.sync();
+    if (!QFileInfo::exists(path) || drift::compareVersions(kCurrentVersion, version) >= 0) {
+        QFile::remove(path);
+        return false;
+    }
+    // Quiet install over this one; the installer reopens the app when it is done.
+    return QProcess::startDetached(path, {QStringLiteral("/SILENT"), QStringLiteral("/SUPPRESSMSGBOXES"),
+                                          QStringLiteral("/NORESTART"), QStringLiteral("/CLOSEAPPLICATIONS")});
 }
 
 void UpdateChecker::setEnabled(bool enabled)
@@ -221,6 +339,16 @@ void UpdateChecker::applyRelease(const QByteArray &json, bool manual)
     m_latestVersion = version;
     m_releaseNotes = release.value(QStringLiteral("body")).toString();
     m_releaseUrl = release.value(QStringLiteral("html_url")).toString();
+    // VEDIT: the installer this release carries, for the in-app update.
+    m_installerUrl.clear();
+    m_installerSize = 0;
+    for (const QJsonValue &a : release.value(QStringLiteral("assets")).toArray()) {
+        const QJsonObject asset = a.toObject();
+        if (asset.value(QStringLiteral("name")).toString() == kInstallerAsset) {
+            m_installerUrl = asset.value(QStringLiteral("browser_download_url")).toString();
+            m_installerSize = qint64(asset.value(QStringLiteral("size")).toDouble());
+        }
+    }
     emit resultChanged();
     if (manual)
         setStatus(tr("Drift %1 is available.").arg(version));

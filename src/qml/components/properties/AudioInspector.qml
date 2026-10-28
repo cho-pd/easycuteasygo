@@ -171,6 +171,67 @@ Item {
             ToolTip.text: qsTr("Ends the music where the video ends, fading out over the last two seconds")
         }
 
+        // VEDIT (조박사님: CapCut 비트): beat marks on the music — found automatically or put by
+        // hand at the playhead. They show as yellow dots on the clip and edits snap to them.
+        Column {
+            visible: root.audible && root.clipKind === "audio"
+            width: parent.width
+            spacing: 6
+            readonly property int marks: {
+                void root.clipDataRevision
+                return EditorState.beatMarkCount(EditorState.selectedTrack, EditorState.selectedClip)
+            }
+            Text {
+                text: qsTr("Beat") + (parent.marks > 0 ? "  ·  " + qsTr("%1 marks").arg(parent.marks) : "")
+                color: Theme.foreground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeBase
+                font.weight: Font.DemiBold
+            }
+            Row {
+                width: parent.width
+                spacing: 6
+                ThemedButton {
+                    width: (parent.width - parent.spacing) / 2
+                    text: EditorState.autoBeatRunning ? qsTr("Listening…") : qsTr("Auto beat: every beat")
+                    enabled: !EditorState.autoBeatRunning
+                    onClicked: EditorState.autoBeatClip(EditorState.selectedTrack, EditorState.selectedClip, "beat")
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 600
+                    ToolTip.text: qsTr("Listens to this music and puts a mark on every beat")
+                }
+                ThemedButton {
+                    width: (parent.width - parent.spacing) / 2
+                    text: qsTr("Auto beat: every bar")
+                    enabled: !EditorState.autoBeatRunning
+                    onClicked: EditorState.autoBeatClip(EditorState.selectedTrack, EditorState.selectedClip, "bar")
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 600
+                    ToolTip.text: qsTr("Fewer marks: only the first beat of each bar")
+                }
+            }
+            Row {
+                width: parent.width
+                spacing: 6
+                ThemedButton {
+                    width: (parent.width - parent.spacing) / 2
+                    variant: "secondary"
+                    text: qsTr("Add / remove a mark here")
+                    onClicked: EditorState.toggleBeatMarkAtPlayhead(EditorState.selectedTrack, EditorState.selectedClip)
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 600
+                    ToolTip.text: qsTr("A mark at the playhead — or, on a mark, takes it off")
+                }
+                ThemedButton {
+                    width: (parent.width - parent.spacing) / 2
+                    variant: "secondary"
+                    text: qsTr("Clear all marks")
+                    enabled: parent.parent.marks > 0
+                    onClicked: EditorState.clearBeatMarks(EditorState.selectedTrack, EditorState.selectedClip)
+                }
+            }
+        }
+
         // VEDIT: CapCut's 비트 맞추기 — the slideshow changes picture on the music's beat.
         ThemedButton {
             visible: root.audible && root.clipKind === "audio"

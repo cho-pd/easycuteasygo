@@ -69,3 +69,5 @@ Root: HKA; Subkey: "Software\Classes\EasyCutEasyGo.Project\shell\open\command"; 
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+; VEDIT: an in-app update installs silently; the app opens again when it is done.
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait; Check: WizardSilent

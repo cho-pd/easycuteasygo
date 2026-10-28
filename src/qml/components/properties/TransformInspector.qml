@@ -253,17 +253,43 @@ Item {
                 onClicked: EditorState.autoKeyEnabled = !EditorState.autoKeyEnabled
             }
 
-            Text {
-                text: root.isModel3d ? qsTr("Offset (px)") : qsTr("Position (px)")
-                color: Theme.mutedForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
-                font.weight: Font.Medium
+            // VEDIT (CapCut, checked 2026-10-25): 위치 is one ◆ for X and Y together.
+            Item {
+                width: parent.width
+                height: positionKey.height
+                Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.isModel3d ? qsTr("Offset (px)") : qsTr("Position (px)")
+                    color: Theme.mutedForeground
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeXs
+                    font.weight: Font.Medium
+                }
+                KeyframeToggle {
+                    id: positionKey
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    readonly property var posProps: ["x", "y"]
+                    readonly property var keyState: {
+                        void root.clipDataRevision
+                        void root.liveRevision
+                        void EditorState.playheadSeconds
+                        void EditorState.tracksRevision
+                        return EditorState.clipPropsKeyState(EditorState.selectedTrack, EditorState.selectedClip, posProps)
+                    }
+                    animated: keyState.animated === true
+                    atPlayhead: keyState.atPlayhead === true
+                    prevSeconds: keyState.prev !== undefined ? keyState.prev : -1
+                    nextSeconds: keyState.next !== undefined ? keyState.next : -1
+                    onToggled: EditorState.toggleClipPropsKeyframe(EditorState.selectedTrack, EditorState.selectedClip, posProps)
+                }
             }
 
             PropertyKeyframeRow {
                 width: parent.width
                 propDef: root.propX
+                showKeyToggle: false // VEDIT: the 위치 ◆ above
                 keyframeList: (root.clipData.keyframes && root.clipData.keyframes.x && root.clipData.keyframes.x.points) || []
                 useSlider: true
                 sliderFrom: -root.canvasW
@@ -273,6 +299,7 @@ Item {
             PropertyKeyframeRow {
                 width: parent.width
                 propDef: root.propY
+                showKeyToggle: false // VEDIT: the 위치 ◆ above
                 keyframeList: (root.clipData.keyframes && root.clipData.keyframes.y && root.clipData.keyframes.y.points) || []
                 useSlider: true
                 sliderFrom: -root.canvasH

@@ -19,6 +19,7 @@ Column {
     // numeric text field. Drags are coalesced into a single undo entry via
     // begin/commit preview drag.
     property bool useSlider: false
+    property bool showKeyToggle: true // VEDIT: off where one ◆ serves several values (위치 X·Y)
     property real sliderFrom: 0
     property real sliderTo: 1
     property bool percent: false
@@ -161,6 +162,45 @@ Column {
             EditorState.playheadSeconds, v)
     }
 
+    // VEDIT (조박사님: CapCut 키프레임): the ‹ ◆ › on the label line, the same on every value — the
+    // ◆ fills yellow where a keyframe is at the playhead. A single key on the clip's first frame is
+    // the plain value, not a keyframe. Easing is the graph's, so no Straight/Ease/Jump here.
+    readonly property real clipStartSeconds: {
+        void root.valueRevision
+        return Number(EditorState.selectedClipData.start) || 0
+    }
+    readonly property bool keyed: {
+        if (!keyframeList || keyframeList.length === 0)
+            return false
+        if (keyframeList.length > 1)
+            return true
+        return Math.abs(keyframeList[0].seconds - clipStartSeconds) > 1e-6
+    }
+    readonly property bool keyHere: {
+        void EditorState.playheadSeconds
+        if (!keyed)
+            return false
+        const t = EditorState.playheadSeconds
+        const half = 0.5 / Math.max(1, EditorState.projectFps() || 30)
+        for (let i = 0; i < keyframeList.length; ++i)
+            if (Math.abs(keyframeList[i].seconds - t) <= half)
+                return true
+        return false
+    }
+    function neighbourKeySeconds(after) {
+        if (!keyed)
+            return -1
+        const t = EditorState.playheadSeconds
+        const half = 0.5 / Math.max(1, EditorState.projectFps() || 30)
+        let best = -1
+        for (let i = 0; i < keyframeList.length; ++i) {
+            const s = keyframeList[i].seconds
+            if (after ? s > t + half && (best < 0 || s < best) : s < t - half && s > best)
+                best = s
+        }
+        return best
+    }
+
     function setInterpolation(mode) {
         EditorState.showKeyframeGraphProperty(root.propDef.key)
         EditorState.setKeyframeInterpolation(
@@ -260,6 +300,8 @@ Column {
 
             KeyframeDiamond {
                 id: diamond
+                visible: false // VEDIT: ‹ ◆ › at the right instead
+                width: 0
                 anchors.verticalCenter: parent.verticalCenter
                 accentColor: root.graphColor
                 animated: root.animated
@@ -278,8 +320,7 @@ Column {
                 id: labelZone
                 anchors.verticalCenter: parent.verticalCenter
                 height: labelText.implicitHeight
-                width: Math.max(24, parent.width - diamond.width - linChip.width - easeChip.width
-                                      - holdChip.width - parent.spacing * 4)
+                width: Math.max(24, parent.width - keyHereToggle.width - parent.spacing)
 
                 Text {
                     id: labelText
@@ -296,8 +337,25 @@ Column {
                 }
             }
 
+            // VEDIT: one ‹ ◆ › per value, as on 크기 비율.
+            KeyframeToggle {
+                id: keyHereToggle
+                visible: root.showKeyToggle
+                anchors.verticalCenter: parent.verticalCenter
+                animated: root.keyed
+                atPlayhead: root.keyHere
+                prevSeconds: { void EditorState.playheadSeconds; return root.neighbourKeySeconds(false) }
+                nextSeconds: { void EditorState.playheadSeconds; return root.neighbourKeySeconds(true) }
+                onToggled: {
+                    EditorState.showKeyframeGraphProperty(root.propDef.key)
+                    EditorState.toggleClipKeyframeHere(EditorState.selectedTrack, EditorState.selectedClip,
+                                                       root.propDef.key, root.currentValue)
+                }
+            }
+
             ThemedChip {
                 id: linChip
+                visible: false // VEDIT: easing lives in the keyframe graph
                 text: qsTr("Straight")
                 tooltip: qsTr("Straight — changes at a steady rate between keyframes")
                 selected: root.interpolationMode === "linear"
@@ -311,6 +369,7 @@ Column {
 
             ThemedChip {
                 id: easeChip
+                visible: false // VEDIT
                 text: qsTr("Ease")
                 tooltip: qsTr("Ease — accelerates out and decelerates in")
                 selected: root.interpolationMode === "ease"
@@ -324,6 +383,7 @@ Column {
 
             ThemedChip {
                 id: holdChip
+                visible: false // VEDIT
                 text: qsTr("Jump")
                 tooltip: qsTr("Jump — holds the value until the next keyframe")
                 selected: root.interpolationMode === "hold"
@@ -345,13 +405,13 @@ Column {
         // VEDIT (조박사님): the keyframe buttons sit at the right end, as on every other value.
         layoutDirection: Qt.RightToLeft
         // Width left for the editor once the key button has taken its share.
-        readonly property real editorWidth: width - (root.animated ? keyframeNavRow.width : singleKeyButton.width) - spacing
+        readonly property real editorWidth: width // VEDIT: the key buttons moved up to the label line
 
         Row {
             id: keyframeNavRow
             spacing: 2
             anchors.verticalCenter: parent.verticalCenter
-            visible: root.animated
+            visible: false // VEDIT
 
             IconButton {
                 id: prevKeyButton
@@ -402,7 +462,7 @@ Column {
 
         IconButton {
             id: singleKeyButton
-            visible: !root.animated
+            visible: false // VEDIT
             anchors.verticalCenter: parent.verticalCenter
             buttonSize: 24
             iconSize: 16

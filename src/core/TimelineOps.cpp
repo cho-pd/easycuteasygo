@@ -1075,6 +1075,7 @@ void syncLinkedTiming(Clip &dst, const Clip &src)
     dst.srcOut = src.srcOut;
     dst.speed = src.speed;
     dst.speedCurve = src.speedCurve;
+    dst.speedPreset = src.speedPreset; // VEDIT: the curve's name goes with the curve
     dst.reverse = src.reverse;
     dst.fadeInUs = src.fadeInUs;
     dst.fadeOutUs = src.fadeOutUs;

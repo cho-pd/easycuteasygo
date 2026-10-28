@@ -5590,7 +5590,10 @@ void McpTest::removeSilenceKeepsSeparatedVideo()
     }
     QCOMPARE(videoPieces, 2);
     QCOMPARE(audioPieces, 2);
-    QCOMPARE(videoEnd, audioEnd);
+    // VEDIT: pictures start and end on frames, sound may sit finer — so the two cuts can each land
+    // up to half a frame apart: within a frame of each other at the end.
+    QVERIFY2(qAbs(videoEnd - audioEnd) <= drift::kUsPerSecond / 30 + 1,
+             qPrintable(QStringLiteral("video %1 audio %2").arg(videoEnd).arg(audioEnd)));
 }
 
 namespace {

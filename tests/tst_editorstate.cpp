@@ -30,6 +30,7 @@
 #include <QAbstractItemModel>
 #include <zlib.h>
 
+#include "engine/ProjectBundle.h" // VEDIT
 #include "engine/HwAccel.h"
 #include "engine/SpeechSynth.h" // VEDIT
 #include "engine/FontCatalog.h" // VEDIT
@@ -103,6 +104,18 @@ private slots:
     void parity_P19_deleteLeftRightWithoutSelectionUseMainTrack();
     void parity_P20_adjustSlidersOnSelectedClip();
     void parity_P21_speedCurvePresetInPlace();
+    void vedit_renameAndDuplicateProject();
+    void vedit_textPanelKeyframes();
+    void vedit_keyframeOnFirstFrameAnimates();
+    void vedit_beatMarksByHand();
+    void vedit_crossfadeEdgesTrimAndMeet();
+    void vedit_altDragSlidesDissolve();
+    void vedit_dissolveClosedFromBothEndsMeetsThere();
+    void vedit_dissolveSpansTheOverlap();
+    void vedit_overlapOffSeparatesTracks();
+    void vedit_dissolveEndTakenPastTheOther();
+    void vedit_noOverlapWithoutCrossfade();
+    void parity_P21b_speedCurvePresetOnATrimmedLinkedPiece();
     void parity_P25_clipCropPersistsAndUndoes();
     void parity_P30_restoreAudioUndoesSeparation();
     void parity_P33_dragClipBetweenTracks();
@@ -2066,6 +2079,84 @@ void EditorStateTest::projectPersistenceRoundTrip()
     QVERIFY(state.trackMuted(0));
     QCOMPARE(state.bookmarks().size(), 1);
     QCOMPARE(state.mediaGridMode(), false);
+}
+
+// VEDIT (조박사님: 시작 화면·편집 화면에서 이름 바꾸기, 복제).
+// VEDIT (조박사님: 텍스트 키프레임, CapCut): a text panel value with ◆ keys and animates — shadow blur
+// keyed at the first frame and at 2 s plays between the two.
+void EditorStateTest::vedit_textPanelKeyframes()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    state.addTextClip(QStringLiteral("Hello"), 0.0);
+    int track = -1;
+    for (int t = 0; t < state.project()->tracks().size() && track < 0; ++t)
+        if (!state.project()->tracks().at(t).clips.isEmpty())
+            track = t;
+    QVERIFY(track >= 0);
+    state.setTextBasics(track, 0, QVariantMap{{QStringLiteral("shadowOn"), true},
+                                              {QStringLiteral("shadowBlur"), 4.0}});
+    const QString prop = state.textBasicsKeyProp(track, 0, QStringLiteral("shadowBlur"));
+    QVERIFY2(prop.startsWith(QStringLiteral("text.layer.")), qPrintable(prop));
+    QVERIFY(state.textBasicsKeyProp(track, 0, QStringLiteral("fontFamily")).isEmpty());
+    QCOMPARE(state.textBasicsKeyProp(track, 0, QStringLiteral("curve")), QStringLiteral("text.pathBend"));
+
+    state.setPlayheadSeconds(0.0);
+    state.toggleClipKeyframeHere(track, 0, prop, 4.0);
+    QVERIFY(state.clipPropsKeyState(track, 0, {prop}).value(QStringLiteral("atPlayhead")).toBool());
+    state.setPlayheadSeconds(2.0);
+    QVERIFY(!state.clipPropsKeyState(track, 0, {prop}).value(QStringLiteral("atPlayhead")).toBool());
+    state.setClipKeyframe(track, 0, prop, 2.0, 24.0);
+    QVERIFY(state.clipPropsKeyState(track, 0, {prop}).value(QStringLiteral("atPlayhead")).toBool());
+    QVERIFY(qAbs(state.propertyValueAt(track, 0, prop, 0.0, 0.0) - 4.0) < 1e-3);
+    QVERIFY(qAbs(state.propertyValueAt(track, 0, prop, 2.0, 0.0) - 24.0) < 1e-3);
+    const double mid = state.propertyValueAt(track, 0, prop, 1.0, 0.0);
+    QVERIFY2(mid > 4.5 && mid < 23.5, qPrintable(QString::number(mid)));
+}
+
+void EditorStateTest::vedit_renameAndDuplicateProject()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    state.addTextClip(QStringLiteral("Hello"), 0.0);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString first = dir.filePath(QStringLiteral("102326_ECEG.drift"));
+    state.saveProject(QUrl::fromLocalFile(first));
+    QCOMPARE(state.currentProjectPath(), first);
+    const QString id = state.project()->id();
+
+    // The open project: the file and the title change, the id stays.
+    QCOMPARE(state.renameProject(first, QStringLiteral("  골프 / 여행  ")), QString());
+    const QString renamed = dir.filePath(QStringLiteral("골프 여행.drift"));
+    QVERIFY(QFileInfo::exists(renamed));
+    QVERIFY(!QFileInfo::exists(first));
+    QCOMPARE(state.currentProjectPath(), renamed);
+    QCOMPARE(state.projectName(), QStringLiteral("골프 여행"));
+    QCOMPARE(state.project()->id(), id);
+    QVERIFY(!state.renameProject(renamed, QString()).isEmpty()); // no name, no change
+
+    // A copy beside it with its own id; the open project stays the original.
+    QCOMPARE(state.duplicateProject(renamed), QString());
+    const QString copy = dir.filePath(QStringLiteral("골프 여행 복사본.drift"));
+    QVERIFY(QFileInfo::exists(copy));
+    QCOMPARE(state.currentProjectPath(), renamed);
+    QString error;
+    const auto manifest = drift::bundle::readManifest(copy, &error);
+    QVERIFY2(manifest.has_value(), qPrintable(error));
+    QVERIFY(manifest->projectId != id);
+    // VEDIT: the id inside the document too — it is the one the copy goes by once opened.
+    QCOMPARE(manifest->document.value(QStringLiteral("id")).toString(), manifest->projectId);
+    QCOMPARE(manifest->title, QStringLiteral("골프 여행 복사본"));
+    QCOMPARE(state.duplicateProject(renamed), QString());
+    QVERIFY(QFileInfo::exists(dir.filePath(QStringLiteral("골프 여행 복사본 2.drift"))));
+
+    // A closed one: renamed on disk, its stored title too; an existing name is refused.
+    QCOMPARE(state.renameProject(copy, QStringLiteral("짧은 판")), QString());
+    const auto shortManifest = drift::bundle::readManifest(dir.filePath(QStringLiteral("짧은 판.drift")), &error);
+    QVERIFY(shortManifest.has_value());
+    QCOMPARE(shortManifest->title, QStringLiteral("짧은 판"));
+    QVERIFY(!state.renameProject(dir.filePath(QStringLiteral("짧은 판.drift")), QStringLiteral("골프 여행")).isEmpty());
 }
 
 void EditorStateTest::saveProjectAsDuplicatesProject()
@@ -4295,14 +4386,17 @@ void EditorStateTest::overlapDoesNotAutoApplyCrossfade()
     state.moveClip(0, 1, 3.0);
     QCOMPARE(state.project()->tracks().at(0).transitions.size(), 0);
 
-    // Overlap mode off: overlapping is plain stacking again, as upstream.
+    // VEDIT (조박사님): overlap mode off — no hidden stacking either: the clip that overlaps goes
+    // to a track of its own as soon as the project settles.
     AppController plain(&library);
     plain.setAllowClipOverlap(false);
     appendAdjacentShapeClips(*plain.project(), -drift::secondsToUs(0.5));
     plain.addTransition(0, 0, QStringLiteral("dip"), 0.5);
-    QCOMPARE(plain.transitionBetweenClips(0, 0).value(QStringLiteral("kind")).toString(),
-             QStringLiteral("dip"));
-    QVERIFY(!plain.project()->tracks().at(0).transitions.at(0).autoOverlap);
+    for (const drift::Track &tr : plain.project()->tracks())
+        for (int i = 0; i + 1 < tr.clips.size(); ++i)
+            for (int j = i + 1; j < tr.clips.size(); ++j)
+                QVERIFY(tr.clips.at(i).timelineEnd() <= tr.clips.at(j).timelineStart
+                        || tr.clips.at(j).timelineEnd() <= tr.clips.at(i).timelineStart);
 }
 
 namespace {
@@ -4631,7 +4725,9 @@ void EditorStateTest::trimmingOverlapClampsStaleTransitionDuration()
     clipB.id = QStringLiteral("clip-b");
     clipB.type = drift::ClipType::Shape;
     clipB.timelineStart = drift::secondsToUs(2.0);
-    clipB.timelineDuration = drift::secondsToUs(20.0);
+    // VEDIT: runs on past A's end — a hand-off. A clip wholly inside another is moved to a track
+    // of its own now (조박사님: no overlap without a crossfade), so it could not test this.
+    clipB.timelineDuration = drift::secondsToUs(24.0);
 
     state.project()->tracks()[0].clips.append(clipA);
     state.project()->tracks()[0].clips.append(clipB);

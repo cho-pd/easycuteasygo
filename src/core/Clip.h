@@ -104,6 +104,9 @@ struct Clip
     // VEDIT: which CapCut preset produced speedCurve ("montage", "hero"...); empty for a
     // hand-drawn curve or none.
     QString speedPreset;
+    // VEDIT (조박사님: CapCut 비트): beat marks on a music clip, as offsets into the source file —
+    // so trimming, splitting or retiming the clip keeps every beat where it is in the song.
+    QList<TimeUs> beatMarks;
     // VEDIT: CapCut 콤보 motion on this clip ("zoomIn", "panRight"...), and the still framing it
     // was laid out from, so switching motions or choosing "hold still" never compounds the zoom.
     QString motionPreset;

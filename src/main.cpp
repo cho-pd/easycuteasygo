@@ -551,6 +551,22 @@ private:
                                     WS_POPUP, x, y, w, h, nullptr, nullptr, wc.hInstance, this);
         if (!hwnd)
             return;
+        // VEDIT (조박사님): rounded corners — Windows 11 draws them itself (smooth); before it, the
+        // window is clipped to a rounded rectangle.
+        {
+            using DwmSetAttr = HRESULT(WINAPI *)(HWND, DWORD, LPCVOID, DWORD);
+            bool rounded = false;
+            if (HMODULE dwm = LoadLibraryW(L"dwmapi.dll")) {
+                if (auto set = reinterpret_cast<DwmSetAttr>(GetProcAddress(dwm, "DwmSetWindowAttribute"))) {
+                    const DWORD round = 2; // DWMWCP_ROUND
+                    rounded = SUCCEEDED(set(hwnd, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, &round, sizeof(round)));
+                }
+            }
+            if (!rounded) {
+                const int r = qMax(12, h / 14);
+                SetWindowRgn(hwnd, CreateRoundRectRgn(0, 0, w + 1, h + 1, r, r), FALSE);
+            }
+        }
         m_hwnd.store(hwnd);
         if (m_closing.load()) {
             DestroyWindow(hwnd);
@@ -736,6 +752,10 @@ int main(int argc, char *argv[])
 #endif
 
     QApplication app(argc, argv);
+    // VEDIT (조박사님: 자동 업데이트): an update downloaded last time installs now; the installer
+    // reopens the app when it is done.
+    if (!qEnvironmentVariableIsSet("VEDIT_SMOKE") && UpdateChecker::runPendingInstaller())
+        return 0;
     // VEDIT: the build's launch check (C:/dev/round.ps1 sets VEDIT_SMOKE) keeps out of the real
     // app data — it used to load, rewrite and race the proxy index of the copy in use.
     if (qEnvironmentVariableIsSet("VEDIT_SMOKE"))
@@ -782,7 +802,22 @@ int main(int argc, char *argv[])
         const bool minimised = (si.dwFlags & STARTF_USESHOWWINDOW)
                                && (si.wShowWindow == SW_SHOWMINIMIZED || si.wShowWindow == SW_MINIMIZE
                                    || si.wShowWindow == SW_SHOWMINNOACTIVE);
-        const QImage picture(QStringLiteral(":/app/brand/splash.png"));
+        QImage picture(QStringLiteral(":/app/brand/splash.png"));
+        // VEDIT (조박사님): the version, small, at the foot in the middle.
+        if (!picture.isNull()) {
+            picture = picture.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+            QPainter painter(&picture);
+            painter.setRenderHint(QPainter::TextAntialiasing, true);
+            QFont font(QStringLiteral("Segoe UI"));
+            font.setPixelSize(qMax(10, picture.height() / 24));
+            painter.setFont(font);
+            painter.setPen(QColor(255, 255, 255, 120));
+            const QString version = VEDIT_BUILD_NUMBER > 0 ? QStringLiteral("v1.0.%1").arg(VEDIT_BUILD_NUMBER)
+                                                           : QStringLiteral("v" DRIFT_VERSION);
+            const int band = picture.height() / 9;
+            painter.drawText(QRect(0, picture.height() - band - picture.height() / 40, picture.width(), band),
+                             Qt::AlignHCenter | Qt::AlignVCenter, version);
+        }
         if (!picture.isNull() && !minimised) {
             cutSplash = new VeditCutSplash(picture);
             cutSplash->show();

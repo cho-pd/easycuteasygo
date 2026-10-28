@@ -56,11 +56,40 @@ PanelFrame {
     readonly property int generalTabIndex: tabIndexOf("general") // VEDIT: no longer the first tab
     readonly property string currentTabId: tabsModel.get(activeTab).tabId
 
+    // VEDIT (조박사님): a clip worked on remembers the tab it was left on — pick another clip and come
+    // back, and that tab opens again. A clip never worked on opens by the usual rules below.
+    property var clipTabMemory: ({})
+    property bool selectingClip: false
+    // The clip the panel has settled on. A change of clip is told in more than one signal, and the
+    // clip's own data can arrive after selectionChanged — so the remembered tab is applied once
+    // they have all landed, and only a tab opened on a settled clip is remembered.
+    property string settledClipId: ""
+    function settleClipTab() {
+        const id = root.hasSelection && root.clipData.id ? String(root.clipData.id) : ""
+        if (id === root.settledClipId)
+            return
+        root.settledClipId = id
+        const remembered = id !== "" ? root.clipTabMemory[id] : undefined
+        if (remembered !== undefined && root.tabIndexOf(remembered) >= 0 && root.tabVisible(remembered)) {
+            root.selectingClip = true
+            root.activeTab = root.tabIndexOf(remembered)
+            root.selectingClip = false
+        }
+    }
+    onClipDataChanged: Qt.callLater(root.settleClipTab) // VEDIT: whichever signal brought the clip
+
     onActiveTabChanged: {
         if (tabsModel.get(root.previousTab).tabId === "transition")
             transitionInspector.commitEdits()
         root.previousTab = activeTab
         transitionInspector.refreshFields()
+        // A tab the user opened on this clip (not one the selection itself switched to).
+        if (!root.selectingClip && root.hasSelection && root.clipData.id
+                && String(root.clipData.id) === root.settledClipId && root.currentTabId !== "transition") {
+            const memory = root.clipTabMemory
+            memory[root.clipData.id] = root.currentTabId
+            root.clipTabMemory = memory
+        }
     }
 
     // Kept for SubtitleEditor, which formats cue times through it.
@@ -71,6 +100,15 @@ PanelFrame {
     Connections {
         target: EditorState
         function onSelectionChanged() {
+            // VEDIT (조박사님): the clip being left keeps the tab it was left on — whatever opened it
+            // and whatever became of the clip meanwhile (a speed change gives it a new id; the
+            // panel follows that through settleClipTab, so settledClipId is the clip as it is now).
+            if (root.settledClipId !== "" && root.currentTabId !== "transition") {
+                const memory = root.clipTabMemory
+                memory[root.settledClipId] = root.currentTabId
+                root.clipTabMemory = memory
+            }
+            root.selectingClip = true // VEDIT: the switches below are not the user's
             root.clipDataRevision++
             root.syncSubtitlesTab()
             root.syncShapeTab()
@@ -94,10 +132,13 @@ PanelFrame {
             // Nothing picked (or a title, a shape…) counts as a change too, so the next picture
             // clip opens on 변형 again.
             root.lastKindGroup = kindGroup
+            root.selectingClip = false
+            Qt.callLater(root.settleClipTab) // VEDIT: back on a clip that was worked on — its tab
         }
         function onSelectedClipDataChanged() {
             root.clipDataRevision++
             root.syncSubtitlesTab()
+            Qt.callLater(root.settleClipTab) // VEDIT
         }
         function onSelectedTransitionDataChanged() {
             if (root.hasTransitionSelection)
@@ -733,8 +774,12 @@ PanelFrame {
 
             Column {
                 id: tabColumn
-                x: Theme.pagePadding
-                width: parent.width - Theme.pagePadding * 2
+                // VEDIT (조박사님: "여백 좀 줘, 좌우 균형"): the same space on both sides, the
+                // scrollbar's lane kept clear on the right so nothing runs under it.
+                readonly property real sideGap: root.sheetMode ? Theme.pagePadding : 18
+                readonly property real scrollLane: tabFlick.contentHeight > tabFlick.height ? 10 : 0
+                x: sideGap
+                width: parent.width - sideGap * 2 - scrollLane
                 // Sections need to read apart on a phone, where the whole pane is
                 // about two of them tall.
                 spacing: root.sheetMode ? Theme.spacing2xl : Theme.spacingXl

@@ -21,9 +21,15 @@ ThemedDialog {
         onActivated: root.download()
     }
 
+    // VEDIT (조박사님: 자동 업데이트): the installer comes down in the background and installs the
+    // next time the app starts; without one on the release, the release page as before.
     function download() {
-        Updates.openDownloadPage()
-        close()
+        if (Updates.canInstall)
+            Updates.downloadUpdate()
+        else {
+            Updates.openDownloadPage()
+            close()
+        }
     }
 
     contentItem: Column {
@@ -34,7 +40,7 @@ ThemedDialog {
             width: parent.width
             size: "base"
             tone: "default"
-            text: qsTr("Drift %1 is available").arg(Updates.latestVersion)
+            text: "'Easy Cut, Easy Go!' " + Updates.latestVersion + " " + qsTr("is ready to download") // VEDIT
         }
 
         ThemedLabel {
@@ -72,6 +78,23 @@ ThemedDialog {
             }
         }
 
+        // VEDIT: how far the download is, and then what happens next.
+        ThemedLabel {
+            width: parent.width
+            visible: Updates.downloadState !== "idle"
+            tone: Updates.downloadState === "failed" ? "destructive" : "default"
+            text: Updates.downloadState === "downloading"
+                  ? qsTr("Downloading… %1%").arg(Math.round(Updates.downloadProgress * 100))
+                  : Updates.downloadState === "ready"
+                    ? qsTr("Ready. The new version installs the next time you open the app.")
+                    : qsTr("The download did not finish. Try again later.")
+        }
+        ProgressBar {
+            width: parent.width
+            visible: Updates.downloadState === "downloading"
+            value: Updates.downloadProgress
+        }
+
         Item {
             width: parent.width
             height: downloadButton.height
@@ -102,8 +125,10 @@ ThemedDialog {
                     id: downloadButton
                     variant: "primary"
                     glyph: Theme.icons.download
-                    text: qsTr("Download")
-                    tooltip: qsTr("Opens the release page in your browser")
+                    text: Updates.canInstall ? qsTr("Update") : qsTr("Download")
+                    enabled: Updates.downloadState !== "downloading" && Updates.downloadState !== "ready"
+                    tooltip: Updates.canInstall ? qsTr("Downloads it now; it installs the next time you open the app")
+                                                : qsTr("Opens the release page in your browser")
                     onClicked: root.download()
                 }
             }

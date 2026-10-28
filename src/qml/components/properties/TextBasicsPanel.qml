@@ -70,6 +70,37 @@ Column {
     component SliderRow: Column {
         id: sr
         property string label: ""
+        // VEDIT (조박사님, CapCut): the text panel's own ‹ ◆ ›. `keyKey` is this value's name in
+        // textBasics; the panel finds the keyframe property behind it (none: no ◆).
+        property string keyKey: ""
+        readonly property string keyProp: {
+            void root.rev
+            return keyKey.length > 0
+                   ? EditorState.textBasicsKeyProp(EditorState.selectedTrack, EditorState.selectedClip, keyKey) : ""
+        }
+        readonly property var keyState: {
+            void root.rev
+            void EditorState.playheadSeconds
+            void EditorState.tracksRevision
+            return keyProp.length > 0
+                   ? EditorState.clipPropsKeyState(EditorState.selectedTrack, EditorState.selectedClip, [keyProp]) : ({})
+        }
+        readonly property bool keyed: keyState.animated === true
+        // Keyed, the number is the one at the playhead.
+        readonly property real shownValue: {
+            void EditorState.playheadSeconds
+            void root.rev
+            return keyed ? EditorState.propertyValueAt(EditorState.selectedTrack, EditorState.selectedClip,
+                                                       keyProp, EditorState.playheadSeconds, sr.value)
+                         : sr.value
+        }
+        function commit(v) {
+            if (keyed)
+                EditorState.setClipKeyframe(EditorState.selectedTrack, EditorState.selectedClip, keyProp,
+                                            EditorState.playheadSeconds, v)
+            else
+                sr.committed(v)
+        }
         property real from: 0
         property real to: 100
         property real value: 0
@@ -79,7 +110,29 @@ Column {
         signal committed(real v)
         width: parent ? parent.width : 200
         spacing: 2
-        Name { text: sr.label; visible: sr.label.length > 0 }
+        Item {
+            width: parent.width
+            height: Math.max(srName.implicitHeight, srKey.visible ? srKey.height : 0)
+            visible: sr.label.length > 0 || srKey.visible
+            Name {
+                id: srName
+                text: sr.label
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            KeyframeToggle {
+                id: srKey
+                visible: sr.keyProp.length > 0
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                animated: sr.keyed
+                atPlayhead: sr.keyState.atPlayhead === true
+                prevSeconds: sr.keyState.prev !== undefined ? sr.keyState.prev : -1
+                nextSeconds: sr.keyState.next !== undefined ? sr.keyState.next : -1
+                onToggled: EditorState.toggleClipKeyframeHere(EditorState.selectedTrack, EditorState.selectedClip,
+                                                              sr.keyProp, sr.shownValue)
+            }
+        }
         Item {
             width: parent.width
             height: root.fieldHeight
@@ -90,11 +143,11 @@ Column {
                 anchors.verticalCenter: parent.verticalCenter
                 from: sr.from
                 to: sr.to
-                value: sr.value
+                value: sr.shownValue
                 showValueTooltip: false
                 onPressedChanged: {
                     if (!pressed)
-                        sr.committed(value)
+                        sr.commit(value)
                 }
             }
             ThemedNumberField {
@@ -108,8 +161,8 @@ Column {
                 to: sr.to * sr.factor
                 decimals: sr.decimals
                 unit: sr.unit
-                value: sr.value * sr.factor
-                onEdited: v => sr.committed(v / sr.factor)
+                value: sr.shownValue * sr.factor
+                onEdited: v => sr.commit(v / sr.factor)
             }
         }
     }
@@ -474,6 +527,7 @@ Column {
         checkable: false
         open: true
         SliderRow {
+            keyKey: "opacity" // VEDIT
             label: qsTr("Opacity")
             from: 0
             to: 1
@@ -496,6 +550,7 @@ Column {
             }
         }
         SliderRow {
+            keyKey: "strokeWidth" // VEDIT
             label: qsTr("Thickness")
             from: 1
             to: 30
@@ -534,6 +589,7 @@ Column {
         }
         // VEDIT (조박사님, CapCut): the sides and the top and bottom apart.
         SliderRow {
+            keyKey: "bgPadding" // VEDIT
             label: qsTr("Side padding")
             from: 0
             to: 120
@@ -541,6 +597,7 @@ Column {
             onCommitted: v => root.one("bgPadding", Math.round(v))
         }
         SliderRow {
+            keyKey: "bgPaddingY" // VEDIT
             label: qsTr("Top and bottom padding")
             from: 0
             to: 120
@@ -561,6 +618,7 @@ Column {
             }
         }
         SliderRow {
+            keyKey: "glowRadius" // VEDIT
             label: qsTr("Size")
             from: 0
             to: 60
@@ -568,6 +626,7 @@ Column {
             onCommitted: v => root.one("glowRadius", Math.round(v))
         }
         SliderRow {
+            keyKey: "glowOpacity" // VEDIT
             label: qsTr("Strength")
             from: 0
             to: 1
@@ -590,6 +649,7 @@ Column {
             }
         }
         SliderRow {
+            keyKey: "shadowOpacity" // VEDIT
             label: qsTr("Opacity")
             from: 0
             to: 1
@@ -599,6 +659,7 @@ Column {
             onCommitted: v => root.one("shadowOpacity", v)
         }
         SliderRow {
+            keyKey: "shadowBlur" // VEDIT
             label: qsTr("Blur")
             from: 0
             to: 40
@@ -627,6 +688,7 @@ Column {
         on: Math.abs(Number(root.b.curve || 0)) > 0.5
         onToggled: on => root.one("curve", on ? 40 : 0)
         SliderRow {
+            keyKey: "curve" // VEDIT
             label: qsTr("Bend (one line only)")
             from: -100
             to: 100

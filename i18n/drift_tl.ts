@@ -3379,6 +3379,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Move transition</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Clips copied</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4118,6 +4122,38 @@
             <numerusform></numerusform>
         </translation>
     </message>
+    <message>
+        <source>The clip is too short to find a beat — %1 s or more</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No beat found in this clip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Beat marks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Beat marks: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Put the playhead on the clip first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove beat mark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add beat mark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear beat marks</source>
+        <translation type="unfinished"></translation>
+    </message>
     <message numerus="yes">
         <source>%n photo(s) now change on the beat</source>
         <translation type="unfinished">
@@ -4239,6 +4275,46 @@
             <numerusform></numerusform>
             <numerusform></numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Type a name first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This project cannot be renamed where it is</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The project file is not there any more</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A project with that name is already there</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not rename it — is it open in another program?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save the project first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not read the project: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A project saved with its media cannot be copied here — open it and use Save as</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not make the copy: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copied as “%1”</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Exporting…</source>
@@ -5834,6 +5910,46 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Beat</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 marks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Listening…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Auto beat: every beat</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Listens to this music and puts a mark on every beat</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Auto beat: every bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fewer marks: only the first beat of each bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add / remove a mark here</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A mark at the playhead — or, on a mark, takes it off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear all marks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Listening for the beat…</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6513,10 +6629,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Build %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Projects — click to switch or start new</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6584,6 +6696,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>is ready to download</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Agent</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6601,10 +6717,6 @@
     </message>
     <message>
         <source>Update</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Drift %1 is available</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -9383,6 +9495,22 @@
 </context>
 <context>
     <name>Main</name>
+    <message>
+        <source>New versions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Should the app tell you when a new version comes out? It checks once a day over the internet and sends nothing about you or your videos.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No, thanks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yes, tell me</source>
+        <translation type="unfinished"></translation>
+    </message>
     <message>
         <source>Still opening a project — try again in a moment.</source>
         <translation type="unfinished"></translation>
@@ -15920,6 +16048,10 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Move transition</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Rename bookmark</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16976,11 +17108,23 @@ If playback stutters, try another.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Drift %1 is available</source>
+        <source>is ready to download</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>You have %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading… %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ready. The new version installs the next time you open the app.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The download did not finish. Try again later.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -16997,6 +17141,14 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Download</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloads it now; it installs the next time you open the app</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

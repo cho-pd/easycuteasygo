@@ -169,6 +169,20 @@ Rectangle {
         required property var modelData
         readonly property bool exists: modelData.exists !== false
         readonly property bool hovered: rowHover.hovered
+        property bool renaming: false // VEDIT: the name is being typed over
+
+        function finishRename(commit) {
+            if (!renaming)
+                return
+            if (commit) {
+                const message = EditorState.renameProject(modelData.path, nameField.text)
+                if (message.length > 0) {
+                    nameField.errorText = message
+                    return // stays open so the name can be fixed
+                }
+            }
+            renaming = false
+        }
 
         width: root.cardWidth
         height: thumbBox.height + infoColumn.implicitHeight + Theme.spacingMd * 2 + Theme.spacingSm
@@ -225,12 +239,25 @@ Rectangle {
 
             Text {
                 width: parent.width
+                visible: !projectRow.renaming
                 text: projectRow.modelData.name + (projectRow.exists ? "" : qsTr(" (missing)"))
                 color: Theme.panelForeground
                 font.family: Theme.fontFamily
                 font.pixelSize: 16
                 font.weight: Font.Medium
                 elide: Text.ElideRight
+            }
+            // VEDIT (조박사님): the name typed over in place — Enter keeps it, Esc leaves it.
+            ThemedTextField {
+                id: nameField
+                width: parent.width
+                visible: projectRow.renaming
+                font.pixelSize: 16
+                selectByMouse: true
+                onAccepted: projectRow.finishRename(true)
+                onTextEdited: errorText = ""
+                Keys.onEscapePressed: projectRow.finishRename(false)
+                onActiveFocusChanged: if (!activeFocus && projectRow.renaming) projectRow.finishRename(true)
             }
 
             // when it was last worked on and how long it is; the path is in the tooltip.
@@ -258,12 +285,69 @@ Rectangle {
 
         MouseArea {
             anchors.fill: parent
+            enabled: !projectRow.renaming
             hoverEnabled: true
             cursorShape: projectRow.exists ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: {
                 if (!projectRow.exists)
                     return
                 root.openRecentRequested(projectRow.modelData.path)
+            }
+        }
+
+        // VEDIT (조박사님): rename and duplicate, on the picture's other corner, shown on hover.
+        Row {
+            anchors.left: thumbBox.left
+            anchors.top: thumbBox.top
+            anchors.margins: Theme.spacingSm
+            spacing: Theme.spacingSm
+            opacity: projectRow.hovered && projectRow.exists && !projectRow.renaming ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity {
+                NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing }
+            }
+            Repeater {
+                model: [
+                    { act: "rename", glyph: Theme.icons.pencil, tip: "이름 바꾸기" },
+                    { act: "copy", glyph: Theme.icons.copy, tip: "복제" }
+                ]
+                delegate: Rectangle {
+                    required property var modelData
+                    width: 30
+                    height: 30
+                    radius: 15
+                    color: Qt.rgba(0, 0, 0, 0.65)
+                    IconGlyph {
+                        anchors.centerIn: parent
+                        glyph: modelData.glyph
+                        iconSize: Theme.iconSizeMd
+                        iconColor: actArea.containsMouse ? "#ffffff" : "#d0d0d0"
+                    }
+                    ThemedToolTip {
+                        text: modelData.tip
+                        visible: actArea.containsMouse
+                    }
+                    MouseArea {
+                        id: actArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: (mouse) => {
+                            mouse.accepted = true
+                            if (modelData.act === "rename") {
+                                nameField.text = projectRow.modelData.name
+                                nameField.errorText = ""
+                                projectRow.renaming = true
+                                nameField.forceActiveFocus()
+                                nameField.selectAll()
+                            } else {
+                                const message = EditorState.duplicateProject(projectRow.modelData.path)
+                                if (message.length > 0)
+                                    EditorState.setLastMessage(message, "error")
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -444,5 +528,18 @@ Rectangle {
                 }
             }
         }
+    }
+
+    // VEDIT (조박사님): the version, small, at the foot in the middle — as on the splash.
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 14
+        visible: typeof veditBuildNumber !== "undefined" && veditBuildNumber > 0
+        text: visible ? "v1.0." + veditBuildNumber : ""
+        color: Theme.mutedForeground
+        opacity: 0.7
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeXs
     }
 }

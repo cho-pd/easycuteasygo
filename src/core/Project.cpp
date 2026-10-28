@@ -325,6 +325,12 @@ QJsonObject clipToJson(const Clip &clip)
         json.insert(QStringLiteral("sequenceId"), clip.sequenceId);
     if (!clip.speedPreset.isEmpty()) // VEDIT: only written when set, so old files round-trip
         json.insert(QStringLiteral("speedPreset"), clip.speedPreset);
+    if (!clip.beatMarks.isEmpty()) { // VEDIT: CapCut 비트
+        QJsonArray beats;
+        for (TimeUs at : clip.beatMarks)
+            beats.append(double(at));
+        json.insert(QStringLiteral("beatMarks"), beats);
+    }
     if (!clip.motionPreset.isEmpty()) { // VEDIT
         json.insert(QStringLiteral("motion"),
                     QJsonObject{{QStringLiteral("preset"), clip.motionPreset},
@@ -405,6 +411,8 @@ Clip clipFromJsonV2(const QJsonObject &object, int canvasW = 1920, int canvasH =
     clip.speed = object.value(QStringLiteral("speed")).toDouble(1.0);
     clip.speedCurve = SpeedCurve::fromJson(object.value(QStringLiteral("speedCurve")).toArray());
     clip.speedPreset = object.value(QStringLiteral("speedPreset")).toString(); // VEDIT
+    for (const QJsonValue &v : object.value(QStringLiteral("beatMarks")).toArray()) // VEDIT
+        clip.beatMarks.append(TimeUs(v.toDouble()));
     {
         const QJsonObject motion = object.value(QStringLiteral("motion")).toObject(); // VEDIT
         clip.motionPreset = motion.value(QStringLiteral("preset")).toString();

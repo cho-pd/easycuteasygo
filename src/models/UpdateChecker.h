@@ -30,6 +30,14 @@ class UpdateChecker : public QObject
     // Result of the last check in one line, for the settings row. Empty until something is worth
     // saying; a failed background check says nothing at all.
     Q_PROPERTY(QString status READ status NOTIFY statusChanged)
+    // VEDIT (조박사님: 배포·자동 업데이트): the first launch asks whether to be told about new
+    // versions — the app is otherwise fully offline, so nothing is fetched before a yes.
+    Q_PROPERTY(bool asked READ asked NOTIFY enabledChanged)
+    // The installer of the newer version: "idle", "downloading", "ready" (installs at the next
+    // start), "failed". Progress 0..1 while downloading.
+    Q_PROPERTY(QString downloadState READ downloadState NOTIFY downloadChanged)
+    Q_PROPERTY(double downloadProgress READ downloadProgress NOTIFY downloadChanged)
+    Q_PROPERTY(bool canInstall READ canInstall NOTIFY resultChanged)
 
 public:
     explicit UpdateChecker(QObject *parent = nullptr);
@@ -55,11 +63,24 @@ public:
 
     Q_INVOKABLE void openDownloadPage();
 
+    // VEDIT
+    bool asked() const;
+    Q_INVOKABLE void answerConsent(bool allow);
+    QString downloadState() const { return m_downloadState; }
+    double downloadProgress() const { return m_downloadProgress; }
+    bool canInstall() const { return !m_installerUrl.isEmpty(); }
+    // Fetches the new installer in the background; it is run the next time the app starts.
+    Q_INVOKABLE void downloadUpdate();
+    // Called first thing in main(): a downloaded installer for a newer version is started (quietly;
+    // it reopens the app when done) and true is returned so the app closes at once.
+    static bool runPendingInstaller();
+
 signals:
     void enabledChanged();
     void checkingChanged();
     void resultChanged();
     void statusChanged();
+    void downloadChanged(); // VEDIT
 
 private:
     void check(bool manual);
@@ -74,4 +95,10 @@ private:
     QString m_skippedVersion;
     QString m_status;
     QNetworkAccessManager *m_network = nullptr;
+    // VEDIT
+    QString m_installerUrl;
+    qint64 m_installerSize = 0;
+    QString m_downloadState = QStringLiteral("idle");
+    double m_downloadProgress = 0.0;
+    void setDownload(const QString &state, double progress);
 };

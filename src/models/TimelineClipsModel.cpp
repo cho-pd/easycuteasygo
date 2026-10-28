@@ -49,6 +49,7 @@ QList<int> changedRoles(const TimelineClipsModel::Row &a, const TimelineClipsMod
     diff(a.level != b.level, TimelineClipsModel::LevelRole); // VEDIT
     diff(a.speed != b.speed, TimelineClipsModel::SpeedRole); // VEDIT
     diff(a.speedCurve != b.speedCurve, TimelineClipsModel::SpeedCurveRole); // VEDIT
+    diff(a.beatMarks != b.beatMarks, TimelineClipsModel::BeatMarksRole); // VEDIT
     diff(a.channelMode != b.channelMode, TimelineClipsModel::ChannelModeRole); // VEDIT
     diff(a.outOfSync != b.outOfSync, TimelineClipsModel::OutOfSyncRole); // VEDIT
     return roles;
@@ -126,6 +127,7 @@ QVariant TimelineClipsModel::data(const QModelIndex &index, int role) const
     case OutOfSyncRole: return row.outOfSync; // VEDIT
     case SpeedRole: return row.speed; // VEDIT
     case SpeedCurveRole: return row.speedCurve; // VEDIT
+    case BeatMarksRole: return row.beatMarks; // VEDIT
     default: return {};
     }
 }
@@ -167,5 +169,6 @@ QHash<int, QByteArray> TimelineClipsModel::roleNames() const
         {OutOfSyncRole, "outOfSync"}, // VEDIT
         {SpeedRole, "speed"}, // VEDIT
         {SpeedCurveRole, "hasSpeedCurve"}, // VEDIT
+        {BeatMarksRole, "beatMarks"}, // VEDIT
     };
 }

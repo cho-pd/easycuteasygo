@@ -287,6 +287,156 @@ Rectangle {
         opacity: 0.5
     }
 
+    // VEDIT: moved out of the left group to the centre of the bar.
+    // Gmail-style status pill: saved/unsaved dot, project name, chevron.
+    Rectangle {
+        id: projectsButton
+
+        readonly property bool open: recentPopup.visible
+        readonly property bool saved: !EditorState.hasUnsavedChanges
+
+        // Cap width so a long name does not shove the right-side actions.
+        width: Math.min(projectsRow.implicitWidth + Theme.spacingXl * 2, 260)
+        height: 32
+        radius: Theme.radiusPill
+        color: projectsArea.containsMouse || open ? Theme.popoverHover : Theme.accent
+        // VEDIT (조박사님): the title sits in the middle of the bar.
+        anchors.centerIn: parent
+        visible: !root.renamingTitle
+        clip: true
+
+        Behavior on color {
+            ColorAnimation { duration: Theme.durationFast; easing.type: Theme.easing }
+        }
+
+        Accessible.role: Accessible.Button
+        Accessible.name: qsTr("Projects")
+        Accessible.description: saved ? qsTr("All changes saved")
+                                      : qsTr("Unsaved changes")
+
+        Row {
+            id: projectsRow
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.spacingXl
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.spacingMd
+
+            Rectangle {
+                width: 8
+                height: 8
+                radius: 4
+                color: projectsButton.saved ? Theme.constructive : Theme.destructive
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+                // Cap against the pill's max width (dot + gaps + chevron + padding).
+                readonly property real maxTextWidth: 260 - Theme.spacingXl * 2
+                                                     - 8 - Theme.iconSizeSm
+                                                     - Theme.spacingMd * 2
+                width: Math.min(implicitWidth, maxTextWidth)
+                text: root.projectName
+                color: Theme.foreground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSm
+                font.weight: Font.Medium
+                elide: Text.ElideRight
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            IconGlyph {
+                glyph: Theme.icons.chevronDown
+                iconSize: Theme.iconSizeSm
+                iconColor: Theme.mutedForeground
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        ThemedToolTip {
+            visible: projectsArea.containsMouse && !projectsButton.open
+            text: projectsButton.saved
+                  ? qsTr("Projects — click to switch or start new")
+                  : qsTr("Unsaved changes — click to switch or start new")
+        }
+
+        MouseArea {
+            id: projectsArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: recentPopup.open()
+                    onDoubleClicked: { recentPopup.close(); root.startTitleRename() } // VEDIT
+        }
+
+        RecentProjectsPopup {
+            id: recentPopup
+            y: parent.height + Theme.spacingMd
+            onOpenFileRequested: root.openProject()
+            onNewProjectRequested: root.requestNewProject()
+            onOpenRecentRequested: (path) => root.openRecent(path)
+            onCloseProjectRequested: root.closeProject()
+            onSaveAsRequested: root.saveProjectAs()
+            onPackageRequested: root.packageProject()
+            onSaveJsonRequested: root.saveProjectJson()
+            onOpenJsonRequested: root.openProjectJson()
+            // Disabled: external project imports. Uncomment with the open*() functions above.
+            // onImportPremiereRequested: root.openPremiereProject()
+            // onImportMogrtRequested: root.openMogrt()
+            // onImportKdenliveRequested: root.openKdenliveProject()
+            // onImportResolveRequested: root.openResolveProject()
+            // onImportEdlRequested: root.openEdlTimeline()
+            // onImportOtioRequested: root.openOtioTimeline()
+            onPropertiesRequested: projectPropertiesDialog.openDialog()
+        }
+    }
+
+
+    // VEDIT (조박사님): the open project's name, changed right here — the pencil beside the title, or
+    // a double-click on it. Enter keeps it (the file is renamed too), Esc leaves it.
+    property bool renamingTitle: false
+    function finishTitleRename(commit) {
+        if (!root.renamingTitle)
+            return
+        if (commit) {
+            const message = EditorState.renameProject(EditorState.currentProjectPath, titleField.text)
+            if (message.length > 0) {
+                titleField.errorText = message
+                return
+            }
+        }
+        root.renamingTitle = false
+    }
+    function startTitleRename() {
+        titleField.text = EditorState.projectName
+        titleField.errorText = ""
+        root.renamingTitle = true
+        titleField.forceActiveFocus()
+        titleField.selectAll()
+    }
+
+    ThemedTextField {
+        id: titleField
+        anchors.centerIn: parent
+        width: 260
+        visible: root.renamingTitle
+        selectByMouse: true
+        onAccepted: root.finishTitleRename(true)
+        onTextEdited: errorText = ""
+        Keys.onEscapePressed: root.finishTitleRename(false)
+        onActiveFocusChanged: if (!activeFocus && root.renamingTitle) root.finishTitleRename(true)
+    }
+
+    IconButton {
+        anchors.left: root.renamingTitle ? titleField.right : projectsButton.right
+        anchors.leftMargin: Theme.spacingSm
+        anchors.verticalCenter: parent.verticalCenter
+        glyph: Theme.icons.pencil
+        variant: "ghost"
+        tooltip: "이름 바꾸기"
+        visible: !root.renamingTitle
+        onClicked: root.startTitleRename()
+    }
+
     // The three groups used to be independently anchored, so at narrow widths
     // they overlapped instead of compressing. A RowLayout arbitrates the space.
     RowLayout {
@@ -300,115 +450,6 @@ Rectangle {
         Row {
             Layout.alignment: Qt.AlignVCenter
             spacing: Theme.spacingLg
-
-            // Gmail-style status pill: saved/unsaved dot, project name, chevron.
-            Rectangle {
-                id: projectsButton
-
-                readonly property bool open: recentPopup.visible
-                readonly property bool saved: !EditorState.hasUnsavedChanges
-
-                // Cap width so a long name does not shove the right-side actions.
-                width: Math.min(projectsRow.implicitWidth + Theme.spacingXl * 2, 260)
-                height: 32
-                radius: Theme.radiusPill
-                color: projectsArea.containsMouse || open ? Theme.popoverHover : Theme.accent
-                anchors.verticalCenter: parent.verticalCenter
-                clip: true
-
-                Behavior on color {
-                    ColorAnimation { duration: Theme.durationFast; easing.type: Theme.easing }
-                }
-
-                Accessible.role: Accessible.Button
-                Accessible.name: qsTr("Projects")
-                Accessible.description: saved ? qsTr("All changes saved")
-                                              : qsTr("Unsaved changes")
-
-                Row {
-                    id: projectsRow
-                    anchors.left: parent.left
-                    anchors.leftMargin: Theme.spacingXl
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.spacingMd
-
-                    Rectangle {
-                        width: 8
-                        height: 8
-                        radius: 4
-                        color: projectsButton.saved ? Theme.constructive : Theme.destructive
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-
-                    Text {
-                        // Cap against the pill's max width (dot + gaps + chevron + padding).
-                        readonly property real maxTextWidth: 260 - Theme.spacingXl * 2
-                                                             - 8 - Theme.iconSizeSm
-                                                             - Theme.spacingMd * 2
-                        width: Math.min(implicitWidth, maxTextWidth)
-                        text: root.projectName
-                        color: Theme.foreground
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm
-                        font.weight: Font.Medium
-                        elide: Text.ElideRight
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-
-                    // VEDIT (조박사님): which build is open, at a glance.
-                    Text {
-                        visible: typeof veditBuildNumber !== "undefined" && veditBuildNumber > 0
-                        text: visible ? qsTr("Build %1").arg(veditBuildNumber) : ""
-                        color: Theme.mutedForeground
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeXs
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-
-                    IconGlyph {
-                        glyph: Theme.icons.chevronDown
-                        iconSize: Theme.iconSizeSm
-                        iconColor: Theme.mutedForeground
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                }
-
-                ThemedToolTip {
-                    visible: projectsArea.containsMouse && !projectsButton.open
-                    text: projectsButton.saved
-                          ? qsTr("Projects — click to switch or start new")
-                          : qsTr("Unsaved changes — click to switch or start new")
-                }
-
-                MouseArea {
-                    id: projectsArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: recentPopup.open()
-                }
-
-                RecentProjectsPopup {
-                    id: recentPopup
-                    y: parent.height + Theme.spacingMd
-                    onOpenFileRequested: root.openProject()
-                    onNewProjectRequested: root.requestNewProject()
-                    onOpenRecentRequested: (path) => root.openRecent(path)
-                    onCloseProjectRequested: root.closeProject()
-                    onSaveAsRequested: root.saveProjectAs()
-                    onPackageRequested: root.packageProject()
-                    onSaveJsonRequested: root.saveProjectJson()
-                    onOpenJsonRequested: root.openProjectJson()
-                    // Disabled: external project imports. Uncomment with the open*() functions above.
-                    // onImportPremiereRequested: root.openPremiereProject()
-                    // onImportMogrtRequested: root.openMogrt()
-                    // onImportKdenliveRequested: root.openKdenliveProject()
-                    // onImportResolveRequested: root.openResolveProject()
-                    // onImportEdlRequested: root.openEdlTimeline()
-                    // onImportOtioRequested: root.openOtioTimeline()
-                    onPropertiesRequested: projectPropertiesDialog.openDialog()
-                }
-            }
 
             IconButton {
                 glyph: Theme.icons.save
@@ -431,6 +472,16 @@ Rectangle {
                 tooltip: qsTr("Video size and layout")
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: videoSizeDialog.openDialog()
+            }
+
+            // VEDIT (조박사님): which build is open, at a glance — on the left on its own, in English.
+            Text {
+                visible: typeof veditBuildNumber !== "undefined" && veditBuildNumber > 0
+                text: visible ? "Build " + veditBuildNumber : ""
+                color: Theme.mutedForeground
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeXs
+                anchors.verticalCenter: parent.verticalCenter
             }
         }
 
@@ -716,7 +767,7 @@ Rectangle {
                     glyph: Theme.icons.download
                     variant: "ghost"
                     text: qsTr("Update")
-                    tooltip: qsTr("Drift %1 is available").arg(Updates.latestVersion)
+                    tooltip: "'Easy Cut, Easy Go!' " + Updates.latestVersion + " " + qsTr("is ready to download") // VEDIT
                     onClicked: root.Window.window.openUpdateDialog()
                 }
 

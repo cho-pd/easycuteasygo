@@ -485,6 +485,45 @@ ApplicationWindow {
 
     // VEDIT: made on first use — building every dialog and window up front cost
     // seconds of every start (조박사님: "열리는 게 너무 느리다").
+    // VEDIT (조박사님: 배포): the app is otherwise fully offline, so the first launch asks before it
+    // ever looks for a new version. Once answered it is never asked again (설정 changes it).
+    ThemedDialog {
+        id: updateConsentDialog
+        title: qsTr("New versions")
+        preferredWidth: Theme.dialogWidthMd
+        showFooter: false
+        contentItem: Column {
+            spacing: Theme.spacingLg
+            width: parent ? parent.width : Theme.dialogWidthMd
+            ThemedLabel {
+                width: parent.width
+                size: "base"
+                tone: "default"
+                wrapMode: Text.WordWrap
+                text: qsTr("Should the app tell you when a new version comes out? It checks once a day over the internet and sends nothing about you or your videos.")
+            }
+            Row {
+                anchors.right: parent.right
+                spacing: Theme.spacingLg
+                ThemedButton {
+                    variant: "secondary"
+                    text: qsTr("No, thanks")
+                    onClicked: { Updates.answerConsent(false); updateConsentDialog.close() }
+                }
+                ThemedButton {
+                    variant: "primary"
+                    text: qsTr("Yes, tell me")
+                    onClicked: { Updates.answerConsent(true); updateConsentDialog.close() }
+                }
+            }
+        }
+    }
+    Timer {
+        interval: 4000
+        running: Updates.supported && !Updates.asked
+        onTriggered: if (!Updates.asked) updateConsentDialog.open()
+    }
+
     Loader {
         id: updateDialogLoader
         active: false

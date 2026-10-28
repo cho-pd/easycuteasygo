@@ -1048,6 +1048,7 @@ qt_add_qml_module(drift
         src/qml/components/properties/CurvesEditor.qml
         src/qml/components/properties/ColorWheel.qml
         src/qml/components/properties/AnimPreviewTile.qml
+        src/qml/components/properties/SpeedCurveGraph.qml
         src/qml/components/properties/TextParamSlots.qml
         src/qml/components/properties/PaintEditor.qml
         src/qml/components/properties/GradientStopEditor.qml

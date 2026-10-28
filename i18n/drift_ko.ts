@@ -4890,6 +4890,82 @@
         <source>Stop the recording first</source>
         <translation>녹음을 먼저 멈춰 주세요</translation>
     </message>
+    <message>
+        <source>Type a name first</source>
+        <translation>이름을 먼저 입력해 주세요</translation>
+    </message>
+    <message>
+        <source>This project cannot be renamed where it is</source>
+        <translation>이 위치의 프로젝트는 이름을 바꿀 수 없어요</translation>
+    </message>
+    <message>
+        <source>The project file is not there any more</source>
+        <translation>프로젝트 파일이 그 자리에 없어요</translation>
+    </message>
+    <message>
+        <source>A project with that name is already there</source>
+        <translation>같은 이름의 프로젝트가 이미 있어요</translation>
+    </message>
+    <message>
+        <source>Could not rename it — is it open in another program?</source>
+        <translation>이름을 바꾸지 못했어요. 다른 프로그램에서 열려 있지 않은지 확인해 주세요</translation>
+    </message>
+    <message>
+        <source>Save the project first</source>
+        <translation>프로젝트를 먼저 저장해 주세요</translation>
+    </message>
+    <message>
+        <source>Could not read the project: %1</source>
+        <translation>프로젝트를 읽지 못했어요: %1</translation>
+    </message>
+    <message>
+        <source>A project saved with its media cannot be copied here — open it and use Save as</source>
+        <translation>미디어까지 함께 저장한 프로젝트는 여기서 복제할 수 없어요. 열어서 &apos;다른 이름으로 저장&apos;을 써 주세요</translation>
+    </message>
+    <message>
+        <source>Could not make the copy: %1</source>
+        <translation>복제하지 못했어요: %1</translation>
+    </message>
+    <message>
+        <source>Copied as “%1”</source>
+        <translation>‘%1’(으)로 복제했어요</translation>
+    </message>
+    <message>
+        <source>The clip is too short to find a beat — %1 s or more</source>
+        <translation>박자를 찾기엔 클립이 너무 짧아요 — %1초 이상이어야 해요</translation>
+    </message>
+    <message>
+        <source>No beat found in this clip</source>
+        <translation>이 클립에서 박자를 찾지 못했어요</translation>
+    </message>
+    <message>
+        <source>Beat marks</source>
+        <translation>비트 표시</translation>
+    </message>
+    <message>
+        <source>Beat marks: %1</source>
+        <translation>비트 %1개를 찍었어요</translation>
+    </message>
+    <message>
+        <source>Put the playhead on the clip first</source>
+        <translation>재생 위치를 먼저 클립 위에 두세요</translation>
+    </message>
+    <message>
+        <source>Remove beat mark</source>
+        <translation>비트 지우기</translation>
+    </message>
+    <message>
+        <source>Add beat mark</source>
+        <translation>비트 추가</translation>
+    </message>
+    <message>
+        <source>Clear beat marks</source>
+        <translation>비트 모두 지우기</translation>
+    </message>
+    <message>
+        <source>Move transition</source>
+        <translation>전환 옮기기</translation>
+    </message>
 </context>
 <context>
     <name>AssetCategoryChips</name>
@@ -5892,6 +5968,46 @@
         <source>Download speech recognition (about 670 MB)</source>
         <translation>받아쓰기 기능 내려받기 (약 670MB)</translation>
     </message>
+    <message>
+        <source>Beat</source>
+        <translation>비트</translation>
+    </message>
+    <message>
+        <source>%1 marks</source>
+        <translation>%1개</translation>
+    </message>
+    <message>
+        <source>Listening…</source>
+        <translation>듣는 중…</translation>
+    </message>
+    <message>
+        <source>Auto beat: every beat</source>
+        <translation>자동 비트: 박자마다</translation>
+    </message>
+    <message>
+        <source>Listens to this music and puts a mark on every beat</source>
+        <translation>이 음악을 듣고 박자마다 표시를 찍어요</translation>
+    </message>
+    <message>
+        <source>Auto beat: every bar</source>
+        <translation>자동 비트: 마디마다</translation>
+    </message>
+    <message>
+        <source>Fewer marks: only the first beat of each bar</source>
+        <translation>표시를 줄여서 마디의 첫 박자에만 찍어요</translation>
+    </message>
+    <message>
+        <source>Add / remove a mark here</source>
+        <translation>여기 비트 추가 / 지우기</translation>
+    </message>
+    <message>
+        <source>A mark at the playhead — or, on a mark, takes it off</source>
+        <translation>재생 위치에 표시를 찍어요. 이미 표시가 있으면 지워요</translation>
+    </message>
+    <message>
+        <source>Clear all marks</source>
+        <translation>비트 모두 지우기</translation>
+    </message>
 </context>
 <context>
     <name>AudioOutputChannel</name>
@@ -6563,10 +6679,6 @@
         <translation>업데이트</translation>
     </message>
     <message>
-        <source>Drift %1 is available</source>
-        <translation>‘Easy Cut, Easy Go!’ %1을(를) 사용할 수 있어요</translation>
-    </message>
-    <message>
         <source>Agent access</source>
         <translation>에이전트 접근</translation>
     </message>
@@ -6611,8 +6723,8 @@
         <translation>테마</translation>
     </message>
     <message>
-        <source>Build %1</source>
-        <translation>빌드 %1</translation>
+        <source>is ready to download</source>
+        <translation>새 버전이 나왔어요</translation>
     </message>
 </context>
 <context>
@@ -9417,6 +9529,22 @@
         <source>Imported from the marketplace.</source>
         <translation>장터에서 가져왔어요.</translation>
     </message>
+    <message>
+        <source>New versions</source>
+        <translation>새 버전 알림</translation>
+    </message>
+    <message>
+        <source>Should the app tell you when a new version comes out? It checks once a day over the internet and sends nothing about you or your videos.</source>
+        <translation>새 버전이 나오면 알려 드릴까요? 하루에 한 번 인터넷으로 확인만 하고, 사용자나 영상에 대한 정보는 아무것도 보내지 않아요.</translation>
+    </message>
+    <message>
+        <source>No, thanks</source>
+        <translation>괜찮아요</translation>
+    </message>
+    <message>
+        <source>Yes, tell me</source>
+        <translation>네, 알려 주세요</translation>
+    </message>
 </context>
 <context>
     <name>MarketClient</name>
@@ -11332,7 +11460,7 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Animation</source>
-        <translation>움직임</translation>
+        <translation>액션</translation>
     </message>
     <message>
         <source>Audio</source>
@@ -15914,6 +16042,10 @@ If playback stutters, try another.</source>
         <source>Transition length</source>
         <translation>전환 길이</translation>
     </message>
+    <message>
+        <source>Move transition</source>
+        <translation>전환 옮기기</translation>
+    </message>
 </context>
 <context>
     <name>TimelineToolbar</name>
@@ -16930,10 +17062,6 @@ If playback stutters, try another.</source>
         <translation>업데이트가 있어요</translation>
     </message>
     <message>
-        <source>Drift %1 is available</source>
-        <translation>‘Easy Cut, Easy Go!’ %1을(를) 사용할 수 있어요</translation>
-    </message>
-    <message>
         <source>You have %1.</source>
         <translation>지금 %1을(를) 쓰고 있어요.</translation>
     </message>
@@ -16956,6 +17084,30 @@ If playback stutters, try another.</source>
     <message>
         <source>Opens the release page in your browser</source>
         <translation>브라우저에서 배포 페이지를 열어요</translation>
+    </message>
+    <message>
+        <source>is ready to download</source>
+        <translation>새 버전이 나왔어요</translation>
+    </message>
+    <message>
+        <source>Downloading… %1%</source>
+        <translation>내려받는 중… %1%</translation>
+    </message>
+    <message>
+        <source>Ready. The new version installs the next time you open the app.</source>
+        <translation>준비됐어요. 다음에 앱을 켤 때 새 버전이 설치돼요.</translation>
+    </message>
+    <message>
+        <source>The download did not finish. Try again later.</source>
+        <translation>내려받기가 끝나지 않았어요. 나중에 다시 해 주세요.</translation>
+    </message>
+    <message>
+        <source>Update</source>
+        <translation>업데이트</translation>
+    </message>
+    <message>
+        <source>Downloads it now; it installs the next time you open the app</source>
+        <translation>지금 내려받아 두고, 다음에 앱을 켤 때 설치해요</translation>
     </message>
 </context>
 <context>
