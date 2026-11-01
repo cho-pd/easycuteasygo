@@ -46,6 +46,7 @@ public:
 public slots:
     void openPath(const QString &path);
     void closePath();
+    void warmAudio(quint64 streamId, drift::TimeUs sourceUs, int outputSampleRate, int audioStreamOrdinal); // VEDIT
     QImage decodeVideo(quint64 streamId, drift::TimeUs sourceUs, int maxWidth, int maxHeight,
                        const QString &stabilizePath = QString(), int stabilizeSmoothing = 15,
                        bool stabilizeTripod = false, int rotationCorrection = 0);

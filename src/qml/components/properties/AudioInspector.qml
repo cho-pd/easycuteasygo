@@ -127,7 +127,7 @@ Item {
                     text: fadeRow.modelData.label
                     color: Theme.panelForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSm
+                    font.pixelSize: Theme.fontSizeLabel
                 }
                 Flow {
                     width: parent.width
@@ -185,7 +185,7 @@ Item {
                 text: qsTr("Beat") + (parent.marks > 0 ? "  ·  " + qsTr("%1 marks").arg(parent.marks) : "")
                 color: Theme.foreground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeBase
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: Font.DemiBold
             }
             Row {
@@ -278,7 +278,8 @@ Item {
                     text: qsTr("Pan")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
+                    wrapMode: Text.WordWrap // VEDIT: long names go to a second line at 16px
                 }
 
                 Text {
@@ -295,7 +296,7 @@ Item {
                     }
                     color: Theme.panelForeground
                     font.family: Theme.monoFontFamily
-                    font.pixelSize: Theme.fontSizeSm
+                    font.pixelSize: Theme.fontSizeBase
                 }
             }
 
@@ -348,7 +349,8 @@ Item {
                 text: qsTr("Audio track")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
+                wrapMode: Text.WordWrap // VEDIT: long names go to a second line at 16px
             }
 
             ThemedComboBox {
@@ -419,7 +421,8 @@ Item {
                 text: qsTr("Noise")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
+                wrapMode: Text.WordWrap // VEDIT: long names go to a second line at 16px
             }
 
             ThemedButton {
@@ -460,7 +463,7 @@ Item {
             text: qsTr("Auto subtitles")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeLabel
         }
 
         // The transcriber is an addon, and so is the runtime it needs; without
@@ -513,7 +516,7 @@ Item {
             text: qsTr("Shorter captions are timed by splitting each phrase evenly, so they can drift slightly out of sync with the speech.")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeBase
         }
 
         ThemedButton {

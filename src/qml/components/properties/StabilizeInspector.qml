@@ -59,7 +59,7 @@ Item {
                   : qsTr("Smooths camera shake. Drift scans the clip once, then renders a new video. Changing smoothness or tripod does not update the preview until you apply.")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeBase
         }
 
         Column {
@@ -70,7 +70,7 @@ Item {
                 text: qsTr("Mode")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: Font.Medium
             }
 
@@ -96,7 +96,7 @@ Item {
                 text: qsTr("Smoothing")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: Font.Medium
             }
 
@@ -129,7 +129,7 @@ Item {
                 text: qsTr("How many frames the smoother looks ahead and behind. Higher values hide more shake but crop the picture more.")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
             }
         }
 
@@ -151,7 +151,7 @@ Item {
                 text: qsTr("Locks the framing as if the camera were on a tripod. Crops more aggressively than smoothing alone.")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
             }
         }
 
@@ -175,7 +175,7 @@ Item {
                       : qsTr("Preview still uses the last run. Update to apply these settings.")
                 color: Theme.warning
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
@@ -210,7 +210,7 @@ Item {
                   : qsTr("Stabilizing…")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeBase
         }
 
         ThemedProgressBar {

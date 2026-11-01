@@ -446,6 +446,9 @@ QtObject {
     readonly property real fontSizeXs: 10.5
     readonly property real fontSizeSm: 11.5
     readonly property real fontSizeBase: 13.25
+    // VEDIT (조박사님 2026-10-31): the size rule of the right-hand panel — a tab's title and every
+    // item name in it are this size; explanations under them are fontSizeBase.
+    readonly property real fontSizeLabel: 16
     readonly property real fontSizeTiny: 9   // 0.6rem clip captions
     readonly property real fontSizeTick: 10    // literal 10px ruler tick labels
     readonly property real fontSizeCard: 10.5  // 0.7rem asset card filenames

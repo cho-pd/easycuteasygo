@@ -47,7 +47,7 @@ Item {
             text: qsTr("Playback speed")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeLabel
         }
 
         // A ramp supersedes the constant rate outright, so the controls below
@@ -89,7 +89,7 @@ Item {
                     text: "속도 곡선"
                     color: Theme.foreground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeBase
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
                 }
 
@@ -136,7 +136,7 @@ Item {
                     text: "점을 위아래로 끌면 그 부분이 빨라지거나 느려집니다. 선을 두 번 누르면 점이 생기고, 점을 두 번 누르면 지워집니다."
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeBase
                 }
             }
 
@@ -259,7 +259,7 @@ Item {
                     + (root.clipData.reverse ? qsTr(" (reversed)") : "")
             color: Theme.mutedForeground
             font.family: Theme.monoFontFamily
-            font.pixelSize: Theme.fontSizeSm
+            font.pixelSize: Theme.fontSizeBase
         }
 
         ThemedChip {

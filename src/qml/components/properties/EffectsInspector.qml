@@ -86,7 +86,7 @@ Item {
             text: panel.cannotText
             color: Theme.warning
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeBase
         }
 
         // The effect is in the stack and doing nothing; without this the preview gives no clue why.
@@ -97,7 +97,7 @@ Item {
             text: panel.missingText
             color: Theme.warning
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeBase
         }
 
         Text {
@@ -107,7 +107,7 @@ Item {
             text: panel.job.error || ""
             color: Theme.destructive
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeBase
         }
 
         ThemedChip {
@@ -142,7 +142,7 @@ Item {
             text: panel.job.status || ""
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeBase
         }
 
         ThemedProgressBar {
@@ -293,7 +293,8 @@ Item {
                 text: qsTr("Face tracking")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
+                wrapMode: Text.WordWrap // VEDIT: long names go to a second line at 16px
             }
 
             // A standalone adjustment layer covers everything below it, so there is no one clip
@@ -305,7 +306,7 @@ Item {
                 text: qsTr("Face effects follow one clip's faces. Add this to a clip rather than to an adjustment layer.")
                 color: Theme.warning
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
             }
 
             // The effect is in the stack and doing nothing. Said as a warning, not a hint: the
@@ -318,7 +319,7 @@ Item {
                 text: qsTr("These effects follow a face, so the clip has to be scanned before they do anything.")
                 color: Theme.warning
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
             }
 
             // The Beauty effects need the lip and eyelid contours, which tracks baked by older
@@ -333,7 +334,7 @@ Item {
                 text: qsTr("This clip was scanned before makeup was supported. Re-detect faces to enable the Beauty effects.")
                 color: Theme.warning
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
             }
 
             // The 3D Face Mesh effect needs the 468-vertex blob, which tracks baked by older
@@ -348,7 +349,7 @@ Item {
                 text: qsTr("This clip was scanned before 3D face mesh was supported. Re-detect faces to enable the 3D Face Mesh effect.")
                 color: Theme.warning
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
             }
 
             ThemedButton {
@@ -377,7 +378,7 @@ Item {
                 text: EditorState.faceDetectStatus
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
             }
 
             ThemedProgressBar {
@@ -435,7 +436,8 @@ Item {
                 text: qsTr("Depth")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
+                wrapMode: Text.WordWrap // VEDIT: long names go to a second line at 16px
             }
 
             DepthPanel {
@@ -463,7 +465,7 @@ Item {
                 text: qsTr("Move to a time, set a value, then click the diamond to add a keyframe. With Auto keyframes on, dragging a slider also creates them.")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
             }
 
             ThemedChip {
@@ -567,7 +569,7 @@ Item {
                             color: effectCard.effectEnabled
                                    ? Theme.panelForeground : Theme.mutedForeground
                             font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSm
+                            font.pixelSize: Theme.fontSizeLabel
                             font.weight: Font.Medium
                             width: parent.width - 22 * 5 - 8
                             elide: Text.ElideRight
@@ -669,7 +671,7 @@ Item {
                                     text: (paramRow.groupOpen ? "▾  " : "▸  ") + paramRow.group
                                     color: Theme.panelForeground
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeXs
+                                    font.pixelSize: Theme.fontSizeLabel
                                     font.weight: Font.Medium
                                 }
                                 MouseArea {
@@ -698,7 +700,7 @@ Item {
                                         text: paramRow.paramData.label
                                         color: Theme.mutedForeground
                                         font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeXs
+                                        font.pixelSize: Theme.fontSizeLabel
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Text {
@@ -707,7 +709,7 @@ Item {
                                         text: paramRow.paramData.value ? qsTr("On") : qsTr("Off")
                                         color: Theme.panelForeground
                                         font.family: Theme.monoFontFamily
-                                        font.pixelSize: Theme.fontSizeXs
+                                        font.pixelSize: Theme.fontSizeBase
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                 }
@@ -732,7 +734,7 @@ Item {
                                         text: paramRow.paramData.label
                                         color: Theme.mutedForeground
                                         font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeXs
+                                        font.pixelSize: Theme.fontSizeLabel
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     ColorSwatchField {
@@ -767,7 +769,7 @@ Item {
                                         text: paramRow.paramData.label
                                         color: Theme.mutedForeground
                                         font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeXs
+                                        font.pixelSize: Theme.fontSizeLabel
                                     }
                                     ThemedComboBox {
                                         width: parent.width
@@ -806,7 +808,7 @@ Item {
                                         color: paramRow.paramData.missing ? Theme.destructive
                                                                          : Theme.mutedForeground
                                         font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeXs
+                                        font.pixelSize: Theme.fontSizeBase
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     IconButton {
@@ -871,7 +873,7 @@ Item {
                                         text: qsTr("Pick %1").arg(paramRow.paramData.label)
                                         color: Theme.mutedForeground
                                         font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeXs
+                                        font.pixelSize: Theme.fontSizeLabel
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     ColorSwatchField {
@@ -951,7 +953,7 @@ Item {
                                     .arg(occludeSection.targetName)
                         color: Theme.mutedForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeLabel
                     }
 
                     DepthPanel {

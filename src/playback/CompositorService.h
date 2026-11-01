@@ -113,7 +113,7 @@ private:
     // is room in flight. Returns whether it dispatched.
     bool dispatchPending();
     int maxInFlight() const;
-    void noteFrameLate(bool late);
+    void noteFrameWork(double workMs); // VEDIT: was noteFrameLate(bool)
     void resetAdaptiveState();
     FrameCompositor::RenderOptions effectiveOptions(FrameCompositor::RenderOptions options) const;
 
@@ -147,6 +147,9 @@ private:
     int m_warmupFramesLeft = 0;
     int m_lateFrameBudgetMs = 100;
     double m_adaptiveScale = 1.0;
+    double m_workAverageMs = 0.0; // VEDIT: see noteFrameWork
+    int m_upHoldFrames = 30; // VEDIT: kOnTimeBeforeScaleUp
+    int m_framesSinceStepUp = 90; // VEDIT: kStepUpTrialFrames
     bool m_adaptiveQuality = false;
     bool m_playbackActive = false;
     bool m_dropLateFrames = true;

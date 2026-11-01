@@ -135,7 +135,7 @@ Item {
                     Text {
                         text: qsTr("Animation")
                         color: Theme.mutedForeground
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeLabel
                         font.family: Theme.fontFamily
                     }
                     ThemedComboBox {
@@ -154,7 +154,7 @@ Item {
                     Text {
                         text: qsTr("After the end")
                         color: Theme.mutedForeground
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeLabel
                         font.family: Theme.fontFamily
                     }
                     ThemedComboBox {
@@ -174,7 +174,7 @@ Item {
                 Text {
                     text: qsTr("Start offset")
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                 }
                 ThemedNumberField {

@@ -62,7 +62,7 @@ Column {
                 Text {
                     text: root.labelOf(slotRow.spec)
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                     anchors.verticalCenter: parent.verticalCenter
                 }
@@ -75,7 +75,7 @@ Column {
                         return v.toFixed(decimals) + (slotRow.spec.unit || "")
                     }
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeBase
                     font.family: Theme.monoFontFamily
                     anchors.verticalCenter: parent.verticalCenter
                 }

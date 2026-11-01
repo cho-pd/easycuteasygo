@@ -136,7 +136,7 @@ Item {
                 delegate: ThemedChip {
                     required property var modelData
                     text: modelData.label
-                    labelSize: 16
+                    labelSize: Theme.fontSizeLabel
                     chipHeight: 40
                     selected: root.adjustTab === modelData.id
                     onClicked: root.adjustTab = modelData.id
@@ -168,7 +168,7 @@ Item {
             text: "원 안의 점을 원하는 색 쪽으로 끌어요(멀수록 강하게). 아래 막대는 밝기예요. 원을 두 번 누르면 처음대로."
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: 14
+            font.pixelSize: Theme.fontSizeBase
         }
 
         // ----- 필터 ------------------------------------------------------------------------
@@ -209,7 +209,7 @@ Item {
             text: "필터"
             color: Theme.panelForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeBase
+            font.pixelSize: Theme.fontSizeLabel
             font.weight: Font.Medium
         }
 
@@ -251,7 +251,7 @@ Item {
                         text: tile.modelData.label
                         color: tile.current ? Theme.primary : Theme.panelForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeBase
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -273,14 +273,14 @@ Item {
                 text: "필터 강도"
                 color: Theme.panelForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeLabel
             }
             Text {
                 anchors.right: parent.right
                 text: Math.round(filterStrength.value * 100).toString()
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeBase
             }
         }
 
@@ -334,7 +334,7 @@ Item {
                     text: group.modelData.title
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: 16
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.Medium
                 }
         Repeater {
@@ -355,7 +355,7 @@ Item {
                         text: row.modelData.label
                         color: Theme.panelForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm
+                        font.pixelSize: Theme.fontSizeLabel
                     }
                     Text {
                         anchors.right: rowKey.left
@@ -363,7 +363,7 @@ Item {
                         text: Math.round(slider.value * row.modelData.scale).toString()
                         color: Theme.mutedForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm
+                        font.pixelSize: Theme.fontSizeBase
                     }
                     // VEDIT (CapCut): ◇ — keyframe this value at the playhead.
                     KeyframeToggle {
@@ -419,7 +419,7 @@ Item {
             text: "HSL (색깔별로)"
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: 16
+            font.pixelSize: Theme.fontSizeLabel
             font.weight: Font.Medium
         }
         Row {
@@ -476,7 +476,7 @@ Item {
                         text: hslRow.modelData.label
                         color: Theme.panelForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm
+                        font.pixelSize: Theme.fontSizeLabel
                     }
                     Text {
                         anchors.right: hslKey.left
@@ -484,7 +484,7 @@ Item {
                         text: Math.round(hslSlider.value * 100).toString()
                         color: Theme.mutedForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm
+                        font.pixelSize: Theme.fontSizeBase
                     }
                     KeyframeToggle { // VEDIT (CapCut) ◇
                         id: hslKey
@@ -536,7 +536,7 @@ Item {
             text: "곡선"
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: 16
+            font.pixelSize: Theme.fontSizeLabel
             font.weight: Font.Medium
         }
         CurvesEditor {
@@ -574,7 +574,7 @@ Item {
             text: "배경 지우기 (크로마키)"
             color: Theme.panelForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeBase
+            font.pixelSize: Theme.fontSizeLabel
             font.weight: Font.Medium
         }
         Row {

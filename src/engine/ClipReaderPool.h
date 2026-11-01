@@ -61,6 +61,9 @@ public:
     // VEDIT (Codex 검토 1): the clips on screen and the next ones to start. Touched like above, and
     // the only workers the decoder cap keeps when it has to close something.
     void protectVideoStreams(const QList<VideoRequest> &requests);
+    // VEDIT: opens a clip's sound before it is needed, off the audio thread. Does not block.
+    void warmAudio(const QString &path, quint64 streamId, drift::TimeUs sourceUs, int outputSampleRate,
+                   int audioStreamOrdinal);
 
     // How far past the frame being composited each reader keeps decoding, in
     // source time. Set per composite from the render options; 0 (the default)

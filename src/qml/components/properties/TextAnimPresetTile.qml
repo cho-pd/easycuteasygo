@@ -72,7 +72,7 @@ Column {
             text: qsTr("None")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs // VEDIT: CapCut-sized
+            font.pixelSize: Theme.fontSizeBase // VEDIT: CapCut-sized
         }
 
         // A tap synthesises hover on a phone, so hover only means anything with a pointer.
@@ -98,6 +98,6 @@ Column {
         horizontalAlignment: Text.AlignHCenter
         color: tile.selected ? Theme.primary : Theme.panelForeground
         font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeXs // VEDIT: CapCut-sized
+        font.pixelSize: Theme.fontSizeBase // VEDIT: CapCut-sized
     }
 }

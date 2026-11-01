@@ -27,6 +27,12 @@
 #include <limits>
 #include <utility>
 
+#if defined(Q_OS_WIN) // VEDIT: outside the extern "C", which C++ operators in d3d11.h cannot sit in
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <d3d11.h>
+#endif
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavcodec/codec.h>
@@ -36,6 +42,9 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/error.h>
 #include <libavutil/hwcontext.h>
+#if defined(Q_OS_WIN)
+#include <libavutil/hwcontext_d3d11va.h> // VEDIT: see sharedD3d11Device
+#endif
 #include <libavutil/pixdesc.h> // VEDIT
 #include <libavutil/log.h>
 #ifdef Q_OS_ANDROID
@@ -540,6 +549,38 @@ AVBufferRef *sharedCudaDevice()
     return av_buffer_ref(device);
 }
 
+#if defined(Q_OS_WIN)
+// VEDIT (조박사님, 내장 GPU: "시작하는 첫프레임에서 잠깐 멈췄다 출발한다"): D3D11VA's counterpart of
+// the above, and what an integrated GPU decodes on. A device per reader meant every new clip's first
+// frame opened a GL interop device, built its D3D11 shaders and registered its surfaces — on the
+// composite, on screen, at each cut. Warming ahead cannot cover that: it only decodes.
+//
+// One per surface size rather than one in all: the interop keeps one set of surfaces per device, so
+// a 4K clip dissolving into a 1080p one on a single device would rebuild them on every frame.
+AVBufferRef *sharedD3d11Device(const QByteArray &adapter, int width, int height)
+{
+    static QMutex mutex;
+    static QHash<QString, AVBufferRef *> devices;
+    const QString key = QStringLiteral("%1/%2x%3").arg(QString::fromLatin1(adapter)).arg(width).arg(height);
+    QMutexLocker lock(&mutex);
+    AVBufferRef *&device = devices[key];
+    if (device) {
+        // A driver reset or a TDR kills the device for everyone; the next reader gets a new one.
+        const auto *context = reinterpret_cast<const AVHWDeviceContext *>(device->data);
+        if (FAILED(static_cast<const AVD3D11VADeviceContext *>(context->hwctx)->device->GetDeviceRemovedReason()))
+            av_buffer_unref(&device);
+    }
+    if (!device
+        && av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_D3D11VA,
+                                  adapter.isEmpty() ? nullptr : adapter.constData(), nullptr, 0)
+               < 0) {
+        av_buffer_unref(&device);
+        return nullptr;
+    }
+    return av_buffer_ref(device);
+}
+#endif
+
 QString avErrorText(int rc)
 {
     char buf[AV_ERROR_MAX_STRING_SIZE] = {};
@@ -1030,6 +1071,12 @@ bool ClipReader::openHardwareDecoderWith(drift::hwaccel::Backend backend)
         m_hwDeviceCtx = sharedCudaDevice();
         if (!m_hwDeviceCtx)
             return false;
+#if defined(Q_OS_WIN)
+    } else if (type == AV_HWDEVICE_TYPE_D3D11VA) { // VEDIT
+        m_hwDeviceCtx = sharedD3d11Device(drift::hwaccel::deviceString(type), par->width, par->height);
+        if (!m_hwDeviceCtx)
+            return false;
+#endif
     } else {
         const QByteArray device = drift::hwaccel::deviceString(type);
         if (av_hwdevice_ctx_create(&m_hwDeviceCtx, type,

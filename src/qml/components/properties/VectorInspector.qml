@@ -160,7 +160,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 text: colorRow.label
                 color: colorRow.overridden || colorRow.animated ? Theme.panelForeground : Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.family: Theme.fontFamily
             }
             Item { width: 1; height: 1 }
@@ -262,7 +262,7 @@ Item {
                     Text {
                         text: qsTr("Fit")
                         color: Theme.mutedForeground
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeLabel
                         font.family: Theme.fontFamily
                     }
                     ThemedComboBox {
@@ -282,7 +282,7 @@ Item {
                     Text {
                         text: qsTr("After the end")
                         color: Theme.mutedForeground
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeLabel
                         font.family: Theme.fontFamily
                     }
                     ThemedComboBox {
@@ -303,7 +303,7 @@ Item {
                 Text {
                     text: qsTr("Start offset")
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                 }
                 ThemedNumberField {
@@ -339,7 +339,7 @@ Item {
                 Text {
                     text: qsTr("Target")
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                 }
                 ThemedComboBox {

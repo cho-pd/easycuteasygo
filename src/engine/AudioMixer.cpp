@@ -7,7 +7,9 @@
 #include "core/TimelineOps.h"
 #include "core/Transition.h"
 
+#include <QElapsedTimer> // VEDIT
 #include <QtMath>
+#include <algorithm> // VEDIT
 #include <cmath>
 #include <cstring>
 #include <memory>
@@ -513,11 +515,65 @@ QList<drift::Effect> masterBusEffects(const drift::Project &project, drift::Time
 
 } // namespace
 
+// VEDIT: same reach and same limit as the picture's warm-up (kUpcomingWarmUs, kMaxUpcomingWarm in
+// FrameCompositor), so a clip's sound and its first frames are ready together.
+void AudioMixer::warmUpcomingAudio(drift::TimeUs timelineUs, int sampleRate) const
+{
+    constexpr drift::TimeUs kWarmUs = 2'500'000;
+    constexpr drift::TimeUs kCheckEveryUs = 200'000;
+    constexpr qint64 kRewarmMs = 4000;
+    constexpr int kMaxClips = 2;
+
+    if (m_lastWarmCheckUs >= 0 && timelineUs >= m_lastWarmCheckUs
+        && timelineUs - m_lastWarmCheckUs < kCheckEveryUs)
+        return;
+    m_lastWarmCheckUs = timelineUs;
+
+    QList<const drift::Clip *> next;
+    for (const drift::Track &track : m_project->tracks()) {
+        if (track.muted || track.hidden || track.isAdjustment())
+            continue;
+        if (track.type != drift::TrackType::Audio && track.type != drift::TrackType::Video)
+            continue;
+        for (const drift::Clip &clip : track.clips) {
+            if (clip.path.isEmpty() || clip.timelineStart <= timelineUs
+                || clip.timelineStart > timelineUs + kWarmUs)
+                continue;
+            if (track.type == drift::TrackType::Video
+                && (clip.type != drift::ClipType::Video || clip.suppressEmbeddedAudio))
+                continue;
+            next.append(&clip);
+        }
+    }
+    std::stable_sort(next.begin(), next.end(), [](const drift::Clip *a, const drift::Clip *b) {
+        return a->timelineStart < b->timelineStart;
+    });
+
+    static QElapsedTimer clock;
+    if (!clock.isValid())
+        clock.start();
+    if (m_warmedAtMs.size() > 512)
+        m_warmedAtMs.clear();
+    for (int i = 0; i < next.size() && i < kMaxClips; ++i) {
+        const drift::Clip &clip = *next.at(i);
+        const quint64 streamId = ClipReaderPool::streamIdForClip(clip.id) ^ m_streamSalt;
+        const auto warmed = m_warmedAtMs.constFind(streamId);
+        if (warmed != m_warmedAtMs.constEnd() && clock.elapsed() - warmed.value() < kRewarmMs)
+            continue;
+        m_warmedAtMs.insert(streamId, clock.elapsed());
+        ClipReaderPool::instance().warmAudio(clip.path, streamId, clip.timelineToSourceUs(clip.timelineStart),
+                                             sampleRate, clip.audioStreamIndex);
+    }
+}
+
 void AudioMixer::mix(drift::TimeUs timelineStartUs, int sampleCount, int sampleRate,
                      float *interleavedStereoOut) const
 {
     if (!interleavedStereoOut || sampleCount <= 0 || !m_project)
         return;
+
+    if (m_warmUpcoming)
+        warmUpcomingAudio(timelineStartUs, sampleRate); // VEDIT
 
     std::memset(interleavedStereoOut, 0, static_cast<size_t>(sampleCount) * 2 * sizeof(float));
 

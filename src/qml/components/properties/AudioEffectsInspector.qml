@@ -59,7 +59,7 @@ Item {
             text: qsTr("No audio effects installed. Get the Audio Effects pack from Extras.")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeBase
         }
 
         ThemedButton {
@@ -124,7 +124,7 @@ Item {
                             color: audioEffectCard.effectEnabled
                                    ? Theme.panelForeground : Theme.mutedForeground
                             font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSm
+                            font.pixelSize: Theme.fontSizeLabel
                             font.weight: Font.Medium
                             width: parent.width - 22 * 5 - 20 - 8
                             elide: Text.ElideRight
@@ -209,7 +209,7 @@ Item {
                                     text: audioParamRow.paramData.label
                                     color: Theme.mutedForeground
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeXs
+                                    font.pixelSize: Theme.fontSizeLabel
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
                                 Text {
@@ -221,7 +221,7 @@ Item {
                                                 Math.abs(audioParamRow.paramData.max - audioParamRow.paramData.min) >= 10 ? 1 : 2)
                                     color: Theme.panelForeground
                                     font.family: Theme.monoFontFamily
-                                    font.pixelSize: Theme.fontSizeXs
+                                    font.pixelSize: Theme.fontSizeBase
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
                             }

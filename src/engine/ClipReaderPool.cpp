@@ -198,6 +198,17 @@ void ClipReaderPool::protectVideoStreams(const QList<VideoRequest> &requests)
     }
 }
 
+void ClipReaderPool::warmAudio(const QString &path, quint64 streamId, drift::TimeUs sourceUs,
+                               int outputSampleRate, int audioStreamOrdinal)
+{
+    if (path.isEmpty())
+        return;
+    QMutexLocker lock(&m_mutex);
+    QMetaObject::invokeMethod(ensureWorker(m_audioWorkers, path).worker, "warmAudio", Qt::QueuedConnection,
+                              Q_ARG(quint64, streamId), Q_ARG(drift::TimeUs, sourceUs),
+                              Q_ARG(int, outputSampleRate), Q_ARG(int, audioStreamOrdinal));
+}
+
 void ClipReaderPool::warmVideoFrames(const QList<VideoRequest> &requests, drift::TimeUs readAheadUs)
 {
     warmVideoFrames(requests);

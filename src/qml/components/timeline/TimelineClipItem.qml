@@ -688,9 +688,13 @@ Item {
             readonly property real outW: Math.min(width, (clipItem.clipData.animOutLength || 0) * panel.pxPerSecond)
             readonly property bool combo: (clipItem.clipData.animComboId || "").length > 0
             readonly property color markColor: Qt.rgba(1.0, 0.82, 0.35, 0.85)
+            // VEDIT (조박사님 2026-10-31): 들어오기 and 나가기 each have their own strong color. The
+            // old faint yellow vanished on a light clip such as a caption.
+            readonly property color inColor: "#ff9a1f"
+            readonly property color outColor: "#ff4f9a"
 
-            // VEDIT (조박사님): the 들어오기 / 나가기 stretch of the clip faintly tinted, fading toward
-            // the middle, so where a movement plays reads at a glance.
+            // VEDIT (조박사님): the 들어오기 / 나가기 stretch of the clip tinted, fading toward the
+            // middle, with a line where it ends, so where a movement plays reads at a glance.
             Rectangle {
                 visible: !animMarks.combo && animMarks.inW > 1
                 x: 0
@@ -698,8 +702,14 @@ Item {
                 height: parent.height
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Qt.rgba(1.0, 0.85, 0.4, 0.22) }
-                    GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.85, 0.4, 0.06) }
+                    GradientStop { position: 0.0; color: Qt.rgba(animMarks.inColor.r, animMarks.inColor.g, animMarks.inColor.b, 0.8) }
+                    GradientStop { position: 1.0; color: Qt.rgba(animMarks.inColor.r, animMarks.inColor.g, animMarks.inColor.b, 0.35) }
+                }
+                Rectangle {
+                    anchors.right: parent.right
+                    width: 2
+                    height: parent.height
+                    color: animMarks.inColor
                 }
             }
             Rectangle {
@@ -709,8 +719,14 @@ Item {
                 height: parent.height
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Qt.rgba(1.0, 0.85, 0.4, 0.06) }
-                    GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.85, 0.4, 0.22) }
+                    GradientStop { position: 0.0; color: Qt.rgba(animMarks.outColor.r, animMarks.outColor.g, animMarks.outColor.b, 0.35) }
+                    GradientStop { position: 1.0; color: Qt.rgba(animMarks.outColor.r, animMarks.outColor.g, animMarks.outColor.b, 0.8) }
+                }
+                Rectangle {
+                    anchors.left: parent.left
+                    width: 2
+                    height: parent.height
+                    color: animMarks.outColor
                 }
             }
 
@@ -729,13 +745,13 @@ Item {
                 y: parent.height - height
                 width: animMarks.inW
                 height: 4
-                color: animMarks.markColor
+                color: animMarks.inColor
                 Text {
                     visible: parent.width >= 14
                     anchors.right: parent.right
                     anchors.bottom: parent.top
                     text: "\u203A" // ›
-                    color: animMarks.markColor
+                    color: animMarks.inColor
                     font.pixelSize: 14
                     font.bold: true
                 }
@@ -746,13 +762,13 @@ Item {
                 y: parent.height - height
                 width: animMarks.outW
                 height: 4
-                color: animMarks.markColor
+                color: animMarks.outColor
                 Text {
                     visible: parent.width >= 14
                     anchors.left: parent.left
                     anchors.bottom: parent.top
                     text: "\u203A"
-                    color: animMarks.markColor
+                    color: animMarks.outColor
                     font.pixelSize: 14
                     font.bold: true
                 }

@@ -75,6 +75,11 @@ PanelFrame {
             root.activeTab = root.tabIndexOf(remembered)
             root.selectingClip = false
         }
+        // VEDIT (조박사님): the clip's kind can land after selectionChanged, leaving a tab this clip
+        // does not have (변형 on a sound).
+        root.selectingClip = true
+        root.syncActiveTab()
+        root.selectingClip = false
     }
     onClipDataChanged: Qt.callLater(root.settleClipTab) // VEDIT: whichever signal brought the clip
 
@@ -253,6 +258,9 @@ PanelFrame {
         // VEDIT (조박사님): 섞는 방식 is a section of 변형 now — its own tab only where there is no 변형.
         if (tabId === "blending")
             return false
+        // VEDIT (조박사님): a sound has no picture to move — 변형 never shows for it.
+        if (tabId === "transform")
+            return root.clipKind !== "audio"
         if (tabId === "subtitles")
             return root.clipKind === "subtitle"
         if (tabId === "shape")
@@ -376,7 +384,8 @@ PanelFrame {
     // tab open on the clip you came from can vanish under you and leave an empty pane.
     function syncActiveTab() {
         if (!root.tabVisible(root.currentTabId))
-            root.activeTab = root.generalTabIndex
+            root.activeTab = root.clipKind === "audio" ? root.tabIndexOf("audio") // VEDIT
+                                                       : root.generalTabIndex
     }
 
     // Tell the timeline to show its subtitle-cue lane only while the Subtitles tab is open.
@@ -789,10 +798,10 @@ PanelFrame {
                     // The strip above already names the tab, in a size you can read.
                     visible: !root.sheetMode
                     text: root.tabLabels[tabsModel.get(root.activeTab).tabId]
-                    color: Theme.mutedForeground
+                    color: Theme.panelForeground // VEDIT
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
-                    font.weight: Font.Medium
+                    font.pixelSize: Theme.fontSizeLabel // VEDIT
+                    font.weight: Font.DemiBold
                 }
 
                 // Only the open tab is instantiated. Hidden inspectors used to stay alive and

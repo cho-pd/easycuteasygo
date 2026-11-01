@@ -42,7 +42,7 @@ Column {
     component Name: Text {
         color: Theme.mutedForeground
         font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeSm
+        font.pixelSize: Theme.fontSizeLabel
         elide: Text.ElideRight
     }
 
@@ -156,7 +156,7 @@ Column {
                 anchors.verticalCenter: parent.verticalCenter
                 width: root.fieldWidth + 14
                 height: root.fieldHeight
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeBase
                 from: sr.from * sr.factor
                 to: sr.to * sr.factor
                 decimals: sr.decimals
@@ -200,7 +200,7 @@ Column {
                     text: sec.title
                     color: Theme.panelForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSm
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.Medium
                 }
                 IconGlyph {
@@ -261,7 +261,7 @@ Column {
 
     component SmallToggle: ThemedToggleButton {
         toggleHeight: root.fieldHeight
-        labelSize: Theme.fontSizeSm
+        labelSize: Theme.fontSizeLabel
     }
 
     // --- 글꼴 · 크기 -------------------------------------------------------------------------------
@@ -343,7 +343,7 @@ Column {
             ThemedNumberField {
                 width: root.fieldWidth
                 height: root.fieldHeight
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeBase
                 from: -10
                 to: 60
                 value: Number(root.b.letterSpacing || 0)
@@ -353,7 +353,7 @@ Column {
             ThemedNumberField {
                 width: root.fieldWidth
                 height: root.fieldHeight
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeBase
                 from: 0.6
                 to: 3
                 decimals: 1
@@ -458,7 +458,7 @@ Column {
                 ThemedNumberField {
                     width: 78
                     height: root.fieldHeight
-                    font.pixelSize: Theme.fontSizeSm
+                    font.pixelSize: Theme.fontSizeBase
                     from: -4000
                     to: 4000
                     value: Number(root.b.posX || 0)
@@ -468,7 +468,7 @@ Column {
                 ThemedNumberField {
                     width: 78
                     height: root.fieldHeight
-                    font.pixelSize: Theme.fontSizeSm
+                    font.pixelSize: Theme.fontSizeBase
                     from: -4000
                     to: 4000
                     value: Number(root.b.posY || 0)
@@ -482,7 +482,7 @@ Column {
             ThemedNumberField {
                 width: 78
                 height: root.fieldHeight
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeBase
                 from: -180
                 to: 180
                 unit: "°"

@@ -202,9 +202,9 @@ Item {
         Text {
             visible: root.clipKind === "audio"
             text: qsTr("Fade in / out (volume)")
-            color: Theme.mutedForeground
+            color: Theme.panelForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeLabel // VEDIT
         }
 
         Row {
@@ -241,18 +241,18 @@ Item {
         Text {
             visible: root.clipKind === "audio"
             text: qsTr("Style")
-            color: Theme.mutedForeground
+            color: Theme.panelForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeLabel // VEDIT
         }
 
         // VEDIT: Vegas fade types per edge, as pictures
         Text {
             visible: root.clipKind === "audio"
             text: qsTr("Fade in")
-            color: Theme.mutedForeground
+            color: Theme.panelForeground
             font.family: Theme.fontFamily
-            font.pixelSize: 16
+            font.pixelSize: Theme.fontSizeLabel // VEDIT
         }
         FadeCurvePicker {
             visible: root.clipKind === "audio"
@@ -265,9 +265,9 @@ Item {
         Text {
             visible: root.clipKind === "audio"
             text: qsTr("Fade out")
-            color: Theme.mutedForeground
+            color: Theme.panelForeground
             font.family: Theme.fontFamily
-            font.pixelSize: 16
+            font.pixelSize: Theme.fontSizeLabel // VEDIT
         }
         FadeCurvePicker {
             visible: root.clipKind === "audio"
@@ -312,7 +312,7 @@ Item {
                 delegate: ThemedChip {
                     required property var modelData
                     text: modelData.label
-                    labelSize: Theme.fontSizeSm // VEDIT: CapCut-sized
+                    labelSize: Theme.fontSizeBase // VEDIT: CapCut-sized
                     chipHeight: 28
                     selected: root.slot === modelData.slot
                     onClicked: root.slot = modelData.slot
@@ -329,7 +329,7 @@ Item {
                 delegate: ThemedChip {
                     required property var modelData
                     text: modelData.label
-                    labelSize: Theme.fontSizeXs
+                    labelSize: Theme.fontSizeBase
                     chipHeight: 24
                     selected: root.animCategory === modelData.id
                     onClicked: root.animCategory = modelData.id
@@ -347,7 +347,7 @@ Item {
                                        : qsTr("How the clip goes out. Point at a picture to see it move.")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs // VEDIT: CapCut-sized
+            font.pixelSize: Theme.fontSizeBase // VEDIT
         }
 
         Flow {
@@ -380,7 +380,7 @@ Item {
                 text: qsTr("Length")
                 color: Theme.panelForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: 16
+                font.pixelSize: Theme.fontSizeLabel // VEDIT
             }
             ThemedSlider {
                 id: animDurationSlider
@@ -418,7 +418,7 @@ Item {
                 text: qsTr("Style")
                 color: Theme.panelForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: 16
+                font.pixelSize: Theme.fontSizeLabel // VEDIT
             }
             // VEDIT: Vegas's fade types as pictures
             FadeCurvePicker {
@@ -437,7 +437,7 @@ Item {
             text: qsTr("Keep moving — slow motion for the whole clip, lovely on photos")
             color: Theme.panelForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSm
+            font.pixelSize: Theme.fontSizeLabel // VEDIT
             font.weight: Font.Medium
         }
 
@@ -498,7 +498,7 @@ Item {
             text: qsTr("Letter and word animations live in the Text tab, under Animate. This moves the whole clip.")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeBase // VEDIT
         }
     }
 }

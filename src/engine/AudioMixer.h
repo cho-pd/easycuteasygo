@@ -38,6 +38,10 @@ public:
     void setMasterClipEnabled(bool enabled) { m_masterClipEnabled = enabled; }
     // For the mixer playing a composite's timeline: `streamSalt` keeps its decode cursors apart
     // from every other instance of the same composite, `depth` bounds nesting.
+    // VEDIT: for the mixer behind live playback — see warmUpcomingAudio. Off for export and the
+    // background renders, which have no sink to run dry.
+    void setWarmUpcoming(bool warm) { m_warmUpcoming = warm; }
+
     void setNesting(quint64 streamSalt, int depth)
     {
         m_streamSalt = streamSalt;
@@ -79,6 +83,10 @@ private:
     // and work on the state with the lock released.
     mutable QMutex m_clipAudioMutex;
     mutable QHash<QString, std::shared_ptr<ClipAudioState>> m_clipAudio;
+    void warmUpcomingAudio(drift::TimeUs timelineUs, int sampleRate) const; // VEDIT
+    bool m_warmUpcoming = false; // VEDIT
+    mutable drift::TimeUs m_lastWarmCheckUs = -1; // VEDIT: audio thread only
+    mutable QHash<quint64, qint64> m_warmedAtMs; // VEDIT: audio thread only
     bool m_masterClipEnabled = true;
     quint64 m_streamSalt = 0;
     int m_depth = 0;

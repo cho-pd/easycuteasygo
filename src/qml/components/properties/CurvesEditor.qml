@@ -45,7 +45,7 @@ Column {
             delegate: ThemedChip {
                 required property var modelData
                 text: modelData.label
-                labelSize: 16
+                labelSize: Theme.fontSizeLabel
                 selected: root.channel === modelData.id
                 onClicked: root.channel = modelData.id
             }
@@ -152,6 +152,6 @@ Column {
         text: "점을 위아래로 끌어요. 점을 두 번 누르면 이 곡선이 처음(직선)으로 돌아가요."
         color: Theme.mutedForeground
         font.family: Theme.fontFamily
-        font.pixelSize: 14
+        font.pixelSize: Theme.fontSizeBase
     }
 }

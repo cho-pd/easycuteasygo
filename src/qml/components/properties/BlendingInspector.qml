@@ -45,7 +45,7 @@ Item {
             text: qsTr("Blend mode")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeLabel
         }
 
         // The tab was a label plus one combo with no description.
@@ -56,7 +56,7 @@ Item {
             text: qsTr("How this clip's colours combine with the tracks beneath it.")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeBase
             opacity: 0.8
         }
 

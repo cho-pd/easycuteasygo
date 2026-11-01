@@ -148,7 +148,8 @@ Item {
                     text: qsTr("Layers")
                     color: Theme.panelForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSm
+                    font.pixelSize: Theme.fontSizeLabel
+                    wrapMode: Text.WordWrap // VEDIT: long names go to a second line at 16px
                     font.weight: Font.DemiBold
                 }
                 ThemedButton {
@@ -177,7 +178,7 @@ Item {
                 text: qsTr("No layers. Add a fill to start.")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
             }
 
             // Integer model so rows survive the fresh QVariantList every edit produces; the list

@@ -29,7 +29,7 @@ Column {
         text: root.title
         color: Theme.panelForeground
         font.family: Theme.fontFamily
-        font.pixelSize: 14
+        font.pixelSize: Theme.fontSizeLabel
     }
     Item {
         id: disc

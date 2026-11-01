@@ -12,7 +12,13 @@ constexpr double kAdaptiveScaleMin = 0.25;
 constexpr double kAdaptiveScaleStepDown = 0.75;
 constexpr double kAdaptiveScaleStepUp = 1.25;
 constexpr int kLateBeforeScaleDown = 2;
-constexpr int kOnTimeBeforeScaleUp = 6;
+// VEDIT: a second on time, not 6 frames — see noteFrameWork. A step back up that fails doubles this.
+constexpr int kOnTimeBeforeScaleUp = 30;
+constexpr int kMaxOnTimeBeforeScaleUp = 900;
+// A step up undone within this many frames was a failed one.
+constexpr int kStepUpTrialFrames = 90;
+// A step up only if the frame it would make is predicted to leave this much of the budget spare.
+constexpr double kStepUpBudgetShare = 0.85;
 // Composites at the start of a run open and seek the decoders and are reliably
 // slower than the ones after them. Charging those to the adaptive scale used to
 // downscale the first seconds of every playback.
@@ -146,6 +152,9 @@ void CompositorService::resetAdaptiveState()
     m_lateStreak = 0;
     m_onTimeStreak = 0;
     m_warmupFramesLeft = 0;
+    m_workAverageMs = 0.0;
+    m_upHoldFrames = kOnTimeBeforeScaleUp;
+    m_framesSinceStepUp = kStepUpTrialFrames;
 }
 
 FrameCompositor::RenderOptions CompositorService::effectiveOptions(
@@ -157,28 +166,51 @@ FrameCompositor::RenderOptions CompositorService::effectiveOptions(
     return options;
 }
 
-void CompositorService::noteFrameLate(bool late)
+// VEDIT (조박사님, 내장 GPU: 클립 경계에서 멈춤): a change of scale is a new decode size, which throws
+// away every reader's decoded frames — the read-ahead and the next clip's warmed opening with them.
+// A machine that could only just hold a scale used to climb back to it after 6 good frames and fall
+// off it again a moment later: three changes a second, five times the seeks and a quarter-second
+// stall at the cuts. So climbing now has to look affordable first (pixels are the cost, so the work
+// goes with the square of the scale), and one that fails anyway waits twice as long next time.
+void CompositorService::noteFrameWork(double workMs)
 {
     if (m_warmupFramesLeft > 0) {
         --m_warmupFramesLeft;
         return;
     }
 
-    if (late) {
+    m_workAverageMs = m_workAverageMs > 0.0 ? 0.9 * m_workAverageMs + 0.1 * workMs : workMs;
+    const auto stepTo = [this](double scale) {
+        const double ratio = scale / m_adaptiveScale;
+        m_workAverageMs *= ratio * ratio;
+        m_adaptiveScale = scale;
+        m_lateStreak = 0;
+        m_onTimeStreak = 0;
+    };
+
+    if (workMs > double(m_lateFrameBudgetMs)) {
         m_onTimeStreak = 0;
         ++m_lateStreak;
         if (m_lateStreak >= kLateBeforeScaleDown && m_adaptiveScale > kAdaptiveScaleMin + 1e-6) {
-            m_adaptiveScale = qMax(kAdaptiveScaleMin, m_adaptiveScale * kAdaptiveScaleStepDown);
-            m_lateStreak = 0;
+            if (m_framesSinceStepUp < kStepUpTrialFrames)
+                m_upHoldFrames = qMin(kMaxOnTimeBeforeScaleUp, m_upHoldFrames * 2);
+            stepTo(qMax(kAdaptiveScaleMin, m_adaptiveScale * kAdaptiveScaleStepDown));
         }
         return;
     }
 
     m_lateStreak = 0;
     ++m_onTimeStreak;
-    if (m_onTimeStreak >= kOnTimeBeforeScaleUp && m_adaptiveScale < 1.0 - 1e-6) {
-        m_adaptiveScale = qMin(1.0, m_adaptiveScale * kAdaptiveScaleStepUp);
-        m_onTimeStreak = 0;
+    ++m_framesSinceStepUp;
+    if (m_onTimeStreak >= m_upHoldFrames && m_adaptiveScale < 1.0 - 1e-6) {
+        const double up = qMin(1.0, m_adaptiveScale * kAdaptiveScaleStepUp);
+        const double ratio = up / m_adaptiveScale;
+        if (m_workAverageMs * ratio * ratio > m_lateFrameBudgetMs * kStepUpBudgetShare) {
+            m_onTimeStreak = 0;
+            return;
+        }
+        stepTo(up);
+        m_framesSinceStepUp = 0;
     }
 }
 
@@ -294,7 +326,9 @@ void CompositorService::onWorkerFrameReady(const GpuFrameTexture &frame, drift::
     // flight, time spent queued behind another frame is normal and says nothing about
     // whether this machine can keep up.
     if (m_adaptiveQuality && m_dropLateFrames && m_playbackActive)
-        noteFrameLate(timing.compositeMs > double(m_lateFrameBudgetMs));
+        // VEDIT: less the wait for the decoder, which a smaller picture does not shorten — the first
+        // frame after a cut is the usual one, and it says nothing about what this machine can draw.
+        noteFrameWork(qMax(0.0, timing.compositeMs - timing.decodeWaitMs));
 
     // Present unless something newer already got there. That covers both ways a finished
     // frame can be worthless — it completed out of order behind a later one, or the playhead

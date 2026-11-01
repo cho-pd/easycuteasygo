@@ -221,6 +221,7 @@ PlaybackEngine::PlaybackEngine(QObject *parent)
         isKnownProxySize(size))
         drift::ReverseProxyCache::previewProxyShortSide = size;
 
+    m_mixer.setWarmUpcoming(true); // VEDIT
     m_compositor.setDropLateFrames(true);
     m_compositor.setAdaptiveQuality(isAutoQuality());
     m_compositor.setStats(&m_stats);

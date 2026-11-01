@@ -72,7 +72,7 @@ Column {
             Text {
                 text: qsTr("Paint")
                 color: Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.family: Theme.fontFamily
             }
             ThemedComboBox {
@@ -91,7 +91,7 @@ Column {
             Text {
                 text: qsTr("Colour")
                 color: Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.family: Theme.fontFamily
             }
             ColorSwatchField {
@@ -130,7 +130,7 @@ Column {
                 text: root.texture.path ? String(root.texture.path).split("/").pop() : qsTr("No image")
                 elide: Text.ElideMiddle
                 color: Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
                 font.family: Theme.fontFamily
             }
         }
@@ -145,7 +145,7 @@ Column {
                 Text {
                     text: qsTr("Fit")
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                 }
                 Row {
@@ -171,7 +171,7 @@ Column {
                 Text {
                     text: qsTr("Scale")
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                 }
                 ThemedNumberField {
@@ -197,7 +197,7 @@ Column {
             Text {
                 text: qsTr("Angle")
                 color: Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.family: Theme.fontFamily
             }
             ThemedNumberField {
@@ -228,7 +228,7 @@ Column {
             Text {
                 text: qsTr("Effect")
                 color: Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.family: Theme.fontFamily
             }
             ThemedComboBox {

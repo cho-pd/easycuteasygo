@@ -134,7 +134,7 @@ Item {
                     text: root.sizeLinked ? qsTr("Scale") : qsTr("Size (px)")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.Medium
                 }
 
@@ -213,7 +213,7 @@ Item {
                     text: Math.round((scaleSlider.pressed ? scaleSlider.value : root.scaleAtPlayhead) * 100) + "%"
                     color: Theme.panelForeground
                     font.family: Theme.monoFontFamily
-                    font.pixelSize: Theme.fontSizeSm
+                    font.pixelSize: Theme.fontSizeBase
                 }
             }
 
@@ -244,7 +244,7 @@ Item {
                 text: qsTr("Move to a time, set a value, then click the diamond to add a keyframe. With Auto keyframes on, dragging a slider or the preview also creates them.")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
             }
 
             ThemedChip {
@@ -263,7 +263,7 @@ Item {
                     text: root.isModel3d ? qsTr("Offset (px)") : qsTr("Position (px)")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.Medium
                 }
                 KeyframeToggle {
@@ -311,7 +311,7 @@ Item {
                 text: root.isModel3d ? qsTr("Opacity") : qsTr("Opacity & rotation")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: Font.Medium
             }
 
@@ -341,7 +341,7 @@ Item {
                 text: qsTr("Rotate 90°")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: Font.Medium
             }
 
@@ -373,7 +373,7 @@ Item {
                 text: qsTr("Fix orientation")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: Font.Medium
             }
 
@@ -384,7 +384,7 @@ Item {
                 text: qsTr("Corrects the source's own rotation losslessly — unlike Angle above, this changes decoding, not just the on-screen box.")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
             }
 
             Flow {
@@ -411,7 +411,7 @@ Item {
                 text: qsTr("Flip")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: Font.Medium
             }
 
@@ -450,7 +450,7 @@ Item {
                     text: qsTr("Place on screen")
                     color: Theme.foreground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeBase
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
                 }
 
@@ -487,7 +487,7 @@ Item {
                     text: qsTr("Empty space around the picture")
                     color: Theme.foreground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeBase
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
                 }
 
@@ -527,7 +527,7 @@ Item {
                     text: "자르기"
                     color: Theme.foreground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeBase
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
                 }
 
@@ -553,14 +553,14 @@ Item {
                                 text: cropRow.modelData.label
                                 color: Theme.panelForeground
                                 font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeSm
+                                font.pixelSize: Theme.fontSizeLabel
                             }
                             Text {
                                 anchors.right: parent.right
                                 text: Math.round(cropSlider.value * 100) + "%"
                                 color: Theme.mutedForeground
                                 font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeSm
+                                font.pixelSize: Theme.fontSizeBase
                             }
                         }
                     ThemedSlider {

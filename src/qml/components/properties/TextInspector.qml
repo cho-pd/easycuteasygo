@@ -369,7 +369,7 @@ Item {
                         text: modelData.label
                         color: parent.current ? Theme.primary : Theme.panelForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm
+                        font.pixelSize: Theme.fontSizeBase
                         font.weight: parent.current ? Font.DemiBold : Font.Normal
                     }
                     Rectangle {
@@ -418,7 +418,7 @@ Item {
                             text: modelData.label
                             color: parent.current ? Theme.panelForeground : Theme.mutedForeground
                             font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSm
+                            font.pixelSize: Theme.fontSizeBase
                         }
                         MouseArea {
                             anchors.fill: parent
@@ -447,7 +447,7 @@ Item {
                     width: parent.width
                     height: root.contentFieldHeight
                     clip: true
-                    font.pixelSize: 13 // VEDIT: CapCut-sized
+                    font.pixelSize: Theme.fontSizeLabel // VEDIT: CapCut-sized
                     placeholderText: qsTr("Type your text…")
                     onEditingFinished: root.applyText()
                     // VEDIT: CapCut — the words change on the picture as they are typed (a short
@@ -532,7 +532,7 @@ Item {
                     text: qsTr("Font")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                 }
 
                 FontPicker {
@@ -551,7 +551,7 @@ Item {
                         Text {
                             text: qsTr("Weight")
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeLabel
                             font.family: Theme.fontFamily
                         }
                         ThemedComboBox {
@@ -642,7 +642,7 @@ Item {
                         Text {
                             text: qsTr("Colour")
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeLabel
                             font.family: Theme.fontFamily
                         }
                         ColorSwatchField {
@@ -659,7 +659,7 @@ Item {
                             text: qsTr("Edits the first gradient stop")
                             wrapMode: Text.WordWrap
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeBase
                             font.family: Theme.fontFamily
                         }
                         ThemedChip {
@@ -682,7 +682,7 @@ Item {
                         Text {
                             text: qsTr("Style")
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeLabel
                             font.family: Theme.fontFamily
                         }
                         ThemedToggleButton {
@@ -783,7 +783,7 @@ Item {
                         Text {
                             text: qsTr("Wrapping")
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeLabel
                             font.family: Theme.fontFamily
                         }
                         ThemedToggleButton {
@@ -838,7 +838,7 @@ Item {
                     text: qsTr("Advanced style (layers)")
                     color: Theme.panelForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSm
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.Medium
                 }
             }
@@ -868,7 +868,7 @@ Item {
                     text: qsTr("Font, colour and effect in one tap. Save your own to reuse it.")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeBase
                 }
 
                 TextStylePackPicker {
@@ -897,7 +897,7 @@ Item {
                     text: qsTr("Caption position")
                     color: Theme.panelForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSm
+                    font.pixelSize: Theme.fontSizeLabel
                 }
                 Flow {
                     visible: root.clipKind === "subtitle"
@@ -982,7 +982,7 @@ Item {
                     text: qsTr("Shadow, outline, neon… built as layers you can fine-tune below.")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeBase
                 }
 
                 TextLookPicker {
@@ -1019,7 +1019,8 @@ Item {
                         text: qsTr("Layers")
                         color: Theme.panelForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm
+                        font.pixelSize: Theme.fontSizeLabel
+                        wrapMode: Text.WordWrap // VEDIT: long names go to a second line at 16px
                         font.weight: Font.DemiBold
                     }
                     ThemedButton {
@@ -1048,7 +1049,7 @@ Item {
                     text: qsTr("No layers. Pick an effect above or add a fill to start.")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeBase
                 }
 
                 // Integer model so rows survive the fresh QVariantList every edit produces; the list
@@ -1102,7 +1103,7 @@ Item {
                                     HoverHandler { id: tipHover1088 }
                                     ThemedToolTip { text: qsTr("Space between the text and the edge of its background box"); visible: tipHover1088.hovered }
                                     color: Theme.mutedForeground
-                                    font.pixelSize: Theme.fontSizeXs
+                                    font.pixelSize: Theme.fontSizeLabel
                                     font.family: Theme.fontFamily
                                 }
                                 ThemedNumberField {
@@ -1123,7 +1124,7 @@ Item {
                                 Text {
                                     text: qsTr("Top and bottom padding")
                                     color: Theme.mutedForeground
-                                    font.pixelSize: Theme.fontSizeXs
+                                    font.pixelSize: Theme.fontSizeLabel
                                     font.family: Theme.fontFamily
                                 }
                                 ThemedNumberField {
@@ -1146,7 +1147,7 @@ Item {
                                     HoverHandler { id: tipHover1109 }
                                     ThemedToolTip { text: qsTr("Roundness of the background box corners"); visible: tipHover1109.hovered }
                                     color: Theme.mutedForeground
-                                    font.pixelSize: Theme.fontSizeXs
+                                    font.pixelSize: Theme.fontSizeLabel
                                     font.family: Theme.fontFamily
                                 }
                                 ThemedNumberField {
@@ -1186,7 +1187,7 @@ Item {
                                     HoverHandler { id: tipHoverHlPad }
                                     ThemedToolTip { text: qsTr("How far the pill extends past the word"); visible: tipHoverHlPad.hovered }
                                     color: Theme.mutedForeground
-                                    font.pixelSize: Theme.fontSizeXs
+                                    font.pixelSize: Theme.fontSizeLabel
                                     font.family: Theme.fontFamily
                                 }
                                 ThemedNumberField {
@@ -1207,7 +1208,7 @@ Item {
                                 Text {
                                     text: qsTr("Corner radius")
                                     color: Theme.mutedForeground
-                                    font.pixelSize: Theme.fontSizeXs
+                                    font.pixelSize: Theme.fontSizeLabel
                                     font.family: Theme.fontFamily
                                 }
                                 ThemedNumberField {
@@ -1229,7 +1230,7 @@ Item {
                             Text {
                                 text: qsTr("Highlight colour")
                                 color: Theme.mutedForeground
-                                font.pixelSize: Theme.fontSizeXs
+                                font.pixelSize: Theme.fontSizeLabel
                                 font.family: Theme.fontFamily
                             }
                             ColorSwatchField {
@@ -1261,7 +1262,7 @@ Item {
                                 Text {
                                     text: qsTr("Thickness")
                                     color: Theme.mutedForeground
-                                    font.pixelSize: Theme.fontSizeXs
+                                    font.pixelSize: Theme.fontSizeLabel
                                     font.family: Theme.fontFamily
                                 }
                                 ThemedNumberField {
@@ -1284,7 +1285,7 @@ Item {
                                     HoverHandler { id: tipHoverUnderlineOffset }
                                     ThemedToolTip { text: qsTr("Gap between the baseline and the rule"); visible: tipHoverUnderlineOffset.hovered }
                                     color: Theme.mutedForeground
-                                    font.pixelSize: Theme.fontSizeXs
+                                    font.pixelSize: Theme.fontSizeLabel
                                     font.family: Theme.fontFamily
                                 }
                                 ThemedNumberField {
@@ -1306,7 +1307,7 @@ Item {
                             Text {
                                 text: qsTr("Underline colour")
                                 color: Theme.mutedForeground
-                                font.pixelSize: Theme.fontSizeXs
+                                font.pixelSize: Theme.fontSizeLabel
                                 font.family: Theme.fontFamily
                             }
                             ColorSwatchField {
@@ -1386,7 +1387,7 @@ Item {
                                 visible: tipHoverAccentSize.hovered
                             }
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeLabel
                             font.family: Theme.fontFamily
                         }
                         ThemedNumberField {
@@ -1424,7 +1425,7 @@ Item {
                             Text {
                                 text: qsTr("Width")
                                 color: Theme.mutedForeground
-                                font.pixelSize: Theme.fontSizeXs
+                                font.pixelSize: Theme.fontSizeLabel
                                 font.family: Theme.fontFamily
                             }
                             ThemedNumberField {
@@ -1478,7 +1479,7 @@ Item {
                     delegate: ThemedToggleButton {
                         required property var modelData
                         width: 84 // VEDIT: room for 들어오기 at 16 px
-                        labelSize: 16
+                        labelSize: Theme.fontSizeLabel
                         text: modelData.label
                         checked: root.animSlot === modelData.id
                         onClicked: {
@@ -1495,7 +1496,8 @@ Item {
                 text: qsTr("Plays for every caption")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
+                font.pixelSize: Theme.fontSizeLabel // VEDIT (조박사님 2026-10-21): CapCut-sized
+                wrapMode: Text.WordWrap // VEDIT: long names go to a second line at 16px
             }
 
             Flickable {
@@ -1585,7 +1587,7 @@ Item {
                         elide: Text.ElideRight
                         color: Theme.panelForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm // VEDIT: CapCut-sized
+                        font.pixelSize: Theme.fontSizeBase // VEDIT: CapCut-sized
                         font.weight: Font.DemiBold
                     }
                     IconButton {
@@ -1617,13 +1619,13 @@ Item {
                         Text {
                             text: root.animSlot === "loop" ? qsTr("Period") : qsTr("Duration")
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
+                            font.pixelSize: Theme.fontSizeLabel // VEDIT (조박사님 2026-10-21): CapCut-sized
                             font.family: Theme.fontFamily
                         }
                         Text {
                             text: Number(durationSlider.value).toFixed(2) + " s"
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
+                            font.pixelSize: Theme.fontSizeBase // VEDIT (조박사님 2026-10-21): CapCut-sized
                             font.family: Theme.monoFontFamily
                         }
                     }
@@ -1671,7 +1673,7 @@ Item {
                         Text {
                             text: qsTr("By")
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
+                            font.pixelSize: Theme.fontSizeLabel // VEDIT (조박사님 2026-10-21): CapCut-sized
                             font.family: Theme.fontFamily
                         }
                         ThemedComboBox {
@@ -1695,7 +1697,7 @@ Item {
                                 visible: staggerHover.hovered
                             }
                             color: Theme.mutedForeground
-                            font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
+                            font.pixelSize: Theme.fontSizeLabel // VEDIT (조박사님 2026-10-21): CapCut-sized
                             font.family: Theme.fontFamily
                         }
                         ThemedNumberField {
@@ -1723,7 +1725,7 @@ Item {
                     Text {
                         text: qsTr("Order")
                         color: Theme.mutedForeground
-                        font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
+                        font.pixelSize: Theme.fontSizeLabel // VEDIT (조박사님 2026-10-21): CapCut-sized
                         font.family: Theme.fontFamily
                     }
                     ThemedComboBox {
@@ -1742,7 +1744,7 @@ Item {
                     Text {
                         text: qsTr("Ease")
                         color: Theme.mutedForeground
-                        font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
+                        font.pixelSize: Theme.fontSizeLabel // VEDIT (조박사님 2026-10-21): CapCut-sized
                         font.family: Theme.fontFamily
                     }
                     Flow {
@@ -1784,7 +1786,7 @@ Item {
                     text: qsTr("Custom animator (set via MCP). Preset controls are disabled.")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSm // VEDIT (조박사님 2026-10-21): CapCut-sized
+                    font.pixelSize: Theme.fontSizeBase // VEDIT (조박사님 2026-10-21): CapCut-sized
                 }
                 ThemedButton {
                     variant: "secondary"

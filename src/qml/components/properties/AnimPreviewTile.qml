@@ -140,7 +140,7 @@ Item {
         text: root.label
         color: root.selected ? Theme.primary : Theme.panelForeground
         font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeXs // VEDIT: CapCut-sized
+        font.pixelSize: Theme.fontSizeBase // VEDIT: CapCut-sized
     }
 
     Accessible.role: Accessible.Button

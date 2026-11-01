@@ -239,7 +239,7 @@ Column {
     Text {
         text: qsTr("Presets")
         color: Theme.mutedForeground
-        font.pixelSize: Theme.fontSizeXs
+        font.pixelSize: Theme.fontSizeLabel
         font.family: Theme.fontFamily
     }
 
@@ -302,7 +302,7 @@ Column {
             Text {
                 text: qsTr("Type")
                 color: Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.family: Theme.fontFamily
             }
             ThemedComboBox {
@@ -341,7 +341,7 @@ Column {
                     visible: mapHover.hovered
                 }
                 color: Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.family: Theme.fontFamily
             }
             ThemedComboBox {
@@ -378,7 +378,7 @@ Column {
                     visible: speedHover.hovered
                 }
                 color: Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.family: Theme.fontFamily
             }
             ThemedNumberField {
@@ -403,7 +403,7 @@ Column {
             Text {
                 text: qsTr("Options")
                 color: Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.family: Theme.fontFamily
             }
             Row {

@@ -48,7 +48,8 @@ Item {
             text: qsTr("Shape")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeXs
+            font.pixelSize: Theme.fontSizeLabel
+            wrapMode: Text.WordWrap // VEDIT: long names go to a second line at 16px
         }
 
         ThemedComboBox {
@@ -90,7 +91,8 @@ Item {
                 text: qsTr("Combine")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
+                wrapMode: Text.WordWrap // VEDIT: long names go to a second line at 16px
             }
 
             ThemedComboBox {
@@ -179,7 +181,7 @@ Item {
                 text: qsTr("Invert")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 anchors.verticalCenter: parent.verticalCenter
             }
             ThemedSwitch {

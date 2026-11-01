@@ -125,6 +125,25 @@ int ClipReaderWorker::decodeAudio(quint64 streamId, drift::TimeUs sourceStartUs,
                                         interleavedStereoOut);
 }
 
+// VEDIT (조박사님, 내장 GPU: "클립 끝에서 잠깐 멈추고"): the mixer asks for a clip's sound a quarter
+// second before its picture, on the thread the sink depends on. A file that took longer than that
+// to open (a cold disk, a virus scan) ran the sink dry and the clock with it — the picture stopped
+// on the last frames of the clip before. One small read here does that open, and pulls the audio
+// around the clip's start into the disk cache, while the sink is still full.
+void ClipReaderWorker::warmAudio(quint64 streamId, drift::TimeUs sourceUs, int outputSampleRate,
+                                 int audioStreamOrdinal)
+{
+    QMutexLocker lock(&m_mutex);
+    ClipReader *reader = readerFor(streamId, audioStreamOrdinal);
+    if (!reader)
+        return;
+    constexpr int kFrames = 1024;
+    float scratch[kFrames * 2];
+    reader->readAudioInterleaved(sourceUs, kFrames, outputSampleRate, scratch);
+    // The real read starts at sourceUs too, not where this one stopped.
+    reader->invalidateAudioPosition();
+}
+
 void ClipReaderWorker::prefetchNextVideo(quint64 streamId, int maxWidth, int maxHeight)
 {
     QMutexLocker lock(&m_mutex);

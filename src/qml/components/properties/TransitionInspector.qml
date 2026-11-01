@@ -141,7 +141,7 @@ Item {
                   : qsTr("Transitions work between two clips on a video, shape, or text track.")
             color: Theme.mutedForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSm
+            font.pixelSize: Theme.fontSizeBase
         }
 
         Column {
@@ -155,7 +155,7 @@ Item {
                 text: qsTr("No transition after this clip. Add one at the cut to the next clip.")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeBase
             }
 
             // VEDIT (조박사님, Vegas): no transition without an overlap — the button says how instead.
@@ -165,7 +165,7 @@ Item {
                 text: qsTr("Drag one clip over the next: where they overlap becomes a crossfade, as long as the overlap.")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: 16
+                font.pixelSize: Theme.fontSizeBase
             }
 
             // VEDIT (Vegas): every overlap on the track gets the crossfade, as long as the overlap.
@@ -195,7 +195,7 @@ Item {
                 }
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
             }
 
             Column {
@@ -205,7 +205,7 @@ Item {
                     text: qsTr("Type")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSm // VEDIT: one size for every section label
+                    font.pixelSize: Theme.fontSizeLabel // VEDIT: one size for every section label
                     font.weight: Font.Medium
                 }
                 ThemedComboBox {
@@ -241,7 +241,7 @@ Item {
                         text: qsTr("Duration")
                         color: Theme.mutedForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm // VEDIT: one size for every section label
+                        font.pixelSize: Theme.fontSizeLabel // VEDIT: one size for every section label
                         font.weight: Font.Medium
                     }
                     // VEDIT: the same length the timeline box shows ("1.15" = 1 s 15 frames), spelled
@@ -261,7 +261,7 @@ Item {
                         }
                         color: Theme.panelForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm
+                        font.pixelSize: Theme.fontSizeBase
                     }
                 }
                 Settings {
@@ -331,7 +331,7 @@ Item {
                             text: qsTr("Fade type")
                             color: Theme.mutedForeground
                             font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSm
+                            font.pixelSize: Theme.fontSizeLabel
                             font.weight: Font.Medium
                         }
                     }
@@ -363,7 +363,7 @@ Item {
                     text: qsTr("Curve")
                     color: Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSm // VEDIT
+                    font.pixelSize: Theme.fontSizeLabel // VEDIT
                     font.weight: Font.Medium
                 }
                 ThemedComboBox {
@@ -410,7 +410,7 @@ Item {
                             text: trParamRow.paramData.label
                             color: Theme.mutedForeground
                             font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSm // VEDIT: same as the section labels
+                            font.pixelSize: Theme.fontSizeLabel // VEDIT: same as the section labels
                             font.weight: Font.Medium
                             anchors.verticalCenter: parent.verticalCenter
                         }
@@ -423,7 +423,7 @@ Item {
                                         Math.abs(trParamRow.paramData.max - trParamRow.paramData.min) >= 10 ? 1 : 2)
                             color: Theme.panelForeground
                             font.family: Theme.monoFontFamily
-                            font.pixelSize: Theme.fontSizeSm // VEDIT
+                            font.pixelSize: Theme.fontSizeBase // VEDIT
                             anchors.verticalCenter: parent.verticalCenter
                         }
                     }

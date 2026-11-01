@@ -93,7 +93,7 @@ Column {
                 text: (row.kindLabels[row.kind] || row.kind) + " · " + (row.paintLabels[row.paintKind] || row.paintKind)
                 color: row.layerEnabled ? Theme.panelForeground : Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: Font.Medium
                 width: Math.max(20, parent.width - 22 * 6 - 12 - 4 - parent.spacing * 7)
                 elide: Text.ElideRight
@@ -180,7 +180,7 @@ Column {
                 Text {
                     text: qsTr("Blend")
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                 }
                 ThemedComboBox {
@@ -223,7 +223,7 @@ Column {
                 Text {
                     text: qsTr("Placement")
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                 }
                 ThemedComboBox {
@@ -247,7 +247,7 @@ Column {
                 Text {
                     text: qsTr("Dash")
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                 }
                 ThemedComboBox {
@@ -315,7 +315,7 @@ Column {
                     text: qsTr("Sketchy")
                     anchors.verticalCenter: parent.verticalCenter
                     color: row.sketchy ? Theme.panelForeground : Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                     MouseArea {
                         anchors.fill: parent
@@ -358,7 +358,7 @@ Column {
                     Text {
                         text: qsTr("Seed")
                         color: Theme.mutedForeground
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeLabel
                         font.family: Theme.fontFamily
                     }
                     ThemedNumberField {
@@ -385,7 +385,7 @@ Column {
             Text {
                 text: qsTr("Colour")
                 color: Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.family: Theme.fontFamily
             }
             ColorSwatchField {
@@ -466,7 +466,7 @@ Column {
                 Text {
                     text: qsTr("Angle")
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                 }
                 ThemedNumberField {
@@ -498,7 +498,7 @@ Column {
                     visible: darkenHover.hovered
                 }
                 color: Theme.mutedForeground
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
                 font.family: Theme.fontFamily
             }
             ThemedSlider {

@@ -74,7 +74,7 @@ Item {
                 text: qsTr("Clip name")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
             }
             Row {
                 width: parent.width
@@ -85,7 +85,7 @@ Item {
                     text: (root.hasSelection && root.clipData.name) || qsTr("Untitled clip")
                     color: root.hasSelection && root.clipData.name ? Theme.panelForeground : Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeBase
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.Medium
                     elide: Text.ElideRight
                 }
@@ -107,14 +107,14 @@ Item {
                 text: qsTr("Type")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
             }
             Text {
                 // Human label rather than the raw internal id.
                 text: root.clipKindLabel(root.clipKind)
                 color: Theme.panelForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeBase
                 elide: Text.ElideRight
                 width: parent.width - x
             }
@@ -130,7 +130,7 @@ Item {
                 Text {
                     text: qsTr("Starts at")
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                 }
                 ThemedNumberField {
@@ -152,7 +152,7 @@ Item {
                 Text {
                     text: qsTr("Duration")
                     color: Theme.mutedForeground
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.family: Theme.fontFamily
                 }
                 ThemedNumberField {
@@ -205,7 +205,7 @@ Item {
                 ThemedToolTip { text: qsTr("Which part of the original file this clip plays"); visible: tipHover1217.hovered }
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeLabel
             }
 
             Row {
@@ -220,7 +220,7 @@ Item {
                         HoverHandler { id: tipHover1231 }
                         ThemedToolTip { text: qsTr("Seconds into the file where this clip starts"); visible: tipHover1231.hovered }
                         color: Theme.mutedForeground
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeLabel
                         font.family: Theme.fontFamily
                     }
                     ThemedNumberField {
@@ -244,7 +244,7 @@ Item {
                         HoverHandler { id: tipHover1252 }
                         ThemedToolTip { text: qsTr("Seconds into the file where this clip ends"); visible: tipHover1252.hovered }
                         color: Theme.mutedForeground
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeLabel
                         font.family: Theme.fontFamily
                     }
                     ThemedNumberField {
@@ -278,7 +278,7 @@ Item {
                 text: qsTr("File information")
                 color: Theme.panelForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: Font.Medium
             }
 
@@ -293,7 +293,7 @@ Item {
                         text: modelData.label
                         color: Theme.mutedForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeXs
+                        font.pixelSize: Theme.fontSizeBase
                         wrapMode: Text.WordWrap
                     }
                     Text {
@@ -301,7 +301,7 @@ Item {
                         text: modelData.value
                         color: Theme.panelForeground
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSm
+                        font.pixelSize: Theme.fontSizeBase
                         wrapMode: Text.WrapAnywhere
                         maximumLineCount: 3
                         elide: Text.ElideRight

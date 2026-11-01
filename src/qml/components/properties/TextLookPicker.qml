@@ -78,7 +78,7 @@ Item {
                 text: qsTr("Aa")
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeBase
             }
         }
 
@@ -92,7 +92,7 @@ Item {
             elide: Text.ElideRight
             color: Theme.panelForeground
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSm
+            font.pixelSize: Theme.fontSizeBase
         }
 
         IconGlyph {
@@ -193,7 +193,7 @@ Item {
                             horizontalAlignment: Text.AlignHCenter
                             color: lookTile.selected ? Theme.primary : Theme.panelForeground
                             font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeXs
+                            font.pixelSize: Theme.fontSizeBase
                         }
                     }
                 }

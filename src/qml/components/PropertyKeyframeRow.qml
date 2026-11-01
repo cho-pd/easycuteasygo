@@ -329,7 +329,7 @@ Column {
                     color: root.animated && root.keyframesEnabled ? Theme.panelForeground
                                                                   : Theme.mutedForeground
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeXs
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: root.animated && root.keyframesEnabled ? Font.Medium : Font.Normal
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
@@ -517,7 +517,7 @@ Column {
                 text: root.percent ? "%" : root.unit
                 color: Theme.mutedForeground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeXs
+                font.pixelSize: Theme.fontSizeBase
                 z: 1
             }
         }
@@ -597,7 +597,7 @@ Column {
                     text: root.sliderReadout(root.displayedValue)
                     color: Theme.panelForeground
                     font.family: Theme.monoFontFamily
-                    font.pixelSize: Theme.fontSizeSm
+                    font.pixelSize: Theme.fontSizeBase
                 }
 
                 MouseArea {
@@ -700,7 +700,7 @@ Column {
                                 text: root.propDef.label
                                 color: Theme.panelForeground
                                 font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeXs
+                                font.pixelSize: Theme.fontSizeLabel
                                 font.weight: Font.Medium
                                 elide: Text.ElideRight
                             }
@@ -737,7 +737,7 @@ Column {
                                 text: root.percent ? "%" : root.unit
                                 color: Theme.mutedForeground
                                 font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeXs
+                                font.pixelSize: Theme.fontSizeBase
                             }
                         }
                     }
