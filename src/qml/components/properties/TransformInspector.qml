@@ -43,7 +43,7 @@ Item {
     readonly property real scaleAtPlayhead: {
         void clipDataRevision
         void liveRevision
-        void EditorState.playheadSeconds
+        void EditorState.inspectorPlayheadSeconds
         if (!hasSelection)
             return 1
         const w = transformAt("width", canvasW)
@@ -55,7 +55,7 @@ Item {
 
     function transformAt(key, def) {
         return EditorState.propertyValueAt(EditorState.selectedTrack, EditorState.selectedClip,
-                                           key, EditorState.playheadSeconds, def)
+                                           key, EditorState.inspectorPlayheadSeconds, def)
     }
 
     function beginScaleDrag() {
@@ -149,7 +149,7 @@ Item {
                     readonly property var keyState: {
                         void root.clipDataRevision
                         void root.liveRevision
-                        void EditorState.playheadSeconds
+                        void EditorState.inspectorPlayheadSeconds
                         void EditorState.tracksRevision
                         return EditorState.clipPropsKeyState(EditorState.selectedTrack, EditorState.selectedClip, scaleProps)
                     }
@@ -274,7 +274,7 @@ Item {
                     readonly property var keyState: {
                         void root.clipDataRevision
                         void root.liveRevision
-                        void EditorState.playheadSeconds
+                        void EditorState.inspectorPlayheadSeconds
                         void EditorState.tracksRevision
                         return EditorState.clipPropsKeyState(EditorState.selectedTrack, EditorState.selectedClip, posProps)
                     }
@@ -357,7 +357,7 @@ Item {
                         text: modelData + "°"
                         selected: {
                             void root.clipDataRevision
-                            void EditorState.playheadSeconds
+                            void EditorState.inspectorPlayheadSeconds
                             const cur = Number(root.clipData.rotationAtPlayhead || 0)
                             return Math.abs(cur - modelData) < 0.5
                         }

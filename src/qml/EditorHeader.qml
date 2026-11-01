@@ -751,37 +751,36 @@ Rectangle {
                 }
             }
 
-            // Only exists while there is a newer release to tell the user about; the check itself
-            // is silent, so this dot is the whole notification.
+            // VEDIT (조박사님 2026-10-28): small red "Update Available" text, only while a newer
+            // release exists. Clicking opens the site's sign-up gate to download it again.
             Item {
-                implicitWidth: updateBtn.implicitWidth
-                implicitHeight: updateBtn.implicitHeight
+                implicitWidth: updateText.implicitWidth + Theme.spacingMd * 2
+                implicitHeight: 48
                 width: implicitWidth
                 height: implicitHeight
                 anchors.verticalCenter: parent.verticalCenter
                 visible: Updates.updateAvailable
 
-                IconButton {
-                    id: updateBtn
-                    anchors.fill: parent
-                    glyph: Theme.icons.download
-                    variant: "ghost"
-                    text: qsTr("Update")
-                    tooltip: "'Easy Cut, Easy Go!' " + Updates.latestVersion + " " + qsTr("is ready to download") // VEDIT
-                    onClicked: root.Window.window.openUpdateDialog()
+                ThemedLabel {
+                    id: updateText
+                    anchors.centerIn: parent
+                    size: "sm"
+                    text: "Update Available"
+                    color: Theme.destructive
+                    font.underline: updateMouse.containsMouse
                 }
 
-                Rectangle {
-                    width: 8
-                    height: 8
-                    radius: width / 2
-                    color: Theme.primary
-                    border.width: Theme.borderWidth
-                    border.color: Theme.panelBackground
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: 3
+                MouseArea {
+                    id: updateMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Updates.openDownloadPage()
                 }
+
+                ToolTip.visible: updateMouse.containsMouse
+                ToolTip.delay: 400
+                ToolTip.text: "'Easy Cut, Easy Go!' " + Updates.latestVersion + " " + qsTr("is ready to download")
             }
 
             HeaderSeparator {}

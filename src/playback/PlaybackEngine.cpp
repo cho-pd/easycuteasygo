@@ -316,6 +316,13 @@ void PlaybackEngine::setProject(drift::Project *project)
 void PlaybackEngine::notifyProjectEdited()
 {
     m_compositor.invalidateSnapshot();
+    // VEDIT (조박사님: 재생 중 키프레임 끊김): the next display tick draws the edit anyway. A composite
+    // from here is for m_playheadUs, already behind the frame last asked for — a step back on
+    // screen, a rewind for the decoder, and one of the few composite slots an iGPU has.
+    if (m_playing) {
+        m_lastRequestedFrameUs = -1;
+        return;
+    }
     if (!m_editRefreshTimer.isActive())
         m_editRefreshTimer.start();
 }

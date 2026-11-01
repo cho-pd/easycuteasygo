@@ -80,7 +80,7 @@ QString describeOpenGl()
 void printBanner(std::FILE *out, const QString &glLine, bool stdioServing,
                  const drift::mcp::McpServer *http, const QString &projectPath)
 {
-    QString text = QStringLiteral("Drift %1 — headless\n").arg(QStringLiteral(DRIFT_VERSION));
+    QString text = QStringLiteral("'Easy Cut, Easy Go!' %1 — headless\n") /* VEDIT */.arg(QStringLiteral(DRIFT_VERSION));
     text += QStringLiteral("  platform  %1\n").arg(QGuiApplication::platformName());
     text += QStringLiteral("  opengl    %1\n").arg(glLine);
     text += QStringLiteral("  project   %1\n")

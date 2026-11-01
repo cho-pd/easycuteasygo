@@ -59,7 +59,7 @@ QByteArray postJson(quint16 port, const QString &token, const QByteArray &body, 
     if (!socket.waitForConnected(2000)) {
         if (error)
             *error = QStringLiteral(
-                "Could not connect to Drift. Is the editor open with Agent access enabled?");
+                "Could not connect to 'Easy Cut, Easy Go!'. Is the editor open with Agent access on?" /* VEDIT */);
         return {};
     }
 
@@ -83,7 +83,7 @@ QByteArray postJson(quint16 port, const QString &token, const QByteArray &body, 
     const int sep = response.indexOf("\r\n\r\n");
     if (sep < 0) {
         if (error)
-            *error = QStringLiteral("Empty response from Drift MCP.");
+            *error = QStringLiteral("Empty response from the editor MCP." /* VEDIT */);
         return {};
     }
     if (statusOut)
@@ -207,7 +207,7 @@ int runStdioAttach()
             continue;
         }
         if (status > 0 && (status < 200 || status >= 300)) {
-            const QString msg = QStringLiteral("Drift MCP HTTP %1").arg(status);
+            const QString msg = QStringLiteral("Editor MCP HTTP %1") /* VEDIT */.arg(status);
             fprintf(stderr, "%s\n", qPrintable(msg));
             writeRpcError(id, -32000, msg);
             continue;

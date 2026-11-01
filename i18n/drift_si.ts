@@ -6716,10 +6716,6 @@
         <translation>අමතර අංග</translation>
     </message>
     <message>
-        <source>Update</source>
-        <translation>යාවත්කාලීන කරන්න</translation>
-    </message>
-    <message>
         <source>Agent access</source>
         <translation>නියෝජිත (Agent) ප්‍රවේශය</translation>
     </message>
@@ -13390,6 +13386,10 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Nothing here yet — projects you save will show up in this list.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>is ready to download</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

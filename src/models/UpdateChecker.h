@@ -68,7 +68,9 @@ public:
     Q_INVOKABLE void answerConsent(bool allow);
     QString downloadState() const { return m_downloadState; }
     double downloadProgress() const { return m_downloadProgress; }
-    bool canInstall() const { return !m_installerUrl.isEmpty(); }
+    // VEDIT (2026-10-28): updates are downloaded again through the site's sign-up gate, never
+    // straight from GitHub inside the app, so the dialog always offers openDownloadPage().
+    bool canInstall() const { return false; }
     // Fetches the new installer in the background; it is run the next time the app starts.
     Q_INVOKABLE void downloadUpdate();
     // Called first thing in main(): a downloaded installer for a newer version is started (quietly;

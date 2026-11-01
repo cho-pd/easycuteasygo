@@ -6679,10 +6679,6 @@
         <translation type="unfinished">附加项</translation>
     </message>
     <message>
-        <source>Update</source>
-        <translation type="unfinished">更新</translation>
-    </message>
-    <message>
         <source>Agent access</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13330,6 +13326,10 @@ If playback stutters, try another.</source>
     </message>
     <message>
         <source>Nothing here yet — projects you save will show up in this list.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>is ready to download</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

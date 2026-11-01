@@ -6716,10 +6716,6 @@
         <translation>Extras</translation>
     </message>
     <message>
-        <source>Update</source>
-        <translation>Actualizar</translation>
-    </message>
-    <message>
         <source>Agent access</source>
         <translation>Acceso de agente</translation>
     </message>
@@ -13390,6 +13386,10 @@ Si la reproducción se corta, prueba con otra opción.</translation>
     </message>
     <message>
         <source>Nothing here yet — projects you save will show up in this list.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>is ready to download</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

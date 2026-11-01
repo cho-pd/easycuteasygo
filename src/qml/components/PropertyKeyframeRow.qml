@@ -62,7 +62,7 @@ Column {
         void valueRevision
         void liveSynced
         void keyframeList
-        void EditorState.playheadSeconds
+        void EditorState.inspectorPlayheadSeconds
         return valueAtPlayhead()
     }
     readonly property real displayedValue: editing ? liveValue : currentValue
@@ -134,14 +134,14 @@ Column {
         if (!liveSynced && (!keyframeList || keyframeList.length === 0))
             return propDef.def
         return EditorState.propertyValueAt(EditorState.selectedTrack, EditorState.selectedClip,
-                                           propDef.key, EditorState.playheadSeconds, propDef.def)
+                                           propDef.key, EditorState.inspectorPlayheadSeconds, propDef.def)
     }
 
     function keyframeAtPlayhead() {
         if (!keyframeList)
             return null
 
-        const t = EditorState.playheadSeconds
+        const t = EditorState.inspectorPlayheadSeconds
         const tolerance = 1 / 30
         let best = null
         for (let i = 0; i < keyframeList.length; ++i) {
@@ -177,10 +177,10 @@ Column {
         return Math.abs(keyframeList[0].seconds - clipStartSeconds) > 1e-6
     }
     readonly property bool keyHere: {
-        void EditorState.playheadSeconds
+        void EditorState.inspectorPlayheadSeconds
         if (!keyed)
             return false
-        const t = EditorState.playheadSeconds
+        const t = EditorState.inspectorPlayheadSeconds
         const half = 0.5 / Math.max(1, EditorState.projectFps() || 30)
         for (let i = 0; i < keyframeList.length; ++i)
             if (Math.abs(keyframeList[i].seconds - t) <= half)
@@ -190,7 +190,7 @@ Column {
     function neighbourKeySeconds(after) {
         if (!keyed)
             return -1
-        const t = EditorState.playheadSeconds
+        const t = EditorState.inspectorPlayheadSeconds
         const half = 0.5 / Math.max(1, EditorState.projectFps() || 30)
         let best = -1
         for (let i = 0; i < keyframeList.length; ++i) {
@@ -270,7 +270,8 @@ Column {
     Connections {
         target: EditorState
         function onSelectedClipDataChanged() { root.bumpValue() }
-        function onPlayheadSecondsChanged() { root.bumpValue() }
+        // VEDIT (조박사님: 재생 중 끊김): a few times a second while playing, not every tick
+        function onInspectorPlayheadSecondsChanged() { root.bumpValue() }
         function onTracksChanged() { root.bumpValue() }
         function onClipPropertiesPreviewed(trackIndex, clipIndex, keys) {
             if (root.editing || !root.matchesKey(keys))
@@ -344,8 +345,8 @@ Column {
                 anchors.verticalCenter: parent.verticalCenter
                 animated: root.keyed
                 atPlayhead: root.keyHere
-                prevSeconds: { void EditorState.playheadSeconds; return root.neighbourKeySeconds(false) }
-                nextSeconds: { void EditorState.playheadSeconds; return root.neighbourKeySeconds(true) }
+                prevSeconds: { void EditorState.inspectorPlayheadSeconds; return root.neighbourKeySeconds(false) }
+                nextSeconds: { void EditorState.inspectorPlayheadSeconds; return root.neighbourKeySeconds(true) }
                 onToggled: {
                     EditorState.showKeyframeGraphProperty(root.propDef.key)
                     EditorState.toggleClipKeyframeHere(EditorState.selectedTrack, EditorState.selectedClip,

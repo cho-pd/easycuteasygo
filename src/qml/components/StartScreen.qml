@@ -530,6 +530,64 @@ Rectangle {
         }
     }
 
+    // VEDIT (조박사님 2026-10-31): a newer version blinks at the top right of the start screen.
+    // Clicking opens the site's sign-up gate to download it again, same as the editor header.
+    Item {
+        id: startUpdateNotice
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: Theme.spacingLg
+        anchors.rightMargin: Theme.spacingLg
+        implicitWidth: startUpdateBox.width
+        implicitHeight: 48
+        width: implicitWidth
+        height: implicitHeight
+        visible: Updates.updateAvailable
+
+        // The whole box blinks, frame and text together; pointing at it holds it steady.
+        Rectangle {
+            id: startUpdateBox
+            anchors.centerIn: parent
+            width: startUpdateText.implicitWidth + Theme.spacingMd * 2
+            height: startUpdateText.implicitHeight + Theme.spacingSm * 2
+            radius: 4
+            color: "transparent"
+            border.color: Theme.destructive
+            border.width: 1
+
+            Text {
+                id: startUpdateText
+                anchors.centerIn: parent
+                text: "Update Available"
+                color: Theme.destructive
+                font.family: Theme.fontFamily
+                font.pixelSize: 13 // 조박사님: 18에서 30% 줄임
+                font.bold: true
+                font.underline: startUpdateMouse.containsMouse
+            }
+
+            SequentialAnimation on opacity {
+                running: startUpdateNotice.visible && !startUpdateMouse.containsMouse
+                loops: Animation.Infinite
+                alwaysRunToEnd: true
+                NumberAnimation { to: 0.2; duration: 600; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.InOutSine }
+            }
+        }
+
+        MouseArea {
+            id: startUpdateMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: Updates.openDownloadPage()
+        }
+
+        ToolTip.visible: startUpdateMouse.containsMouse
+        ToolTip.delay: 400
+        ToolTip.text: "'Easy Cut, Easy Go!' " + Updates.latestVersion + " " + qsTr("is ready to download")
+    }
+
     // VEDIT (조박사님): the version, small, at the foot in the middle — as on the splash.
     Text {
         anchors.horizontalCenter: parent.horizontalCenter

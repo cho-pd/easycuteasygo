@@ -440,7 +440,7 @@ void McpTest::protocolInitializeAndToolsList()
     QCOMPARE(init.toObject().value(QStringLiteral("result")).toObject()
                  .value(QStringLiteral("serverInfo")).toObject()
                  .value(QStringLiteral("name")).toString(),
-             QStringLiteral("drift"));
+             QStringLiteral("easycuteasygo")); // VEDIT
 
     const QString instructions = init.toObject().value(QStringLiteral("result")).toObject()
                                      .value(QStringLiteral("instructions")).toString();
@@ -558,7 +558,7 @@ void McpTest::serverInitializeWithToken()
     QCOMPARE(doc.object().value(QStringLiteral("result")).toObject()
                  .value(QStringLiteral("serverInfo")).toObject()
                  .value(QStringLiteral("name")).toString(),
-             QStringLiteral("drift"));
+             QStringLiteral("easycuteasygo")); // VEDIT
     QVERIFY(QFile::exists(dir.filePath(QStringLiteral("s.json"))));
     state.setMcpEnabled(false);
     QVERIFY(!QFile::exists(dir.filePath(QStringLiteral("s.json"))));

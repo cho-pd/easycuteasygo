@@ -6679,10 +6679,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Update</source>
-        <translation type="unfinished">Cập nhật</translation>
-    </message>
-    <message>
         <source>Agent access</source>
         <translation type="unfinished">Quyền truy cập của trợ lý</translation>
     </message>
@@ -13331,6 +13327,10 @@ If playback stutters, try another.</source>
     <message>
         <source>Nothing here yet — projects you save will show up in this list.</source>
         <translation type="unfinished">Chưa có gì ở đây - các dự án bạn lưu sẽ hiển thị trong danh sách này.</translation>
+    </message>
+    <message>
+        <source>is ready to download</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

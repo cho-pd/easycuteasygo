@@ -34,10 +34,6 @@
 
 namespace {
 
-// Once a day. The feed is GitHub's own API and the check is a single conditional-ish GET, but
-// there is no reason to ask more often than releases happen.
-constexpr qint64 kCheckIntervalSeconds = 24 * 60 * 60;
-
 // Long enough that the first frame, the project restore and the addon index refresh are all past
 // before a socket is opened. Nothing in the app waits on this.
 constexpr int kStartupDelayMs = 5000;
@@ -45,8 +41,8 @@ constexpr int kStartupDelayMs = 5000;
 constexpr int kTransferTimeoutMs = 15000;
 
 // VEDIT (조박사님: 배포): releases come from the project's own GitHub repository, and the version
-// is 1.0.<build> so every published build is newer than the last. Asked for only after the user
-// agreed at the first launch (see asked()).
+// is 1.0.<build> so every published build is newer than the last. On by default since 2026-10-28
+// (조박사님 lifted the no-automatic-internet rule); see enabled().
 const QString kFeedUrl = QStringLiteral(DRIFT_UPDATE_FEED_URL).isEmpty()
     ? QStringLiteral("https://api.github.com/repos/cho-pd/easycuteasygo/releases/latest")
     : QStringLiteral(DRIFT_UPDATE_FEED_URL);
@@ -55,6 +51,9 @@ const QString kCurrentVersion = VEDIT_BUILD_NUMBER > 0
     : QStringLiteral(DRIFT_VERSION);
 // The asset the update downloads; the site's download button points at the same name.
 const QString kInstallerAsset = QStringLiteral("EasyCutEasyGo-Setup-x64.exe");
+// VEDIT (조박사님 2026-10-28: 회원가입 해야만 다운로드): an update is downloaded again from the
+// site's sign-up gate, which logs the user in and then hands over the latest installer.
+const QString kGatedDownloadUrl = QStringLiteral("https://sorigiolabs.com/dl/easycuteasygo");
 
 QString updatesDir()
 {
@@ -77,10 +76,8 @@ UpdateChecker::UpdateChecker(QObject *parent)
     if (!supported() || !enabled())
         return;
 
-    const QDateTime last = QSettings().value(settingsKey("lastCheck")).toDateTime();
-    if (last.isValid() && last.secsTo(QDateTime::currentDateTimeUtc()) < kCheckIntervalSeconds)
-        return;
-
+    // VEDIT: every launch, not once a day — the result is not stored, so skipping a launch
+    // would hide the header notice until the next day's check.
     QTimer::singleShot(kStartupDelayMs, this, [this] { check(false); });
 }
 
@@ -93,19 +90,21 @@ bool UpdateChecker::supported() const
 
 bool UpdateChecker::enabled() const
 {
-    // VEDIT: off until the user said yes at the first launch.
-    return QSettings().value(settingsKey("enabled"), false).toBool();
+    // VEDIT: on by default. A new key, so a "no" given to the old first-launch question
+    // does not keep the notice away; the settings switch still turns it off.
+    return QSettings().value(settingsKey("autoCheck"), true).toBool();
 }
 
 bool UpdateChecker::asked() const
 {
-    return QSettings().value(settingsKey("asked"), false).toBool();
+    // VEDIT: the first-launch consent question is gone; Main.qml opens it only while this is false.
+    return true;
 }
 
 void UpdateChecker::answerConsent(bool allow)
 {
     QSettings().setValue(settingsKey("asked"), true);
-    QSettings().setValue(settingsKey("enabled"), allow);
+    QSettings().setValue(settingsKey("autoCheck"), allow); // VEDIT
     emit enabledChanged();
     if (allow)
         QTimer::singleShot(kStartupDelayMs, this, [this] { check(false); });
@@ -191,7 +190,7 @@ void UpdateChecker::setEnabled(bool enabled)
 {
     if (enabled == this->enabled())
         return;
-    QSettings().setValue(settingsKey("enabled"), enabled);
+    QSettings().setValue(settingsKey("autoCheck"), enabled); // VEDIT
     emit enabledChanged();
 }
 
@@ -267,8 +266,7 @@ void UpdateChecker::skipVersion()
 
 void UpdateChecker::openDownloadPage()
 {
-    if (!m_releaseUrl.isEmpty())
-        QDesktopServices::openUrl(QUrl(m_releaseUrl));
+    QDesktopServices::openUrl(QUrl(kGatedDownloadUrl)); // VEDIT: through the sign-up gate
 }
 
 void UpdateChecker::check(bool manual)

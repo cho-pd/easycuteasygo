@@ -931,7 +931,7 @@ Item {
                     opacity: effectCard.effectEnabled ? 1 : 0.45
                     readonly property var target: {
                         void root.clipDataRevision
-                        void EditorState.playheadSeconds
+                        void EditorState.inspectorPlayheadSeconds
                         return occludeSection.isOcclude
                             ? EditorState.effectClipTarget(EditorState.selectedTrack,
                                                            EditorState.selectedClip,

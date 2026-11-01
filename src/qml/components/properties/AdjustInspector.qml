@@ -38,7 +38,7 @@ Item {
 
     readonly property var values: {
         void revision
-        void EditorState.playheadSeconds // VEDIT: keyframed values read as at the playhead
+        void EditorState.inspectorPlayheadSeconds // VEDIT: keyframed values read as at the playhead
         void EditorState.tracksRevision
         return adjustable ? EditorState.clipAdjustValues(EditorState.selectedTrack, EditorState.selectedClip)
                           : ({})
@@ -372,7 +372,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         readonly property var keyState: {
                             void root.revision
-                            void EditorState.playheadSeconds
+                            void EditorState.inspectorPlayheadSeconds
                             void EditorState.tracksRevision
                             return EditorState.clipAdjustKeyState(EditorState.selectedTrack, EditorState.selectedClip,
                                                                   row.modelData.effect, row.modelData.key)
@@ -492,7 +492,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         readonly property var keyState: {
                             void root.revision
-                            void EditorState.playheadSeconds
+                            void EditorState.inspectorPlayheadSeconds
                             void EditorState.tracksRevision
                             return EditorState.clipAdjustKeyState(EditorState.selectedTrack, EditorState.selectedClip,
                                                                   hslRow.modelData.effect, hslRow.modelData.key)

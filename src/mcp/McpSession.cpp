@@ -63,19 +63,19 @@ bool readSessionFile(quint16 *port, QString *token, QString *error)
     if (!file.exists()) {
         if (error) {
             *error = QStringLiteral(
-                "Drift MCP is off. Open Drift and enable Agent access in Settings.");
+                "Agent access is off. Open 'Easy Cut, Easy Go!' and turn it on with the Agent button." /* VEDIT */);
         }
         return false;
     }
     if (!file.open(QIODevice::ReadOnly)) {
         if (error)
-            *error = QStringLiteral("Could not read the Drift MCP session file.");
+            *error = QStringLiteral("Could not read the MCP session file." /* VEDIT */);
         return false;
     }
     const auto doc = QJsonDocument::fromJson(file.readAll());
     if (!doc.isObject()) {
         if (error)
-            *error = QStringLiteral("Drift MCP session file is invalid.");
+            *error = QStringLiteral("MCP session file is invalid." /* VEDIT */);
         return false;
     }
     const QJsonObject o = doc.object();
@@ -83,7 +83,7 @@ bool readSessionFile(quint16 *port, QString *token, QString *error)
     const QString t = o.value(QStringLiteral("token")).toString();
     if (p <= 0 || p > 65535 || t.isEmpty()) {
         if (error)
-            *error = QStringLiteral("Drift MCP session file is incomplete.");
+            *error = QStringLiteral("MCP session file is incomplete." /* VEDIT */);
         return false;
     }
     if (port)

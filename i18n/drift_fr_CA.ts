@@ -6717,10 +6717,6 @@
         <translation>Extras</translation>
     </message>
     <message>
-        <source>Update</source>
-        <translation>Mettre à jour</translation>
-    </message>
-    <message>
         <source>Agent access</source>
         <translation>Accès aux agents</translation>
     </message>
@@ -13392,6 +13388,10 @@ En cas de saccades à la lecture, essayez un autre mode.</translation>
     </message>
     <message>
         <source>Nothing here yet — projects you save will show up in this list.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>is ready to download</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

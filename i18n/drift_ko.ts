@@ -6675,10 +6675,6 @@
         <translation>추가 기능</translation>
     </message>
     <message>
-        <source>Update</source>
-        <translation>업데이트</translation>
-    </message>
-    <message>
         <source>Agent access</source>
         <translation>에이전트 접근</translation>
     </message>
@@ -13339,6 +13335,10 @@ If playback stutters, try another.</source>
     <message>
         <source>Nothing here yet — projects you save will show up in this list.</source>
         <translation>아직 아무것도 없어요 — 저장한 프로젝트가 여기에 나타나요.</translation>
+    </message>
+    <message>
+        <source>is ready to download</source>
+        <translation type="unfinished">새 버전이 나왔어요</translation>
     </message>
 </context>
 <context>

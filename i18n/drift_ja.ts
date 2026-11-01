@@ -6679,10 +6679,6 @@
         <translation>拡張機能</translation>
     </message>
     <message>
-        <source>Update</source>
-        <translation>アップデート</translation>
-    </message>
-    <message>
         <source>Agent access</source>
         <translation>エージェントアクセス</translation>
     </message>
@@ -13339,6 +13335,10 @@ If playback stutters, try another.</source>
     <message>
         <source>Nothing here yet — projects you save will show up in this list.</source>
         <translation>ここにはまだ何もありません — 保存したプロジェクトはこのリストに表示されます。</translation>
+    </message>
+    <message>
+        <source>is ready to download</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

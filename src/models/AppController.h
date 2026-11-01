@@ -109,6 +109,10 @@ class AppController : public QObject
     Q_PROPERTY(bool canGrowTrackHeights READ canGrowTrackHeights NOTIFY tracksChanged)
     Q_PROPERTY(bool canShrinkTrackHeights READ canShrinkTrackHeights NOTIFY tracksChanged)
     Q_PROPERTY(double playheadSeconds READ playheadSeconds WRITE setPlayheadSeconds NOTIFY playheadSecondsChanged)
+    // VEDIT (조박사님: 재생 중 키프레임 끊김): the playhead as the inspectors read it. Exact when
+    // paused; while playing it moves ~10 times a second, so a keyed value's readout does not
+    // re-lay out every row on every 60 Hz tick.
+    Q_PROPERTY(double inspectorPlayheadSeconds READ inspectorPlayheadSeconds NOTIFY inspectorPlayheadSecondsChanged)
     Q_PROPERTY(double durationSeconds READ durationSeconds NOTIFY tracksChanged)
     Q_PROPERTY(bool playing READ playing WRITE setPlaying NOTIFY playingChanged)
     // VEDIT (조박사님, Vegas volume envelope): the volume keyframe picked on an audio clip's
@@ -482,6 +486,7 @@ public:
     int trackCount() const { return m_project.tracks().size(); }
     int clipCount() const;
     double playheadSeconds() const;
+    double inspectorPlayheadSeconds() const; // VEDIT
     double durationSeconds() const;
     // {start, duration} covering every clip on a video or audio track, for the subtitle lane's
     // voice waveform. In C++ because the QML that needed it was reading the whole `tracks` graph.
@@ -2314,6 +2319,7 @@ signals:
     void clipPropertiesPreviewed(int trackIndex, int clipIndex, const QStringList &keys);
     void previewDragActiveChanged();
     void playheadSecondsChanged();
+    void inspectorPlayheadSecondsChanged(); // VEDIT
     void playingChanged();
     void renderCacheChanged(); // VEDIT
     void selectedVolumeKeyChanged(); // VEDIT
@@ -2537,6 +2543,10 @@ protected:
     void notifySelectionChanged();
 
     void pushProjectEdit(const drift::Project &before, const QString &text);
+    // VEDIT (조박사님: 재생 중 키프레임 끊김): pushProjectEdit for a keyframe edit, always followed
+    // by finishEdit. While playing, the two announce the edit once between them rather than
+    // running the whole UI refresh three times over on the GUI thread the picture waits on.
+    void pushKeyframeEdit(const drift::Project &before, const QString &text);
 
     // Lifts one effect, one audio effect, or the whole stack off a clip. Every copy and
     // save-as-preset entry point funnels through this, so all of them produce one payload shape.
@@ -2917,6 +2927,9 @@ protected:
     drift::TimeUs m_trimGestureLastInputUs = -1;
     int m_trimGestureLastOutcome = 0;
     drift::TimeUs m_playheadUs = 0;
+    drift::TimeUs m_inspectorPlayheadUs = 0; // VEDIT: see inspectorPlayheadSeconds
+    QElapsedTimer m_inspectorPlayheadTimer; // VEDIT
+    bool m_keyframeEditWhilePlaying = false; // VEDIT: see pushKeyframeEdit
     bool m_playing = false;
     bool m_snapEnabled = true;
     bool m_rippleEnabled = s_defaultRippleEnabled; // VEDIT

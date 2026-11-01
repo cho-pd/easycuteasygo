@@ -814,6 +814,11 @@ AppController::AppController(AssetLibrary *assetLibrary, QObject *parent)
     connect(&m_undoStack, &QUndoStack::indexChanged, this, [this] {
         m_timelineModel.refresh();
         m_clipListModel.refresh();
+        // VEDIT: finishEdit is about to announce this one; a keyframe touches none of the rest.
+        if (m_keyframeEditWhilePlaying) {
+            setDirty(true);
+            return;
+        }
         // Undo/redo swaps the whole project, including the asset table the
         // media bin reads through; without this an undone removal leaves the
         // model with a stale row count.
@@ -970,6 +975,21 @@ AppController::AppController(AssetLibrary *assetLibrary, QObject *parent)
         m_playheadUs = newUs;
         emit playheadSecondsChanged();
     });
+    // VEDIT (조박사님: 재생 중 키프레임 끊김): see inspectorPlayheadSeconds. Connected ahead of QML's
+    // own connections, so a paused seek is already exact when the inspectors read it.
+    const auto syncInspectorPlayhead = [this] {
+        constexpr qint64 kPlayingIntervalMs = 100;
+        if (m_inspectorPlayheadUs == m_playheadUs
+            || (m_playing && m_inspectorPlayheadTimer.isValid()
+                && m_inspectorPlayheadTimer.elapsed() < kPlayingIntervalMs)) {
+            return;
+        }
+        m_inspectorPlayheadTimer.start();
+        m_inspectorPlayheadUs = m_playheadUs;
+        emit inspectorPlayheadSecondsChanged();
+    };
+    connect(this, &AppController::playheadSecondsChanged, this, syncInspectorPlayhead);
+    connect(this, &AppController::playingChanged, this, syncInspectorPlayhead);
     connect(&m_playback, &PlaybackEngine::playingChanged, this, [this] {
         if (!m_playback.isPlaying() && m_playing) {
             m_playing = false;
@@ -7155,6 +7175,12 @@ void AppController::pushProjectEdit(const drift::Project &before, const QString 
     m_undoStack.push(new drift::ProjectSnapshotCommand(&m_project, before, m_project, text));
 }
 
+void AppController::pushKeyframeEdit(const drift::Project &before, const QString &text)
+{
+    m_keyframeEditWhilePlaying = m_playback.isPlaying();
+    pushProjectEdit(before, text);
+}
+
 // The track CapCut calls the main track: the bottom-most video track (what everything else is
 // composited over). -1 when there is none.
 static int veditMainTrackIndex(const drift::Project &project)
@@ -7331,6 +7357,8 @@ void compactTrackClips(drift::Project &project, int trackIndex)
 
 void AppController::finishEdit(const QString &message)
 {
+    // VEDIT: see pushKeyframeEdit. Taken here so one edit's lightness can never outlive it.
+    const bool keyframeEditWhilePlaying = std::exchange(m_keyframeEditWhilePlaying, false);
     // VEDIT: safety net for edit paths that never reach pushProjectEdit (preview drags).
     scheduleEmptyTrackCleanup();
     // VEDIT: wherever two clips overlap the overlap is a curved crossfade, whatever path made the
@@ -7349,6 +7377,9 @@ void AppController::finishEdit(const QString &message)
     // paths that can move one, so a drag, trim, split, ripple delete or multicam retarget all
     // keep the link true for free.
     syncLinkedAdjustments(m_project);
+    const auto selectionBefore = m_selection; // VEDIT
+    const int selectedTrackBefore = m_selectedTrack; // VEDIT
+    const int selectedClipBefore = m_selectedClip; // VEDIT
     normalizeSelection();
     if (m_selectedTransitionTrack >= 0) {
         const QVariantMap selected = selectedTransitionData();
@@ -7370,8 +7401,13 @@ void AppController::finishEdit(const QString &message)
     if (!m_beatAnalysis.isEmpty() && audioLayoutFingerprint() != m_beatAudioFingerprint)
         clearBeatAnalysis();
     notifyTracksChanged();
-    notifySelectionChanged();
-    emit selectedClipDataChanged();
+    // VEDIT: tracksChanged has just refreshed selectedClipData as well, and a keyframe moves no
+    // selection — so while playing, nothing is left to say unless it really did change.
+    if (!keyframeEditWhilePlaying || m_selection != selectionBefore
+        || m_selectedTrack != selectedTrackBefore || m_selectedClip != selectedClipBefore) {
+        notifySelectionChanged();
+        emit selectedClipDataChanged();
+    }
     // Routine edits used to announce themselves here ("Clip moved", "Split
     // clip", ...), which surfaced as a toast for every drag and cut. The
     // timeline already shows the result and the label lives on in the undo
@@ -20998,7 +21034,7 @@ void AppController::setClipKeyframe(int trackIndex, int clipIndex, const QString
         return;
     if (prop == QLatin1String("volume"))
         smoothVolumeEnvelope(clip); // VEDIT
-    pushProjectEdit(before, tr("Add keyframe"));
+    pushKeyframeEdit(before, tr("Add keyframe")); // VEDIT
     finishEdit(tr("Keyframe set"));
 }
 
@@ -21017,7 +21053,7 @@ void AppController::setClipColorKeyframe(int trackIndex, int clipIndex, const QS
         any = writeClipPropValue(clip, prop + QLatin1String(suffixes[i]), rel, channels[i], m_autoKeyEnabled, /*force=*/true) || any;
     if (!any)
         return;
-    pushProjectEdit(before, tr("Add keyframe"));
+    pushKeyframeEdit(before, tr("Add keyframe")); // VEDIT
     finishEdit(tr("Keyframe set"));
 }
 
@@ -21046,7 +21082,7 @@ void AppController::removeClipKeyframe(int trackIndex, int clipIndex, const QStr
     kt->removeKeyframe(nearest);
     if (prop == QLatin1String("volume"))
         smoothVolumeEnvelope(clip); // VEDIT
-    pushProjectEdit(before, tr("Remove keyframe"));
+    pushKeyframeEdit(before, tr("Remove keyframe")); // VEDIT
     finishEdit(tr("Keyframe removed"));
 }
 
@@ -21126,6 +21162,11 @@ void AppController::applyTangents(drift::Keyframe<double> &key, double inDx, dou
 
 // The inspector's live readout. Exposed so QML does not have to carry its own copy of the
 // interpolation math — which is no longer a two-line lerp now that keys have tangents.
+double AppController::inspectorPlayheadSeconds() const
+{
+    return drift::usToSeconds(m_inspectorPlayheadUs);
+}
+
 double AppController::propertyValueAt(int trackIndex, int clipIndex, const QString &prop,
                                       double atSeconds, double fallback) const
 {
@@ -21338,7 +21379,7 @@ void AppController::moveClipKeyframesAt(int trackIndex, int clipIndex, double fr
     }
     if (!moved)
         return;
-    pushProjectEdit(before, tr("Move keyframe"));
+    pushKeyframeEdit(before, tr("Move keyframe")); // VEDIT
     finishEdit(tr("Keyframe moved"));
 }
 
@@ -21386,7 +21427,7 @@ void AppController::addClipKeyframesAt(int trackIndex, int clipIndex, double sec
     }
     if (!added)
         return;
-    pushProjectEdit(before, tr("Keyframe"));
+    pushKeyframeEdit(before, tr("Keyframe")); // VEDIT
     finishEdit(tr("Keyframe"));
     int t = -1, c = -1;
     if (findClipById(m_project, clipId, &t, &c))
@@ -21427,7 +21468,7 @@ void AppController::deleteClipKeyframesAt(int trackIndex, int clipIndex, double 
     }
     if (!removed)
         return;
-    pushProjectEdit(before, tr("Delete keyframe"));
+    pushKeyframeEdit(before, tr("Delete keyframe")); // VEDIT
     finishEdit(tr("Keyframe deleted"));
 }
 
@@ -21504,7 +21545,7 @@ void AppController::toggleClipPropsKeyframe(int trackIndex, int clipIndex, const
             veditPlaceUserKey(*kt, rel, value); // VEDIT: a key on the first frame stays a key
         }
     }
-    pushProjectEdit(before, tr("Keyframe"));
+    pushKeyframeEdit(before, tr("Keyframe")); // VEDIT
     finishEdit(tr("Keyframe"));
 }
 
@@ -21547,7 +21588,7 @@ void AppController::toggleClipKeyframeHere(int trackIndex, int clipIndex, const 
     }
     if (prop == QLatin1String("volume"))
         smoothVolumeEnvelope(clip);
-    pushProjectEdit(before, remove ? tr("Remove keyframe") : tr("Add keyframe"));
+    pushKeyframeEdit(before, remove ? tr("Remove keyframe") : tr("Add keyframe")); // VEDIT
     finishEdit(remove ? tr("Keyframe removed") : tr("Keyframe set"));
 }
 
@@ -21660,7 +21701,7 @@ void AppController::setKeyframeInterpolation(int trackIndex, int clipIndex, cons
 
     const drift::Project before = m_project;
     kt->setEasing(at, drift::interpolationFromString(mode));
-    pushProjectEdit(before, tr("Keyframe easing changed"));
+    pushKeyframeEdit(before, tr("Keyframe easing changed")); // VEDIT
     finishEdit(tr("Keyframe easing updated"));
 }
 
@@ -21674,7 +21715,7 @@ void AppController::setKeyframeTangents(int trackIndex, int clipIndex, const QSt
 
     const drift::Project before = m_project;
     applyTangents(*key, inDx, inDy, outDx, outDy, corner);
-    pushProjectEdit(before, tr("Keyframe curve changed"));
+    pushKeyframeEdit(before, tr("Keyframe curve changed")); // VEDIT
     finishEdit(tr("Keyframe curve updated"));
 }
 
@@ -21701,7 +21742,7 @@ void AppController::setKeyframeHold(int trackIndex, int clipIndex, const QString
 
     const drift::Project before = m_project;
     key->hold = hold;
-    pushProjectEdit(before, tr("Keyframe hold changed"));
+    pushKeyframeEdit(before, tr("Keyframe hold changed")); // VEDIT
     finishEdit(hold ? tr("Keyframe holds") : tr("Keyframe interpolates"));
 }
 
@@ -34127,7 +34168,7 @@ void AppController::keyframeAllClipAdjust(int trackIndex, int clipIndex, const Q
     }
     m_mcpUndoSuspended = wasSuspended;
     // The toggles above each recorded nothing (suspended); this is the one step for all of them.
-    pushProjectEdit(before, tr("Keyframe"));
+    pushKeyframeEdit(before, tr("Keyframe")); // VEDIT
     finishEdit(tr("Keyframe"));
 }
 
@@ -34180,7 +34221,7 @@ void AppController::toggleClipAdjustKeyframe(int trackIndex, int clipIndex, cons
         }
         break;
     }
-    pushProjectEdit(before, tr("Keyframe"));
+    pushKeyframeEdit(before, tr("Keyframe")); // VEDIT
     finishEdit(tr("Keyframe"));
 }
 
