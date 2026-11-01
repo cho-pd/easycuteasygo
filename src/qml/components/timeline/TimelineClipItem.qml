@@ -688,28 +688,22 @@ Item {
             readonly property real outW: Math.min(width, (clipItem.clipData.animOutLength || 0) * panel.pxPerSecond)
             readonly property bool combo: (clipItem.clipData.animComboId || "").length > 0
             readonly property color markColor: Qt.rgba(1.0, 0.82, 0.35, 0.85)
-            // VEDIT (조박사님 2026-10-31): 들어오기 and 나가기 each have their own strong color. The
-            // old faint yellow vanished on a light clip such as a caption.
-            readonly property color inColor: "#ff9a1f"
-            readonly property color outColor: "#ff4f9a"
+            // VEDIT (조박사님 2026-10-31): 들어오기 and 나가기 are one plain gray, no color of their own.
+            readonly property color edgeColor: "#6e6e6e"
 
-            // VEDIT (조박사님): the 들어오기 / 나가기 stretch of the clip tinted, fading toward the
-            // middle, with a line where it ends, so where a movement plays reads at a glance.
+            // VEDIT (조박사님): the 들어오기 / 나가기 stretch of the clip tinted, with a line where it
+            // ends, so where a movement plays reads at a glance.
             Rectangle {
                 visible: !animMarks.combo && animMarks.inW > 1
                 x: 0
                 width: animMarks.inW
                 height: parent.height
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Qt.rgba(animMarks.inColor.r, animMarks.inColor.g, animMarks.inColor.b, 0.8) }
-                    GradientStop { position: 1.0; color: Qt.rgba(animMarks.inColor.r, animMarks.inColor.g, animMarks.inColor.b, 0.35) }
-                }
+                color: Qt.rgba(animMarks.edgeColor.r, animMarks.edgeColor.g, animMarks.edgeColor.b, 0.75)
                 Rectangle {
                     anchors.right: parent.right
-                    width: 2
+                    width: 1
                     height: parent.height
-                    color: animMarks.inColor
+                    color: animMarks.edgeColor
                 }
             }
             Rectangle {
@@ -717,16 +711,12 @@ Item {
                 x: parent.width - width
                 width: animMarks.outW
                 height: parent.height
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Qt.rgba(animMarks.outColor.r, animMarks.outColor.g, animMarks.outColor.b, 0.35) }
-                    GradientStop { position: 1.0; color: Qt.rgba(animMarks.outColor.r, animMarks.outColor.g, animMarks.outColor.b, 0.8) }
-                }
+                color: Qt.rgba(animMarks.edgeColor.r, animMarks.edgeColor.g, animMarks.edgeColor.b, 0.75)
                 Rectangle {
                     anchors.left: parent.left
-                    width: 2
+                    width: 1
                     height: parent.height
-                    color: animMarks.outColor
+                    color: animMarks.edgeColor
                 }
             }
 
@@ -745,13 +735,13 @@ Item {
                 y: parent.height - height
                 width: animMarks.inW
                 height: 4
-                color: animMarks.inColor
+                color: animMarks.edgeColor
                 Text {
                     visible: parent.width >= 14
                     anchors.right: parent.right
                     anchors.bottom: parent.top
                     text: "\u203A" // ›
-                    color: animMarks.inColor
+                    color: animMarks.edgeColor
                     font.pixelSize: 14
                     font.bold: true
                 }
@@ -762,13 +752,13 @@ Item {
                 y: parent.height - height
                 width: animMarks.outW
                 height: 4
-                color: animMarks.outColor
+                color: animMarks.edgeColor
                 Text {
                     visible: parent.width >= 14
                     anchors.left: parent.left
                     anchors.bottom: parent.top
                     text: "\u203A"
-                    color: animMarks.outColor
+                    color: animMarks.edgeColor
                     font.pixelSize: 14
                     font.bold: true
                 }
