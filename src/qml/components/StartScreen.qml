@@ -588,11 +588,11 @@ Rectangle {
         ToolTip.text: "'Easy Cut, Easy Go!' " + Updates.latestVersion + " " + qsTr("is ready to download")
     }
 
-    // VEDIT (조박사님): the version, small, at the foot in the middle — as on the splash.
+    // VEDIT (조박사님 2026-10-31): the version sits at the top right, just under the update notice.
+    // The notice keeps its place even when hidden, so the number does not jump.
     Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 14
+        anchors.horizontalCenter: startUpdateNotice.horizontalCenter
+        anchors.top: startUpdateNotice.bottom
         visible: typeof veditBuildNumber !== "undefined" && veditBuildNumber > 0
         text: visible ? "v1.0." + veditBuildNumber : ""
         color: Theme.mutedForeground
