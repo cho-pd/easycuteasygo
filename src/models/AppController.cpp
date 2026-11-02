@@ -1922,7 +1922,18 @@ drift::TimeUs veditTextAnimSpanUs(const drift::Clip &clip, bool out)
     return drift::textAnimationSlotNaturalSpanUs(slot, out, int(text.size()));
 }
 
-// A side that just got a text animation starts at 1 s (CapCut's default) and drops its fade.
+// VEDIT (조박사님 2026-11-01): a text side whose animation only fades is a fade — the strip draws
+// its curve, and only a real movement shows as a stretch.
+bool veditTextSideIsFade(const drift::Clip &clip, bool out)
+{
+    if (clip.type != drift::ClipType::Text)
+        return false;
+    const drift::TextAnimationSlot &slot = out ? clip.textStyle.animation.out : clip.textStyle.animation.in;
+    return slot.isActive() && slot.presetId == QLatin1String("fade");
+}
+
+// A side that just got a text animation takes the length of the fade it replaces, or 1 s (CapCut's
+// default) when there was none, and drops its fade.
 void veditSettleTextAnimSide(drift::Clip &clip, const QString &side)
 {
     if (side != QLatin1String("in") && side != QLatin1String("out"))
@@ -1933,8 +1944,12 @@ void veditSettleTextAnimSide(drift::Clip &clip, const QString &side)
         slot.spanUs = 0;
         return;
     }
-    if (slot.spanUs <= 0)
-        slot.spanUs = qMin<drift::TimeUs>(1'000'000, qMax<drift::TimeUs>(1, clip.timelineDuration / 2));
+    if (slot.spanUs <= 0) {
+        const drift::TimeUs fade = out ? clip.fadeOutUs : clip.fadeInUs;
+        slot.spanUs = fade > 0
+            ? qMin(fade, clip.timelineDuration)
+            : qMin<drift::TimeUs>(1'000'000, qMax<drift::TimeUs>(1, clip.timelineDuration / 2));
+    }
     if (out) {
         clip.fadeOutUs = 0;
         if (clip.animOut.kind == drift::ClipAnimKind::Fade)
@@ -4702,8 +4717,14 @@ TimelineClipsModel::Row AppController::clipRow(const drift::Clip &clip,
         return a.kind == drift::ClipAnimKind::None || a.kind == drift::ClipAnimKind::Fade
                    ? 0.0 : drift::usToSeconds(a.durationUs);
     };
-    row.animIn = qMax(motionLength(clip.animIn), drift::usToSeconds(veditTextAnimSpanUs(clip, false)));
-    row.animOut = qMax(motionLength(clip.animOut), drift::usToSeconds(veditTextAnimSpanUs(clip, true)));
+    const double textIn = drift::usToSeconds(veditTextAnimSpanUs(clip, false));
+    const double textOut = drift::usToSeconds(veditTextAnimSpanUs(clip, true));
+    if (veditTextSideIsFade(clip, false))
+        row.fadeIn = textIn;
+    if (veditTextSideIsFade(clip, true))
+        row.fadeOut = textOut;
+    row.animIn = qMax(motionLength(clip.animIn), veditTextSideIsFade(clip, false) ? 0.0 : textIn);
+    row.animOut = qMax(motionLength(clip.animOut), veditTextSideIsFade(clip, true) ? 0.0 : textOut);
     row.animCombo = clip.animCombo;
     row.fadeCurve = drift::fadeCurveToString(clip.fadeCurve);
     row.fadeOutCurve = drift::fadeCurveToString(clip.effectiveFadeOutCurve()); // VEDIT
@@ -19559,13 +19580,16 @@ void AppController::setClipAnimation(int trackIndex, int clipIndex, const QStrin
         next.curve = drift::clipAnimEaseToCurve(next.ease);
     }
 
-    // VEDIT (조박사님): a movement given to a side that had none lasts 1 s to begin with.
+    // VEDIT (조박사님): a movement given to a side lasts as long as the fade it replaces, or 1 s
+    // to begin with when the side had none.
     {
         const drift::ClipAnimation &was = isIn ? clip.animIn : clip.animOut;
         if (next.kind != drift::ClipAnimKind::None && next.kind != drift::ClipAnimKind::Fade
             && (was.kind == drift::ClipAnimKind::None || was.kind == drift::ClipAnimKind::Fade)
-            && !patch.contains(QStringLiteral("duration")))
-            next.durationUs = drift::kUsPerSecond;
+            && !patch.contains(QStringLiteral("duration"))) {
+            const drift::TimeUs fade = isIn ? clip.fadeInUs : clip.fadeOutUs;
+            next.durationUs = fade > 0 ? fade : drift::kUsPerSecond;
+        }
     }
     if (next.kind != drift::ClipAnimKind::None && next.durationUs <= 0)
         next.durationUs = drift::kUsPerSecond; // VEDIT: was 0.5 s

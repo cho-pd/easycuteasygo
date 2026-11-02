@@ -267,6 +267,7 @@ void UpdateChecker::skipVersion()
 void UpdateChecker::openDownloadPage()
 {
     QDesktopServices::openUrl(QUrl(kGatedDownloadUrl)); // VEDIT: through the sign-up gate
+    emit downloadPageOpened(); // VEDIT
 }
 
 void UpdateChecker::check(bool manual)

@@ -83,6 +83,9 @@ signals:
     void resultChanged();
     void statusChanged();
     void downloadChanged(); // VEDIT
+    // VEDIT (조박사님 2026-10-31): the desktop window closes itself on this, so the installer
+    // finds nothing running.
+    void downloadPageOpened();
 
 private:
     void check(bool manual);

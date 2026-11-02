@@ -92,6 +92,22 @@ ApplicationWindow {
         })
     }
 
+    // VEDIT (조박사님 2026-10-31): pressing update closes the program, not just the project, so
+    // the installer finds nothing running. The work is saved first, as for any quit.
+    Connections {
+        target: Updates
+        function onDownloadPageOpened() {
+            if (window.previewFullscreen)
+                window.togglePreviewFullscreen()
+            EditorState.autoSaveNow()
+            editorHeader.confirmIfDirty(function () {
+                EditorState.discardUnsavedChanges()
+                window.forceClose = true
+                window.close()
+            })
+        }
+    }
+
     // ── Session layout memory ───────────────────────────────────────────────────
     // Window placement and panel proportions come back from the last session
     // (LayoutStore / QSettings) instead of resetting to the defaults every launch.
